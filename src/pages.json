@@ -25,6 +25,22 @@
       }
     },
     {
+      "path": "pages/stats/category",
+      "style": {
+        "navigationBarTitleText": "分类详情",
+        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/stats/list",
+      "style": {
+        "navigationBarTitleText": "账单明细",
+        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/assets/index",
       "style": {
         "navigationBarTitleText": "资产",
@@ -56,20 +72,20 @@
       {
         "pagePath": "pages/index/index",
         "text": "明细",
-        "iconPath": "static/tabbar/list.png",
-        "selectedIconPath": "static/tabbar/list-active.png"
-      },
-      {
-        "pagePath": "pages/stats/index",
-        "text": "统计",
-        "iconPath": "static/tabbar/chart.png",
-        "selectedIconPath": "static/tabbar/chart-active.png"
+        "iconPath": "static/tabbar/list.svg",
+        "selectedIconPath": "static/tabbar/list-active.svg"
       },
       {
         "pagePath": "pages/assets/index",
         "text": "资产",
-        "iconPath": "static/tabbar/wallet.png",
-        "selectedIconPath": "static/tabbar/wallet-active.png"
+        "iconPath": "static/tabbar/wallet.svg",
+        "selectedIconPath": "static/tabbar/wallet-active.svg"
+      },
+      {
+        "pagePath": "pages/stats/index",
+        "text": "统计",
+        "iconPath": "static/tabbar/chart.svg",
+        "selectedIconPath": "static/tabbar/chart-active.svg"
       }
     ]
   }

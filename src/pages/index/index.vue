@@ -2,25 +2,29 @@
   <view class="container">
     <view class="fixed-header">
         <view class="header">
-        <text class="title">本月支出</text>
-        <text class="amount">¥ {{ currentMonthExpense }}</text>
+          <picker mode="date" fields="month" :value="currentMonthStr" @change="onMonthChange">
+            <view class="title-wrapper">
+              <text class="title">{{ currentMonthStr }} 支出 ▼</text>
+            </view>
+          </picker>
+          <text class="amount">¥ {{ currentMonthExpense }}</text>
         </view>
         
         <view class="actions">
-        <button class="neu-btn add-btn" @click="goAddBill">+ 记一笔</button>
+          <button class="neu-btn add-btn" @click="goAddBill">+ 记一笔</button>
         </view>
     </view>
 
     <scroll-view scroll-y class="bill-scroll">
         <view class="bill-list">
-        <view v-if="recentBills.length === 0" class="empty-tip">暂无账单</view>
-        <view v-for="bill in recentBills" :key="bill.id" class="neu-card bill-item" @longpress="deleteBill(bill.id)">
+          <view v-if="displayedBills.length === 0" class="empty-tip">本月暂无账单</view>
+          <view v-for="bill in displayedBills" :key="bill.id" class="neu-card bill-item" @longpress="deleteBill(bill.id)">
             <view class="bill-left">
             <view class="icon-box">
                 <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : '¥' }}</text>
             </view>
             <view class="bill-info">
-                <text class="category-name">{{ bill.type === 'transfer' ? '转账' : getCategoryName(bill.subCategoryId) }}</text>
+                <text class="category-name">{{ bill.type === 'transfer' ? '转账' : getCategoryName(bill.subCategoryId || bill.parentCategoryId) }}</text>
                 <text class="bill-date" v-if="bill.type === 'transfer'">{{ formatDate(bill.timestamp) }} | {{ getAssetName(bill.assetId) }} → {{ getAssetName(bill.targetAssetId) }}</text>
                 <text class="bill-date" v-else>{{ formatDate(bill.timestamp) }} | {{ getAssetName(bill.assetId) }}</text>
             </view>
@@ -54,19 +58,31 @@ onShow(() => {
   billStore.init()
 })
 
-const currentMonthExpense = computed(() => {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).getTime()
+const now = new Date()
+const currentMonthStr = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+
+const onMonthChange = (e) => {
+  currentMonthStr.value = e.detail.value
+}
+
+const currentMonthBills = computed(() => {
+  const [year, month] = currentMonthStr.value.split('-').map(Number)
+  const start = new Date(year, month - 1, 1).getTime()
+  // Last day of the month
+  const end = new Date(year, month, 0, 23, 59, 59, 999).getTime()
   
-  return billStore.bills
-    .filter(b => b.timestamp >= start && b.timestamp <= end && b.type === 'expense')
+  return billStore.bills.filter(b => b.timestamp >= start && b.timestamp <= end)
+})
+
+const currentMonthExpense = computed(() => {
+  return currentMonthBills.value
+    .filter(b => b.type === 'expense')
     .reduce((acc, cur) => acc + Math.abs(cur.amount), 0)
     .toFixed(2)
 })
 
-const recentBills = computed(() => {
-  return [...billStore.bills].sort((a, b) => b.timestamp - a.timestamp).slice(0, 20)
+const displayedBills = computed(() => {
+  return [...currentMonthBills.value].sort((a, b) => b.timestamp - a.timestamp)
 })
 
 const goAddBill = () => {
@@ -127,7 +143,6 @@ const deleteBill = (id) => {
   font-size: 14px;
   color: var(--color-text-light);
   display: block;
-  margin-bottom: 10px;
 }
 .amount {
   font-size: 40px;
@@ -138,9 +153,16 @@ const deleteBill = (id) => {
   width: 100%;
   height: 60px;
   font-size: 18px;
-  margin-bottom: 20px;
+  margin-bottom: 10px; /* Reduced margin */
   border: none;
   /* Neumorphism Button is defined in App.vue .neu-btn */
+}
+
+.title-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .bill-scroll {

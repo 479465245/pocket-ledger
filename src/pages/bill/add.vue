@@ -280,15 +280,17 @@ const selectCategory = (cat) => {
     selectedParentId.value = cat.id // Always set as parent context
     form.parentCategoryId = cat.id
     
-    // Default subcategory logic
-    // If it has children, user must pick one? Or default to none?
-    // Usually selecting parent implies "General" under parent if specific sub not picked.
-    // But let's select the parent ID as subCategoryId initially.
-    form.subCategoryId = cat.id 
+    // 默认不选择子分类，如果用户需要子分类必须手动选择
+    // 这样可以在统计时正确区分"直接属于父分类"和"属于子分类"的账单
+    form.subCategoryId = ''
     
     console.log('Children:', cat.children)
 }
 
+const selectSubCategory = (sub) => {
+    form.subCategoryId = sub.id
+    console.log('Select Sub Category:', sub.name, sub.id)
+}
 
 const goManageCategories = () => {
     uni.navigateTo({ url: '/pages/categories/index' })
@@ -383,6 +385,19 @@ const submit = async () => {
             finalAmount = Math.abs(val)
         }
 
+        // Create timestamp with current time for proper sorting
+        const now = new Date()
+        const selectedDate = new Date(form.date)
+        const timestamp = new Date(
+            selectedDate.getFullYear(),
+            selectedDate.getMonth(),
+            selectedDate.getDate(),
+            now.getHours(),
+            now.getMinutes(),
+            now.getSeconds(),
+            now.getMilliseconds()
+        ).getTime()
+
         await billStore.addBill({
             amount: finalAmount,
             parentCategoryId: form.parentCategoryId,
@@ -390,7 +405,7 @@ const submit = async () => {
             assetId: form.assetId,
             targetAssetId: currentTab.value === 'transfer' ? form.targetAssetId : undefined,
             type: currentTab.value,
-            timestamp: new Date(form.date).getTime(),
+            timestamp: timestamp,
             remark: form.remark,
             isIncludedInStats: form.isIncludedInStats
         })
@@ -412,7 +427,8 @@ const submit = async () => {
 .container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%; /* Match page height */
+  /* height: calc(100vh - var(--window-top)); */ /* Try this for H5 if navbar issue persists */
   background-color: var(--color-bg);
   overflow: hidden;
 }
@@ -548,7 +564,8 @@ const submit = async () => {
     border-radius: 30px 30px 0 0;
     box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
     padding: 20px;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: calc(20px + constant(safe-area-inset-bottom));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
     flex-shrink: 0;
 }
 

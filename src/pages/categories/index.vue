@@ -418,9 +418,8 @@ const confirmDelete = () => {
 .container {
   padding: 0;
   background-color: #FFF9F0;
-  min-height: 100vh;
   /* Flex Layout for No-Global-Scroll */
-  height: 100vh;
+  height: 100%; /* Match page height */
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -609,7 +608,8 @@ const confirmDelete = () => {
 
 .add-main-btn {
   margin: 20rpx 40rpx;
-  margin-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  margin-bottom: calc(40rpx + constant(safe-area-inset-bottom));
+  margin-bottom: calc(40rpx + env(safe-area-inset-bottom));
   flex-shrink: 0; /* Fixed at bottom */
   background: #E0E5EC;
   box-shadow: 6px 6px 12px #b8b9be, -6px -6px 12px #ffffff;

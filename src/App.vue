@@ -38,8 +38,15 @@ page {
   background-color: #FFF9F0;
   color: #4A4A4A;
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Segoe UI, Arial, Roboto, 'PingFang SC', 'miui', 'Hiragino Sans GB', 'Microsoft Yahei', sans-serif;
-  height: 100%;
+  height: 100vh; /* Restore to 100vh to ensure full viewport coverage including navbar handling by framework */
+  /* However, H5 100vh includes browser bars. uni-app 'window' height usually handles this. */
+  /* Let's try sticking to 100% or calc(100vh - var(--window-top)) if using custom nav */
+  /* Since we use default nav, page height should be content height. */
+  /* For flex layout to work full screen: */
+  height: 100%; 
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Utilities */
