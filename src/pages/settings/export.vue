@@ -1,0 +1,539 @@
+<template>
+  <view class="container">
+    <view class="content-card neu-card">
+      <view class="icon-wrapper">
+        <text class="icon">📤</text>
+      </view>
+      <text class="title">导出数据</text>
+      <text class="description">将账单数据导出为 Excel 格式</text>
+      
+      <!-- 日期范围选择 -->
+      <view class="date-range-section">
+        <text class="section-title">选择日期范围</text>
+        <view class="date-inputs">
+          <view class="date-input-wrapper">
+            <text class="date-label">开始日期</text>
+            <picker 
+              mode="date" 
+              :value="startDate" 
+              @change="onStartDateChange"
+              class="date-picker neu-input"
+            >
+              <view class="date-text">{{ startDate }}</view>
+            </picker>
+          </view>
+          <view class="date-input-wrapper">
+            <text class="date-label">结束日期</text>
+            <picker 
+              mode="date" 
+              :value="endDate" 
+              @change="onEndDateChange"
+              class="date-picker neu-input"
+            >
+              <view class="date-text">{{ endDate }}</view>
+            </picker>
+          </view>
+        </view>
+        
+        <!-- 快速选择按钮 -->
+        <view class="quick-select">
+          <button 
+            v-for="option in quickOptions" 
+            :key="option.key"
+            class="quick-btn neu-btn"
+            @click="selectQuickRange(option.key)"
+          >
+            {{ option.label }}
+          </button>
+        </view>
+      </view>
+      
+      <!-- 导出按钮 -->
+      <button 
+        class="neu-btn primary-btn" 
+        @click="handleExport"
+        :disabled="isExporting"
+      >
+        <text v-if="isExporting">导出中...</text>
+        <text v-else>导出账单</text>
+      </button>
+      
+      <!-- 导出说明 -->
+      <view class="tips">
+        <text class="tip-title">导出说明：</text>
+        <text class="tip-item">1. 包含指定日期范围内的所有账单记录</text>
+        <text class="tip-item">2. 导出格式为 Excel (.xls)</text>
+        <text class="tip-item">3. 包含列：日期、资产、明细分类、金额、备注</text>
+        <text class="tip-item">4. 可在电脑上进行数据分析</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { useBillStore } from '@/store/bill'
+import { useAssetStore } from '@/store/asset'
+import { useCategoryStore } from '@/store/category'
+
+const billStore = useBillStore()
+const assetStore = useAssetStore()
+const categoryStore = useCategoryStore()
+
+const isExporting = ref(false)
+const startDate = ref(getDateString(new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000))) // 30天前
+const endDate = ref(getDateString(new Date()))
+
+const quickOptions = [
+  { key: '7days', label: '近7天' },
+  { key: '30days', label: '近30天' },
+  { key: 'thisMonth', label: '本月' },
+  { key: 'lastMonth', label: '上月' }
+]
+
+function getDateString(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function onStartDateChange(e) {
+  startDate.value = e.detail.value
+}
+
+function onEndDateChange(e) {
+  endDate.value = e.detail.value
+}
+
+function selectQuickRange(key) {
+  const today = new Date()
+  let start, end
+  
+  switch (key) {
+    case '7days':
+      start = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+      end = today
+      break
+    case '30days':
+      start = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+      end = today
+      break
+    case 'thisMonth':
+      start = new Date(today.getFullYear(), today.getMonth(), 1)
+      end = today
+      break
+    case 'lastMonth':
+      start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      end = new Date(today.getFullYear(), today.getMonth(), 0)
+      break
+  }
+  
+  startDate.value = getDateString(start)
+  endDate.value = getDateString(end)
+}
+
+const handleExport = async () => {
+  if (isExporting.value) return
+  
+  // 验证日期范围
+  if (new Date(startDate.value) > new Date(endDate.value)) {
+    uni.showToast({
+      title: '开始日期不能晚于结束日期',
+      icon: 'none'
+    })
+    return
+  }
+  
+  isExporting.value = true
+  
+  try {
+    // 获取日期范围内的账单数据
+    const startTimestamp = new Date(startDate.value + ' 00:00:00').getTime()
+    const endTimestamp = new Date(endDate.value + ' 23:59:59').getTime()
+    
+    const filteredBills = billStore.bills.filter(bill => {
+      return bill.timestamp >= startTimestamp && bill.timestamp <= endTimestamp
+    })
+    
+    // 如果没有账单数据，创建测试数据用于演示
+    if (filteredBills.length === 0 && billStore.bills.length === 0) {
+      // 创建测试数据
+      const testBills = [
+        {
+          id: 'test1',
+          amount: 25.5,
+          assetId: 'a1',
+          parentCategoryId: 'c1',
+          subCategoryId: 'c1-1',
+          note: '早餐测试数据',
+          timestamp: new Date('2024-01-15 08:30:00').getTime(),
+          type: 'expense'
+        },
+        {
+          id: 'test2',
+          amount: 15.8,
+          assetId: 'a2',
+          parentCategoryId: 'c1',
+          subCategoryId: 'c1-2',
+          note: '午餐测试数据',
+          timestamp: new Date('2024-01-15 12:15:00').getTime(),
+          type: 'expense'
+        }
+      ]
+      
+      // 检查测试数据是否在日期范围内
+      const testDataInRange = testBills.filter(bill => {
+        return bill.timestamp >= startTimestamp && bill.timestamp <= endTimestamp
+      })
+      
+      if (testDataInRange.length > 0) {
+        // 使用测试数据导出
+        const exportData = testDataInRange.map(bill => {
+          const date = new Date(bill.timestamp)
+          const dateStr = getDateString(date)
+          const asset = assetStore.getAsset(bill.assetId)
+          const assetName = asset ? asset.name : '未知资产'
+          
+          // 获取明细分类名称
+          let detailCategoryName = ''
+          if (bill.subCategoryId) {
+            detailCategoryName = categoryStore.getCategoryName(bill.subCategoryId)
+          } else if (bill.parentCategoryId) {
+            detailCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
+          }
+          
+          return {
+            '日期': dateStr,
+            '资产': assetName,
+            '明细分类': detailCategoryName,
+            '金额': bill.amount,
+            '备注': bill.note || ''
+          }
+        })
+        
+        const xlsContent = generateXLS(exportData)
+        const fileName = `账单数据_${startDate.value}_${endDate.value}.xls`
+        saveXLSFile(fileName, xlsContent)
+        
+        uni.showToast({
+          title: `导出成功，共${exportData.length}条测试记录`,
+          icon: 'success',
+          duration: 2000
+        })
+        return
+      }
+    }
+    
+    if (filteredBills.length === 0) {
+      uni.showToast({
+        title: '指定日期范围内无数据',
+        icon: 'none'
+      })
+      return
+    }
+    
+    // 格式化数据
+    const exportData = filteredBills.map(bill => {
+      const date = new Date(bill.timestamp)
+      const dateStr = getDateString(date)
+      const asset = assetStore.getAsset(bill.assetId)
+      const assetName = asset ? asset.name : '未知资产'
+      
+      // 获取明细分类名称
+      let detailCategoryName = ''
+      if (bill.subCategoryId) {
+        detailCategoryName = categoryStore.getCategoryName(bill.subCategoryId)
+      } else if (bill.parentCategoryId) {
+        detailCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
+      }
+      
+      return {
+        '日期': dateStr,
+        '资产': assetName,
+        '明细分类': detailCategoryName,
+        '金额': bill.amount,
+        '备注': bill.note || ''
+      }
+    })
+    
+    // 生成XLS内容（HTML表格格式）
+    const xlsContent = generateXLS(exportData)
+    
+    // 保存文件
+    const fileName = `账单数据_${startDate.value}_${endDate.value}.xls`
+    saveXLSFile(fileName, xlsContent)
+    
+    uni.showToast({
+      title: `导出成功，共${exportData.length}条记录`,
+      icon: 'success',
+      duration: 2000
+    })
+    
+  } catch (error) {
+    console.error('导出失败:', error)
+    uni.showToast({
+      title: '导出失败，请重试',
+      icon: 'none'
+    })
+  } finally {
+    isExporting.value = false
+  }
+}
+
+function generateXLS(data) {
+  if (data.length === 0) return ''
+  
+  // 获取表头
+  const headers = Object.keys(data[0])
+  
+  // 生成HTML表格内容，模拟XLS格式
+  let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">'
+  html += '<head><meta charset="utf-8"><style>table { border-collapse: collapse; } th, td { border: 1px solid black; padding: 5px; }</style></head><body>'
+  html += '<table>'
+  
+  // 添加表头
+  html += '<tr>'
+  headers.forEach(header => {
+    html += `<th>${header}</th>`
+  })
+  html += '</tr>'
+  
+  // 添加数据行
+  data.forEach(row => {
+    html += '<tr>'
+    headers.forEach(header => {
+      let value = row[header]
+      if (value === null || value === undefined) {
+        value = ''
+      } else if (typeof value === 'number') {
+        // 金额格式化为两位小数
+        if (header === '金额') {
+          value = value.toFixed(2)
+        }
+      }
+      html += `<td>${value}</td>`
+    })
+    html += '</tr>'
+  })
+  
+  html += '</table></body></html>'
+  return html
+}
+
+function saveXLSFile(fileName, content) {
+  // #ifdef H5
+  // 在H5环境下创建下载
+  const blob = new Blob([content], { type: 'application/vnd.ms-excel;charset=utf-8' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = fileName
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  // #endif
+  
+  // #ifndef H5
+  // 在其他平台下提示用户
+  // 在App端，可以使用uni.saveFile或分享功能，这里简化处理，提示用户
+  // 实际项目中可能需要使用 native.js 或 uni.share 等
+  const filePath = `${uni.env.USER_DATA_PATH}/${fileName}`
+  const fs = uni.getFileSystemManager()
+  
+  try {
+    fs.writeFile({
+      filePath: filePath,
+      data: content,
+      encoding: 'utf8',
+      success: () => {
+        uni.showModal({
+          title: '导出完成',
+          content: `文件已保存到：${filePath}\n您可以使用文件管理器查看或分享`,
+          confirmText: '复制路径',
+          success: (res) => {
+            if (res.confirm) {
+              uni.setClipboardData({
+                data: filePath
+              })
+            }
+          }
+        })
+      },
+      fail: (err) => {
+        console.error('保存文件失败', err)
+        uni.showToast({
+          title: '保存文件失败',
+          icon: 'none'
+        })
+      }
+    })
+  } catch (e) {
+    console.error('文件系统操作失败', e)
+    uni.showModal({
+      title: '导出完成',
+      content: `数据已准备完成，文件名：${fileName}\n请在H5平台使用导出功能以获得最佳体验。`,
+      showCancel: false
+    })
+  }
+  // #endif
+}
+</script>
+
+<style scoped>
+.container {
+  padding: 20px;
+  background-color: #FFF9F0;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.content-card {
+  width: 100%;
+  padding: 30px 20px;
+  background: #FFF9F0;
+  border-radius: 20px;
+  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px rgba(255, 255, 255, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.icon-wrapper {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #FFF9F0;
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.icon {
+  font-size: 40px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.description {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.date-range-section {
+  width: 100%;
+  margin-bottom: 30px;
+}
+
+.section-title {
+  display: block;
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.date-inputs {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.date-input-wrapper {
+  flex: 1;
+}
+
+.date-label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.date-picker {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  background: #FFF9F0;
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.1), inset -2px -2px 5px rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  color: #333;
+}
+
+.date-text {
+  text-align: center;
+  line-height: 1.5;
+}
+
+.quick-select {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.quick-btn {
+  flex: 1;
+  min-width: 60px;
+  padding: 8px 12px;
+  font-size: 12px;
+  margin-bottom: 0;
+}
+
+.neu-btn {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  background: #FFF9F0;
+  box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.neu-btn:active {
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+}
+
+.neu-btn:disabled {
+  opacity: 0.6;
+}
+
+.primary-btn {
+  color: #FF8D5D;
+}
+
+.tips {
+  width: 100%;
+  text-align: left;
+  margin-top: 20px;
+}
+
+.tip-title {
+  display: block;
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.tip-item {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 5px;
+  line-height: 1.5;
+}
+</style>

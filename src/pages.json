@@ -41,9 +41,33 @@
       }
     },
     {
-      "path": "pages/assets/index",
+      "path": "pages/settings/index",
       "style": {
-        "navigationBarTitleText": "资产",
+        "navigationBarTitleText": "设置",
+        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/settings/assets",
+      "style": {
+        "navigationBarTitleText": "资产管理",
+        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/settings/import",
+      "style": {
+        "navigationBarTitleText": "数据导入",
+        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/settings/export",
+      "style": {
+        "navigationBarTitleText": "数据导出",
         "navigationBarBackgroundColor": "#FFF9F0",
         "navigationBarTextStyle": "black"
       }
@@ -76,16 +100,16 @@
         "selectedIconPath": "static/tabbar/list-active.svg"
       },
       {
-        "pagePath": "pages/assets/index",
-        "text": "资产",
-        "iconPath": "static/tabbar/wallet.svg",
-        "selectedIconPath": "static/tabbar/wallet-active.svg"
-      },
-      {
         "pagePath": "pages/stats/index",
         "text": "统计",
         "iconPath": "static/tabbar/chart.svg",
         "selectedIconPath": "static/tabbar/chart-active.svg"
+      },
+      {
+        "pagePath": "pages/settings/index",
+        "text": "设置",
+        "iconPath": "static/tabbar/wallet.svg",
+        "selectedIconPath": "static/tabbar/wallet-active.svg"
       }
     ]
   }
