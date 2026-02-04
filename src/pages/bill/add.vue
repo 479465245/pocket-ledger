@@ -87,6 +87,28 @@
                     <text class="chevron">></text>
                 </view>
             </view>
+            
+            <!-- 手续费输入 -->
+            <view class="transfer-divider">
+                <text>💰</text>
+            </view>
+            
+            <view class="transfer-row">
+                <view class="row-label">
+                    <text class="row-icon">💳</text>
+                    <text>手续费</text>
+                </view>
+                <view class="row-right">
+                    <input 
+                        class="fee-input" 
+                        type="digit" 
+                        v-model="form.fee" 
+                        placeholder="0"
+                        @input="onFeeInput"
+                    />
+                    <text class="fee-unit">元</text>
+                </view>
+            </view>
         </view>
     </view>
 
@@ -172,6 +194,7 @@
 
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
 import { useBillStore } from '@/store/bill'
@@ -179,6 +202,10 @@ import { useBillStore } from '@/store/bill'
 const categoryStore = useCategoryStore()
 const assetStore = useAssetStore()
 const billStore = useBillStore()
+
+// 编辑模式相关
+const isEditMode = ref(false)
+const editBillId = ref('')
 
 const tabs = [
     { label: '支出', value: 'expense' },
@@ -200,7 +227,10 @@ const form = reactive({
     assetId: '',
     parentCategoryId: '', // 一级分类ID，用于层级展示
     categoryId: '', // 实际分类ID（可以是父级或子级）
-    isIncludedInStats: true
+    isIncludedInStats: true,
+    // 转账相关字段
+    targetAssetId: '',
+    fee: '0' // 手续费
 })
 
 const categories = computed(() => {
@@ -235,7 +265,22 @@ const displayAmount = computed(() => {
 import { watch } from 'vue'
 watch(categories, (newVal) => {
     if (newVal.length > 0) {
-        // If current selection is not in new list, select first
+        // 编辑模式下，如果已经有分类选择，不要自动覆盖
+        if (isEditMode.value && (selectedCategoryId.value || form.categoryId)) {
+            // 检查当前选中的分类是否在新列表中
+            const exists = newVal.find(c => c.id === selectedCategoryId.value)
+            if (!exists && form.categoryId) {
+                // 如果当前选中的分类不存在，但form中有categoryId，尝试找到对应的父分类
+                const parentCat = newVal.find(c => c.children && c.children.some(child => child.id === form.categoryId))
+                if (parentCat) {
+                    selectedParentId.value = parentCat.id
+                    selectedCategoryId.value = parentCat.id
+                }
+            }
+            return
+        }
+        
+        // 非编辑模式或没有选择时，选择第一个分类
         const exists = newVal.find(c => c.id === selectedCategoryId.value)
         if (!exists) {
             selectCategory(newVal[0])
@@ -253,12 +298,75 @@ onMounted(() => {
     if (assets.value.length > 0) {
         form.assetId = assets.value[0].id
     }
-    // Default select first category
-    // Logic handled by watch or manual init
-    if (categories.value.length > 0) {
+    // 只有在非编辑模式下才自动选择第一个分类
+    if (categories.value.length > 0 && !isEditMode.value) {
         selectCategory(categories.value[0])
     }
 })
+
+// 处理编辑模式
+onLoad((options) => {
+    if (options.id) {
+        // 编辑模式
+        isEditMode.value = true
+        editBillId.value = options.id
+        loadBillData(options.id)
+    } else if (options.type) {
+        // 新增模式，指定类型
+        currentTab.value = options.type
+    }
+})
+
+// 加载账单数据
+const loadBillData = (id) => {
+    const bill = billStore.bills.find(b => b.id === id)
+    if (!bill) {
+        uni.showToast({ title: '账单不存在', icon: 'none' })
+        uni.navigateBack()
+        return
+    }
+    
+    console.log('加载账单数据:', bill)
+    console.log('账单类型:', bill.type)
+    console.log('账单分类:', bill.categoryId, '父分类:', bill.parentCategoryId)
+    
+    // 设置当前标签页
+    currentTab.value = bill.type
+    
+    // 填充表单数据
+    form.amountStr = Math.abs(bill.amount).toString()
+    form.remark = bill.remark || ''
+    form.date = new Date(bill.timestamp).toISOString().split('T')[0]
+    form.assetId = bill.assetId
+    form.parentCategoryId = bill.parentCategoryId
+    form.categoryId = bill.categoryId
+    form.isIncludedInStats = bill.isIncludedInStats
+    
+    // 如果是转账，设置目标账户和手续费
+    if (bill.type === 'transfer') {
+        form.targetAssetId = bill.targetAssetId
+        form.fee = bill.fee ? bill.fee.toString() : '0'
+    }
+    
+    // 设置选中的分类
+    if (bill.parentCategoryId) {
+        selectedParentId.value = bill.parentCategoryId
+        selectedCategoryId.value = bill.parentCategoryId
+    } else if (bill.categoryId) {
+        // 如果没有parentCategoryId，尝试找到父分类
+        const parentCat = categoryStore.categories.find(c => 
+            c.children && c.children.some(child => child.id === bill.categoryId)
+        )
+        if (parentCat) {
+            selectedParentId.value = parentCat.id
+            selectedCategoryId.value = parentCat.id
+        } else {
+            // 如果本身就是父分类
+            selectedParentId.value = bill.categoryId
+            selectedCategoryId.value = bill.categoryId
+        }
+    }
+}
 
 const switchTab = (val) => {
     currentTab.value = val
@@ -269,8 +377,15 @@ const switchTab = (val) => {
              // Try to find one that is not source
              form.targetAssetId = assets.value.find(a => a.id !== form.assetId)?.id || ''
         }
+        // 确保手续费字段有值
+        if (!form.fee) {
+            form.fee = '0'
+        }
     } else {
         form.isIncludedInStats = true
+        // 非转账模式下清空手续费
+        form.fee = '0'
+        form.targetAssetId = ''
     }
 }
 
@@ -311,6 +426,23 @@ const selectAsset = (a) => {
 
 const onDateChange = (e) => {
     form.date = e.detail.value
+}
+
+// 手续费输入处理
+const onFeeInput = (e) => {
+    let value = e.detail.value
+    // 只允许数字和小数点
+    value = value.replace(/[^\d.]/g, '')
+    // 确保只有一个小数点
+    const parts = value.split('.')
+    if (parts.length > 2) {
+        value = parts[0] + '.' + parts.slice(1).join('')
+    }
+    // 限制小数点后两位
+    if (parts[1] && parts[1].length > 2) {
+        value = parts[0] + '.' + parts[1].substring(0, 2)
+    }
+    form.fee = value
 }
 
 // Keypad Logic
@@ -355,6 +487,10 @@ const resetForm = () => {
     if (currentTab.value !== 'transfer') {
         form.isIncludedInStats = true
     }
+    // 重置转账相关字段
+    if (currentTab.value === 'transfer') {
+        form.fee = '0'
+    }
     // Keep asset and date and category
 }
 
@@ -385,19 +521,39 @@ const submit = async () => {
         }
 
         // Create timestamp with current time for proper sorting
-        const now = new Date()
-        const selectedDate = new Date(form.date)
-        const timestamp = new Date(
-            selectedDate.getFullYear(),
-            selectedDate.getMonth(),
-            selectedDate.getDate(),
-            now.getHours(),
-            now.getMinutes(),
-            now.getSeconds(),
-            now.getMilliseconds()
-        ).getTime()
+        // 如果是编辑模式，保留原有的时分秒，只更新日期
+        // 或者简单起见，如果日期没变，保留原时间戳；如果日期变了，设为该日期的当前时间
+        // 这里采用：保留原时间戳的时分秒，更新年月日
+        let timestamp
+        if (isEditMode.value) {
+            const originalBill = billStore.bills.find(b => b.id === editBillId.value)
+            const originalDate = new Date(originalBill.timestamp)
+            const selectedDate = new Date(form.date)
+            
+            timestamp = new Date(
+                selectedDate.getFullYear(),
+                selectedDate.getMonth(),
+                selectedDate.getDate(),
+                originalDate.getHours(),
+                originalDate.getMinutes(),
+                originalDate.getSeconds(),
+                originalDate.getMilliseconds()
+            ).getTime()
+        } else {
+            const now = new Date()
+            const selectedDate = new Date(form.date)
+            timestamp = new Date(
+                selectedDate.getFullYear(),
+                selectedDate.getMonth(),
+                selectedDate.getDate(),
+                now.getHours(),
+                now.getMinutes(),
+                now.getSeconds(),
+                now.getMilliseconds()
+            ).getTime()
+        }
 
-        await billStore.addBill({
+        const billData = {
             amount: finalAmount,
             parentCategoryId: form.parentCategoryId, // 保留一级分类用于展示
             categoryId: form.categoryId, // 实际分类ID
@@ -406,17 +562,26 @@ const submit = async () => {
             type: currentTab.value,
             timestamp: timestamp,
             remark: form.remark,
-            isIncludedInStats: form.isIncludedInStats
-        })
+            isIncludedInStats: form.isIncludedInStats,
+            // 添加手续费字段
+            fee: currentTab.value === 'transfer' ? parseFloat(form.fee) || 0 : undefined
+        }
+
+        if (isEditMode.value) {
+            await billStore.updateBill(editBillId.value, billData)
+            uni.showToast({ title: '已更新' })
+        } else {
+            await billStore.addBill(billData)
+            uni.showToast({ title: '已保存' })
+        }
         
-        uni.showToast({ title: '已保存' })
         resetForm()
         // Optional: navigate back or stay? "再记" implies stay, "保存" implies close?
         // User image has both. "保存" usually closes.
         uni.navigateBack()
     } catch (e) {
         console.error(e)
-        uni.showToast({ title: '保存失败', icon: 'none' })
+        uni.showToast({ title: isEditMode.value ? '更新失败' : '保存失败', icon: 'none' })
     }
 }
 
@@ -783,5 +948,21 @@ const submit = async () => {
 .chevron {
     color: var(--color-text-light);
     font-size: 14px;
+}
+
+.fee-input {
+    width: 80px;
+    text-align: right;
+    font-size: 16px;
+    color: var(--color-text);
+    border: none;
+    background: transparent;
+    outline: none;
+}
+
+.fee-unit {
+    font-size: 14px;
+    color: var(--color-text-light);
+    margin-left: 5px;
 }
 </style>

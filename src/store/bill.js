@@ -27,7 +27,9 @@ export const useBillStore = defineStore('bill', {
         ...billData,
         timestamp: billData.timestamp || Date.now(),
         isIncludedInStats: billData.isIncludedInStats !== undefined ? billData.isIncludedInStats : true,
-        isRefunded: false
+        isRefunded: false,
+        // 添加手续费字段，默认为0
+        fee: billData.fee || 0
         // 注意：保留 parentCategoryId 存储一级分类，新增 categoryId 存储实际分类ID
       }
       
@@ -50,6 +52,55 @@ export const useBillStore = defineStore('bill', {
       
       this.save()
       return newBill.id
+    },
+
+    // 更新账单
+    async updateBill(id, billData) {
+      const index = this.bills.findIndex(b => b.id === id)
+      if (index === -1) {
+        throw new Error('账单不存在')
+      }
+      
+      // 保存原始数据用于比较
+      const originalBill = { ...this.bills[index] }
+      
+      // 更新账单数据
+      this.bills[index] = {
+        ...this.bills[index],
+        ...billData,
+        id: id, // 确保ID不变
+        // 处理手续费字段，转账类型默认0，其他类型undefined
+        fee: billData.type === 'transfer' ? (billData.fee || 0) : undefined
+      }
+      
+      // 重新计算余额
+      // 如果资产发生变化，需要重新计算原资产和新资产的余额
+      const assetsToRecalculate = new Set()
+      
+      // 原资产
+      if (originalBill.assetId) {
+        assetsToRecalculate.add(originalBill.assetId)
+      }
+      // 新资产
+      if (billData.assetId) {
+        assetsToRecalculate.add(billData.assetId)
+      }
+      
+      // 转账类型的特殊处理
+      if (originalBill.type === 'transfer' && originalBill.targetAssetId) {
+        assetsToRecalculate.add(originalBill.targetAssetId)
+      }
+      if (billData.type === 'transfer' && billData.targetAssetId) {
+        assetsToRecalculate.add(billData.targetAssetId)
+      }
+      
+      // 重新计算所有相关资产的余额
+      for (const assetId of assetsToRecalculate) {
+        await this.recalculateAssetBalance(assetId, Math.min(originalBill.timestamp, billData.timestamp))
+      }
+      
+      this.save()
+      return id
     },
 
     // Core: Chain Correction Algorithm
@@ -77,9 +128,12 @@ export const useBillStore = defineStore('bill', {
                     // If we are the target of a transfer, we receive money.
                     // The stored amount is negative (outflow from source).
                     // So we reverse it.
-                    amount = -amount
+                    // 转入账户收到的是扣除手续费后的金额
+                    const fee = Number(bill.fee) || 0
+                    amount = -amount - fee
                 }
                 // If we are the source (bill.assetId === assetId), amount is already negative. Correct.
+                // 转出账户扣除的是总金额（包含手续费）
             }
             
             runningBalance += amount

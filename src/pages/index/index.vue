@@ -142,11 +142,12 @@ const onTouchEnd = (e) => {
 
 // 编辑账单
 const editBill = (id) => {
-  // TODO: 实现编辑功能
-  uni.showToast({
-    title: '编辑功能开发中',
-    icon: 'none'
-  })
+  const bill = billStore.bills.find(b => b.id === id)
+  if (bill) {
+    uni.navigateTo({
+      url: `/pages/bill/add?id=${id}&type=${bill.type}`
+    })
+  }
   activeBillId.value = null
 }
 
