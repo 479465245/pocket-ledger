@@ -63,7 +63,7 @@
         <text class="tip-title">导出说明：</text>
         <text class="tip-item">1. 包含指定日期范围内的所有账单记录</text>
         <text class="tip-item">2. 导出格式为 Excel (.xls)</text>
-        <text class="tip-item">3. 包含列：日期、资产、明细分类、金额、备注</text>
+        <text class="tip-item">3. 包含列：日期、资产、一级分类、分类、金额、备注</text>
         <text class="tip-item">4. 可在电脑上进行数据分析</text>
       </view>
     </view>
@@ -195,18 +195,19 @@ const handleExport = async () => {
           const asset = assetStore.getAsset(bill.assetId)
           const assetName = asset ? asset.name : '未知资产'
           
-          // 获取明细分类名称
-          let detailCategoryName = ''
-          if (bill.subCategoryId) {
-            detailCategoryName = categoryStore.getCategoryName(bill.subCategoryId)
-          } else if (bill.parentCategoryId) {
-            detailCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
+          // 获取分类名称
+          const parentCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
+          let categoryName = ''
+          
+          if (bill.categoryId && bill.categoryId !== bill.parentCategoryId) {
+            categoryName = categoryStore.getCategoryName(bill.categoryId)
           }
           
           return {
             '日期': dateStr,
             '资产': assetName,
-            '明细分类': detailCategoryName,
+            '一级分类': parentCategoryName,
+            '分类': categoryName,
             '金额': bill.amount,
             '备注': bill.note || ''
           }
@@ -240,20 +241,21 @@ const handleExport = async () => {
       const asset = assetStore.getAsset(bill.assetId)
       const assetName = asset ? asset.name : '未知资产'
       
-      // 获取明细分类名称
-      let detailCategoryName = ''
-      if (bill.subCategoryId) {
-        detailCategoryName = categoryStore.getCategoryName(bill.subCategoryId)
-      } else if (bill.parentCategoryId) {
-        detailCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
+      // 获取分类名称
+      const parentCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
+      let categoryName = ''
+      
+      if (bill.categoryId && bill.categoryId !== bill.parentCategoryId) {
+        categoryName = categoryStore.getCategoryName(bill.categoryId)
       }
       
       return {
         '日期': dateStr,
         '资产': assetName,
-        '明细分类': detailCategoryName,
+        '一级分类': parentCategoryName,
+        '分类': categoryName,
         '金额': bill.amount,
-        '备注': bill.note || ''
+        '备注': bill.remark || bill.note || ''
       }
     })
     

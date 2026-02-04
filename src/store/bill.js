@@ -28,6 +28,7 @@ export const useBillStore = defineStore('bill', {
         timestamp: billData.timestamp || Date.now(),
         isIncludedInStats: billData.isIncludedInStats !== undefined ? billData.isIncludedInStats : true,
         isRefunded: false
+        // 注意：保留 parentCategoryId 存储一级分类，新增 categoryId 存储实际分类ID
       }
       
       // If it's a refund, link to original
@@ -132,14 +133,13 @@ export const useBillStore = defineStore('bill', {
     migrateCategory(oldCatId, newCatId) {
         let count = 0
         this.bills.forEach(bill => {
+            // 更新 parentCategoryId（一级分类）
             if (bill.parentCategoryId === oldCatId) {
                 bill.parentCategoryId = newCatId
-                // Note: Subcategory logic is tricky. If we migrate a Parent, what happens to children?
-                // The requirement says: "Migrate all affected sub-categories and their bills to another designated Level 1 category."
-                // This implies the sub-categories themselves move.
-                // The bills link to sub_category_id.
-                // If the sub-category moves to a new parent, the bill's sub_category_id doesn't strictly need to change,
-                // BUT the bill's `parent_category_id` (redundant field) MUST change.
+            }
+            // 如果 categoryId 是旧的分类ID，也更新它
+            if (bill.categoryId === oldCatId) {
+                bill.categoryId = newCatId
                 count++
             }
         })
@@ -148,16 +148,16 @@ export const useBillStore = defineStore('bill', {
     },
 
     deleteBillsByCategory(catId) {
-        // Delete all bills associated with this category (Parent or Sub)
-        // If Parent, delete all bills where parent_category_id == catId
-        const billsToDelete = this.bills.filter(b => b.parentCategoryId === catId || b.subCategoryId === catId)
+        // Delete all bills associated with this category
+        // 检查 parentCategoryId 或 categoryId 是否匹配
+        const billsToDelete = this.bills.filter(b => b.parentCategoryId === catId || b.categoryId === catId)
         
         // We need to recalculate balances for all affected assets
         const affectedAssets = new Set()
         billsToDelete.forEach(b => affectedAssets.add(b.assetId))
         
         // Remove bills
-        this.bills = this.bills.filter(b => b.parentCategoryId !== catId && b.subCategoryId !== catId)
+        this.bills = this.bills.filter(b => b.parentCategoryId !== catId && b.categoryId !== catId)
         
         // Recalculate
         affectedAssets.forEach(assetId => {

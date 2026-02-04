@@ -47,10 +47,10 @@
                     class="grid-item"
                     @click="selectSubCategory(sub)"
                 >
-                    <view :class="['icon-wrapper', form.subCategoryId === sub.id ? 'selected' : '']">
+                    <view :class="['icon-wrapper', form.categoryId === sub.id ? 'selected' : '']">
                         <text class="icon-text">{{ sub.icon || sub.name[0] }}</text>
                     </view>
-                    <text :class="['cat-name', form.subCategoryId === sub.id ? 'selected-text' : '']">{{ sub.name }}</text>
+                    <text :class="['cat-name', form.categoryId === sub.id ? 'selected-text' : '']">{{ sub.name }}</text>
                 </view>
             </view>
         </view>
@@ -198,8 +198,8 @@ const form = reactive({
     remark: '',
     date: new Date().toISOString().split('T')[0],
     assetId: '',
-    parentCategoryId: '',
-    subCategoryId: '', // Will be same as parent if no sub selected
+    parentCategoryId: '', // 一级分类ID，用于层级展示
+    categoryId: '', // 实际分类ID（可以是父级或子级）
     isIncludedInStats: true
 })
 
@@ -243,7 +243,7 @@ watch(categories, (newVal) => {
     } else {
         selectedCategoryId.value = ''
         form.parentCategoryId = ''
-        form.subCategoryId = ''
+        form.categoryId = ''
     }
 })
 
@@ -280,15 +280,14 @@ const selectCategory = (cat) => {
     selectedParentId.value = cat.id // Always set as parent context
     form.parentCategoryId = cat.id
     
-    // 默认不选择子分类，如果用户需要子分类必须手动选择
-    // 这样可以在统计时正确区分"直接属于父分类"和"属于子分类"的账单
-    form.subCategoryId = ''
+    // 默认选择父分类作为categoryId，如果用户选择子分类会覆盖
+    form.categoryId = cat.id
     
     console.log('Children:', cat.children)
 }
 
 const selectSubCategory = (sub) => {
-    form.subCategoryId = sub.id
+    form.categoryId = sub.id  // 子分类ID覆盖父分类ID
     console.log('Select Sub Category:', sub.name, sub.id)
 }
 
@@ -400,8 +399,8 @@ const submit = async () => {
 
         await billStore.addBill({
             amount: finalAmount,
-            parentCategoryId: form.parentCategoryId,
-            subCategoryId: form.subCategoryId,
+            parentCategoryId: form.parentCategoryId, // 保留一级分类用于展示
+            categoryId: form.categoryId, // 实际分类ID
             assetId: form.assetId,
             targetAssetId: currentTab.value === 'transfer' ? form.targetAssetId : undefined,
             type: currentTab.value,

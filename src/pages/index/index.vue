@@ -24,7 +24,7 @@
                 <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : '¥' }}</text>
             </view>
             <view class="bill-info">
-                <text class="category-name">{{ bill.type === 'transfer' ? '转账' : getCategoryName(bill.subCategoryId || bill.parentCategoryId) }}</text>
+                <text class="category-name">{{ bill.type === 'transfer' ? '转账' : getCategoryName(bill.categoryId || bill.parentCategoryId) }}</text>
                 <text class="bill-date" v-if="bill.type === 'transfer'">{{ formatDate(bill.timestamp) }} | {{ getAssetName(bill.assetId) }} → {{ getAssetName(bill.targetAssetId) }}</text>
                 <text class="bill-date" v-else>{{ formatDate(bill.timestamp) }} | {{ getAssetName(bill.assetId) }}</text>
             </view>

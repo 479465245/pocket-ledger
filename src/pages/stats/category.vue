@@ -155,8 +155,8 @@ const categoryStats = computed(() => {
     let key, name, icon, isOther = false
     
     // Determine if it's a sub-category or "Other" (Parent directly)
-    // If subCategoryId exists and is different from parentId, it's a sub-category
-    const subId = (bill.subCategoryId && bill.subCategoryId !== props.parentId) ? bill.subCategoryId : null
+    // If categoryId exists and is different from parentId, it's a sub-category
+    const subId = (bill.categoryId && bill.categoryId !== props.parentId) ? bill.categoryId : null
     
     if (subId) {
         key = subId

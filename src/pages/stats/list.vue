@@ -86,9 +86,9 @@ const filteredBills = computed(() => {
         if (filterType === 'parent') {
             return b.parentCategoryId === id
         } else if (filterType === 'sub') {
-            return b.subCategoryId === id
+            return b.categoryId === id
         } else if (filterType === 'parent_other') {
-            return b.parentCategoryId === id && (!b.subCategoryId || b.subCategoryId === id)
+            return b.parentCategoryId === id && (!b.categoryId || b.categoryId === id)
         }
         
         return false
@@ -97,16 +97,15 @@ const filteredBills = computed(() => {
 
 const getCategoryName = (bill) => {
     if (bill.type === 'transfer') return '转账'
-    // Prioritize sub category name if exists and different from parent
-    if (bill.subCategoryId && bill.subCategoryId !== bill.parentCategoryId) {
-        const name = categoryStore.getCategoryName(bill.subCategoryId)
-        if (name === 'Unknown') {
-            console.warn('Unknown subCategory:', bill.subCategoryId, 'for bill:', bill.id)
-            // Fallback to parent category name if sub not found
-            return categoryStore.getCategoryName(bill.parentCategoryId) + ' (未知子类)'
+    // 优先使用categoryId获取分类名称
+    if (bill.categoryId) {
+        const name = categoryStore.getCategoryName(bill.categoryId)
+        if (name !== 'Unknown') {
+            return name
         }
-        return name
+        console.warn('Unknown category:', bill.categoryId, 'for bill:', bill.id)
     }
+    // 如果categoryId无效，回退到parentCategoryId
     const parentName = categoryStore.getCategoryName(bill.parentCategoryId)
     if (parentName === 'Unknown') {
         console.warn('Unknown parentCategory:', bill.parentCategoryId, 'for bill:', bill.id)
