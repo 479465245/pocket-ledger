@@ -22,18 +22,24 @@
         <scroll-view scroll-x class="preview-table">
           <view class="table-header">
             <text class="header-cell">日期</text>
+            <text class="header-cell">类型</text>
             <text class="header-cell">资产</text>
+            <text class="header-cell">目标资产</text>
             <text class="header-cell">一级分类</text>
             <text class="header-cell">二级分类</text>
             <text class="header-cell">金额</text>
+            <text class="header-cell">手续费</text>
             <text class="header-cell">备注</text>
           </view>
           <view v-for="(row, index) in previewData.slice(0, 5)" :key="index" class="table-row">
             <text class="cell">{{ row.date }}</text>
+            <text class="cell">{{ row.typeText }}</text>
             <text class="cell">{{ row.asset }}</text>
+            <text class="cell">{{ row.targetAsset || '-' }}</text>
             <text class="cell">{{ row.category1 }}</text>
-            <text class="cell">{{ row.category2 }}</text>
+            <text class="cell">{{ row.category2 || '-' }}</text>
             <text class="cell">{{ row.amount }}</text>
+            <text class="cell">{{ row.fee || '-' }}</text>
             <text class="cell">{{ row.note }}</text>
           </view>
         </scroll-view>
@@ -73,7 +79,7 @@
       <text class="tip-text">提示：</text>
       <text class="tip-item">• 支持导入.xls和.xlsx格式文件</text>
       <text class="tip-item">• 第一行为表头，不导入数据</text>
-      <text class="tip-item">• 文件列顺序：日期、资产、一级分类、分类、金额、备注</text>
+      <text class="tip-item">• 文件列顺序：日期、类型、资产、目标资产、一级分类、二级分类、金额、手续费、备注</text>
       <text class="tip-item">• 如果资产不存在，会提示您新建资产</text>
       <text class="tip-item">• 如果分类不存在，会自动创建对应分类</text>
     </view>
@@ -160,14 +166,34 @@ const parseFile = (file) => {
       const rows = jsonData.slice(1)
       
       const parsedData = rows.map((row, index) => {
+        // 解析类型，默认为支出
+        const rawType = String(row[1] || '').toLowerCase().trim()
+        let type = 'expense'
+        let typeText = '支出'
+        
+        if (rawType === '收入' || rawType === 'income') {
+          type = 'income'
+          typeText = '收入'
+        } else if (rawType === '转账' || rawType === 'transfer') {
+          type = 'transfer'
+          typeText = '转账'
+        } else if (rawType === '退款' || rawType === 'refund') {
+          type = 'refund'
+          typeText = '退款'
+        }
+        
         return {
           rowIndex: index + 2, // Excel行号从2开始（第一行是表头）
           date: formatExcelDate(row[0]),
-          asset: String(row[1] || ''),
-          category1: String(row[2] || ''),
-          category2: String(row[3] || ''),
-          amount: parseFloat(row[4]) || 0,
-          note: String(row[5] || '')
+          type: type,
+          typeText: typeText,
+          asset: String(row[2] || ''),
+          targetAsset: String(row[3] || ''),
+          category1: String(row[4] || ''),
+          category2: String(row[5] || ''),
+          amount: parseFloat(row[6]) || 0,
+          fee: parseFloat(row[7]) || 0,
+          note: String(row[8] || '')
         }
       }).filter(item => item.date && item.asset && item.amount !== 0)
       
@@ -216,6 +242,15 @@ const validateData = (data) => {
       })
     }
     
+    // 验证类型
+    if (!['income', 'expense', 'transfer', 'refund'].includes(item.type)) {
+      results.push({
+        row: item.rowIndex,
+        type: 'warning',
+        message: `类型"${item.type}"无效，将默认为支出`
+      })
+    }
+    
     // 验证资产
     const asset = assetStore.assets.find(a => a.name === item.asset)
     if (!asset && item.asset) {
@@ -224,6 +259,25 @@ const validateData = (data) => {
         type: 'warning',
         message: `资产"${item.asset}"不存在`
       })
+    }
+    
+    // 验证目标资产（转账类型）
+    if (item.type === 'transfer' && item.targetAsset) {
+      const targetAsset = assetStore.assets.find(a => a.name === item.targetAsset)
+      if (!targetAsset) {
+        results.push({
+          row: item.rowIndex,
+          type: 'warning',
+          message: `目标资产"${item.targetAsset}"不存在`
+        })
+      }
+      if (item.asset === item.targetAsset) {
+        results.push({
+          row: item.rowIndex,
+          type: 'error',
+          message: '转出资产和目标资产不能相同'
+        })
+      }
     }
     
     // 验证分类
@@ -241,6 +295,15 @@ const validateData = (data) => {
         row: item.rowIndex,
         type: 'error',
         message: '金额必须大于0'
+      })
+    }
+    
+    // 验证手续费（转账类型）
+    if (item.type === 'transfer' && item.fee < 0) {
+      results.push({
+        row: item.rowIndex,
+        type: 'error',
+        message: '手续费不能为负数'
       })
     }
   })
@@ -280,6 +343,26 @@ const startImport = async () => {
           assetId = newAsset.id
         }
         
+        // 查找或创建目标资产（转账类型）
+        let targetAssetId = null
+        if (item.type === 'transfer' && item.targetAsset) {
+          const targetAsset = assetStore.assets.find(a => a.name === item.targetAsset)
+          if (targetAsset) {
+            targetAssetId = targetAsset.id
+          } else {
+            // 创建新目标资产
+            const newTargetAsset = await assetStore.addAsset({
+              name: item.targetAsset,
+              type: 'cash',
+              balance: 0
+            })
+            targetAssetId = newTargetAsset.id
+          }
+        }
+        
+        // 根据类型设置分类类型
+        const categoryType = item.type === 'income' ? 'income' : 'expense'
+        
         // 查找或创建分类
         let parentCategoryId = null
         let categoryId = null
@@ -287,7 +370,7 @@ const startImport = async () => {
         if (item.category2) {
           // 有二级分类
           const parentCategory = categoryStore.categories.find(c => 
-            c.name === item.category1 && c.type === 'expense'
+            c.name === item.category1 && c.type === categoryType
           )
           if (parentCategory) {
             parentCategoryId = parentCategory.id
@@ -299,7 +382,7 @@ const startImport = async () => {
               const newSubCategory = await categoryStore.addCategory({
                 name: item.category2,
                 parentId: parentCategoryId,
-                type: 'expense'
+                type: categoryType
               })
               categoryId = newSubCategory.id
             }
@@ -307,21 +390,21 @@ const startImport = async () => {
             // 创建父分类和子分类
             const newParentCategory = await categoryStore.addCategory({
               name: item.category1,
-              type: 'expense'
+              type: categoryType
             })
             parentCategoryId = newParentCategory.id
             
             const newSubCategory = await categoryStore.addCategory({
               name: item.category2,
               parentId: parentCategoryId,
-              type: 'expense'
+              type: categoryType
             })
             categoryId = newSubCategory.id
           }
-        } else {
+        } else if (item.category1) {
           // 只有一级分类
           const category = categoryStore.categories.find(c => 
-            c.name === item.category1 && c.type === 'expense'
+            c.name === item.category1 && c.type === categoryType
           )
           if (category) {
             parentCategoryId = category.id
@@ -330,23 +413,32 @@ const startImport = async () => {
             // 创建分类
             const newCategory = await categoryStore.addCategory({
               name: item.category1,
-              type: 'expense'
+              type: categoryType
             })
             parentCategoryId = newCategory.id
             categoryId = newCategory.id
           }
         }
         
-        // 创建账单
-        await billStore.addBill({
+        // 创建账单数据
+        const billData = {
           amount: item.amount,
           assetId: assetId,
           parentCategoryId: parentCategoryId,
           categoryId: categoryId,
           note: item.note,
           timestamp: new Date(item.date).getTime(),
-          type: 'expense'
-        })
+          type: item.type,
+          fee: item.type === 'transfer' ? item.fee : undefined
+        }
+        
+        // 添加目标资产ID（转账类型）
+        if (targetAssetId) {
+          billData.targetAssetId = targetAssetId
+        }
+        
+        // 创建账单
+        await billStore.addBill(billData)
         
         successCount++
         

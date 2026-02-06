@@ -195,6 +195,13 @@ const handleExport = async () => {
           const asset = assetStore.getAsset(bill.assetId)
           const assetName = asset ? asset.name : '未知资产'
           
+          // 获取目标资产名称（转账类型）
+          let targetAssetName = ''
+          if (bill.type === 'transfer' && bill.targetAssetId) {
+            const targetAsset = assetStore.getAsset(bill.targetAssetId)
+            targetAssetName = targetAsset ? targetAsset.name : '未知目标资产'
+          }
+          
           // 获取分类名称
           const parentCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
           let categoryName = ''
@@ -203,12 +210,24 @@ const handleExport = async () => {
             categoryName = categoryStore.getCategoryName(bill.categoryId)
           }
           
+          // 获取类型文本
+          const typeMap = {
+            'income': '收入',
+            'expense': '支出',
+            'transfer': '转账',
+            'refund': '退款'
+          }
+          const typeText = typeMap[bill.type] || '支出'
+          
           return {
             '日期': dateStr,
+            '类型': typeText,
             '资产': assetName,
+            '目标资产': targetAssetName,
             '一级分类': parentCategoryName,
             '分类': categoryName,
             '金额': bill.amount,
+            '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
             '备注': bill.note || ''
           }
         })
@@ -241,6 +260,13 @@ const handleExport = async () => {
       const asset = assetStore.getAsset(bill.assetId)
       const assetName = asset ? asset.name : '未知资产'
       
+      // 获取目标资产名称（转账类型）
+      let targetAssetName = ''
+      if (bill.type === 'transfer' && bill.targetAssetId) {
+        const targetAsset = assetStore.getAsset(bill.targetAssetId)
+        targetAssetName = targetAsset ? targetAsset.name : '未知目标资产'
+      }
+      
       // 获取分类名称
       const parentCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
       let categoryName = ''
@@ -249,12 +275,24 @@ const handleExport = async () => {
         categoryName = categoryStore.getCategoryName(bill.categoryId)
       }
       
+      // 获取类型文本
+      const typeMap = {
+        'income': '收入',
+        'expense': '支出',
+        'transfer': '转账',
+        'refund': '退款'
+      }
+      const typeText = typeMap[bill.type] || '支出'
+      
       return {
         '日期': dateStr,
+        '类型': typeText,
         '资产': assetName,
+        '目标资产': targetAssetName,
         '一级分类': parentCategoryName,
         '分类': categoryName,
         '金额': bill.amount,
+        '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
         '备注': bill.remark || bill.note || ''
       }
     })
