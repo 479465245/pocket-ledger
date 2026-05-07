@@ -12,17 +12,17 @@
 ## 常用命令
 
 ```bash
-npm install
-npm run dev:h5
-npm run build:h5
-npm run type-check
+pnpm install
+pnpm dev:h5
+pnpm build:h5
+pnpm type-check
 ```
 
 说明：
 
-- 项目已有 `package-lock.json`，默认使用 npm。
-- 不要随意改用 yarn、pnpm 或其他包管理器。
-- 只有在新增、删除或升级依赖时才更新 `package-lock.json`。
+- 项目已有 `pnpm-lock.yaml`，默认使用 pnpm。
+- 不要随意改用 npm、yarn 或其他包管理器。
+- 只有在新增、删除或升级依赖时才更新 `pnpm-lock.yaml`。
 
 ## 目录职责
 
@@ -143,12 +143,12 @@ npm run type-check
 改动完成后按风险选择验证方式：
 
 - 文档改动：检查 Markdown 渲染和链接是否正确。
-- 页面样式改动：运行 `npm run dev:h5` 后在 H5 页面手动查看。
+- 页面样式改动：运行 `pnpm dev:h5` 后在 H5 页面手动查看。
 - store 或业务逻辑改动：至少覆盖新增、编辑、删除账单后的余额变化。
 - 转账逻辑改动：同时检查转出账户、转入账户和手续费。
 - 分类逻辑改动：检查一级分类、二级分类、迁移和删除场景。
 - 导入导出改动：用小样本数据验证导入预览、实际导入和导出文件。
-- 类型或构建风险较高时：运行 `npm run type-check` 和 `npm run build:h5`。
+- 类型或构建风险较高时：运行 `pnpm type-check` 和 `pnpm build:h5`。
 
 ## 禁止事项
 

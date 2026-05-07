@@ -33,8 +33,8 @@
 
 ### 运行脚本
 定义在 `package.json`：
-- `npm run dev:h5`：H5 开发
-- `npm run build:h5`：H5 构建
+- `pnpm dev:h5`：H5 开发
+- `pnpm build:h5`：H5 构建
 - 也支持 app / 小程序等 uni-app 多端构建
 
 ---

@@ -267,5 +267,4 @@ const deleteBill = (id) => {
 }
 .expense { color: var(--color-text); }
 .income { color: var(--color-primary); }
-</style>or-primary); }
 </style>
