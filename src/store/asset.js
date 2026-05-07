@@ -46,9 +46,32 @@ export const useAssetStore = defineStore('asset', {
     updateBalance(id, newBalance) {
       const asset = this.assets.find(a => a.id === id)
       if (asset) {
-        asset.currentBalance = newBalance
+        asset.currentBalance = Number(newBalance)
         this.save()
       }
+    },
+    updateAsset(id, payload = {}) {
+      const asset = this.assets.find(a => a.id === id)
+      if (!asset) {
+        throw new Error('资产不存在')
+      }
+
+      if (payload.name !== undefined) asset.name = payload.name
+      if (payload.type !== undefined) asset.type = payload.type
+      if (payload.initialBalance !== undefined) asset.initialBalance = Number(payload.initialBalance)
+      if (payload.currentBalance !== undefined) asset.currentBalance = Number(payload.currentBalance)
+
+      this.save()
+      return asset
+    },
+    deleteAsset(id) {
+      const index = this.assets.findIndex(a => a.id === id)
+      if (index === -1) {
+        throw new Error('资产不存在')
+      }
+      const [deleted] = this.assets.splice(index, 1)
+      this.save()
+      return deleted
     },
     getAsset(id) {
       return this.assets.find(a => a.id === id)

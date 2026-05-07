@@ -32,7 +32,7 @@
 
                   <view class="icon-box">
 
-                    <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : bill.type === 'refund' ? '↩' : '¥' }}</text>
+                    <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : bill.type === 'refund' ? '↩' : bill.type === 'adjustment' ? '⚖' : '¥' }}</text>
 
                   </view>
 
@@ -198,11 +198,39 @@ const refundBill = (id) => {
 
   if (bill.type === 'transfer') {
 
+
+
     uni.showToast({ title: '转账记录不支持退款', icon: 'none' })
+
+
 
     activeBillId.value = null
 
+
+
     return
+
+
+
+  }
+
+
+
+  if (bill.type === 'adjustment') {
+
+
+
+    uni.showToast({ title: '资产调整记录不支持退款', icon: 'none' })
+
+
+
+    activeBillId.value = null
+
+
+
+    return
+
+
 
   }
 
@@ -285,8 +313,10 @@ const getAmountClass = (bill) => {
 
 const getBillTitle = (bill) => {
 
-  if (bill.type === 'transfer') return '转账'
-
+  if (bill.type === 'transfer') return '转账'
+
+  if (bill.type === 'adjustment') return '资产调整'
+
   if (bill.type === 'refund') return `退款 · ${getCategoryName(bill.categoryId || bill.parentCategoryId)}`
 
   return getCategoryName(bill.categoryId || bill.parentCategoryId)
@@ -517,6 +547,8 @@ const deleteBill = (id) => {
 
 .delete-btn {
   background-color: #ff3b30;
-}
-</style>
+}
+
+</style>
+
 
