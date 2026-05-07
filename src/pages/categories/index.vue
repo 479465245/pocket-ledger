@@ -350,68 +350,23 @@ const onMigrationTargetChange = (e) => {
 }
 
 const confirmDelete = () => {
-    if (deleteOption.value === 'migrate') {
-        if (!migrationTargetId.value) {
-            uni.showToast({ title: '请选择目标分类', icon: 'none' })
-            return
-        }
-        
-        // Migrate Logic
-        // This is simplified. 
-        // If deleting Level 1, we migrate bills to another Level 1 (or its children? Usually just the L1 container)
-        // If deleting Level 2, we migrate bills to a Level 1? Or another Level 2?
-        // Current UI only allows picking Level 1 as target.
-        
-        billStore.migrateCategory(targetCategory.value.id, migrationTargetId.value)
-        
-        // Handle Children if any
-        if (targetCategory.value.children && targetCategory.value.children.length > 0) {
-             const newCat = categoryStore.categories.find(c => c.id === migrationTargetId.value)
-             if (newCat) {
-                 if (!newCat.children) newCat.children = []
-                 const movedChildren = targetCategory.value.children.map(child => ({
-                     ...child,
-                     parentId: newCat.id
-                 }))
-                 newCat.children = [...newCat.children, ...movedChildren]
-             }
-        }
-        
-        // Delete from store
-        if (targetCategory.value.parentId) {
-            // It's a child
-            const parent = categoryStore.categories.find(c => c.id === targetCategory.value.parentId)
-            if (parent && parent.children) {
-                const idx = parent.children.findIndex(c => c.id === targetCategory.value.id)
-                if (idx > -1) parent.children.splice(idx, 1)
-            }
-        } else {
-            // It's a parent
-            const idx = categoryStore.categories.findIndex(c => c.id === targetCategory.value.id)
-            if (idx > -1) categoryStore.categories.splice(idx, 1)
-        }
-        categoryStore.save()
-        
-    } else {
-        // Delete everything
-        billStore.deleteBillsByCategory(targetCategory.value.id)
-        
-        if (targetCategory.value.parentId) {
-             const parent = categoryStore.categories.find(c => c.id === targetCategory.value.parentId)
-            if (parent && parent.children) {
-                const idx = parent.children.findIndex(c => c.id === targetCategory.value.id)
-                if (idx > -1) parent.children.splice(idx, 1)
-            }
-        } else {
-            const idx = categoryStore.categories.findIndex(c => c.id === targetCategory.value.id)
-            if (idx > -1) categoryStore.categories.splice(idx, 1)
-        }
-        categoryStore.save()
+    if (deleteOption.value === 'migrate' && !migrationTargetId.value) {
+        uni.showToast({ title: '请选择目标分类', icon: 'none' })
+        return
     }
-    
-    showDeleteDialog.value = false
-    uni.showToast({ title: '操作完成' })
-}
+
+    try {
+        categoryStore.deleteCategory(
+            targetCategory.value.id,
+            deleteOption.value === 'migrate' ? migrationTargetId.value : null,
+            billStore
+        )
+        showDeleteDialog.value = false
+        uni.showToast({ title: '操作完成' })
+    } catch (error) {
+        uni.showToast({ title: error.message || '操作失败', icon: 'none' })
+    }
+}
 </script>
 
 <style lang="scss" scoped>

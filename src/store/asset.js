@@ -26,15 +26,22 @@ export const useAssetStore = defineStore('asset', {
     save() {
       uni.setStorageSync(STORAGE_KEY, JSON.stringify(this.assets))
     },
-    addAsset(name, type, initialBalance) {
-      this.assets.push({
+    addAsset(nameOrPayload, type, initialBalance) {
+      const payload = typeof nameOrPayload === 'object' && nameOrPayload !== null
+        ? nameOrPayload
+        : { name: nameOrPayload, type, initialBalance }
+
+      const asset = {
         id: generateId(),
-        name,
-        type,
-        initialBalance: Number(initialBalance),
-        currentBalance: Number(initialBalance)
-      })
+        name: payload.name,
+        type: payload.type || 'digital',
+        initialBalance: Number(payload.initialBalance ?? payload.balance ?? 0),
+        currentBalance: Number(payload.initialBalance ?? payload.balance ?? 0)
+      }
+
+      this.assets.push(asset)
       this.save()
+      return asset
     },
     updateBalance(id, newBalance) {
       const asset = this.assets.find(a => a.id === id)
@@ -44,7 +51,10 @@ export const useAssetStore = defineStore('asset', {
       }
     },
     getAsset(id) {
-        return this.assets.find(a => a.id === id)
+      return this.assets.find(a => a.id === id)
+    },
+    findByName(name) {
+      return this.assets.find(a => a.name === name)
     }
   }
 })

@@ -19,26 +19,55 @@
         <view class="bill-list">
           <view v-if="displayedBills.length === 0" class="empty-tip">本月暂无账单</view>
           <view v-for="bill in displayedBills" :key="bill.id" class="bill-item-wrapper">
+
             <view class="bill-item-container" :class="{ 'show-actions': activeBillId === bill.id }" 
+
                   @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" 
+
                   :data-bill-id="bill.id">
-              <view class="neu-card bill-item">
+
+              <view class="neu-card bill-item" :class="getBillStateClass(bill)">
+
                 <view class="bill-left">
+
                   <view class="icon-box">
-                    <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : '¥' }}</text>
+
+                    <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : bill.type === 'refund' ? '↩' : '¥' }}</text>
+
                   </view>
+
                   <view class="bill-info">
-                    <text class="category-name">{{ bill.type === 'transfer' ? '转账' : getCategoryName(bill.categoryId || bill.parentCategoryId) }}</text>
+
+                    <view class="category-row">
+
+                      <text class="category-name">{{ getBillTitle(bill) }}</text>
+
+                      <text v-if="bill.type === 'refund'" class="state-badge refund">退款单</text>
+
+                      <text v-else-if="bill.isRefunded" class="state-badge refunded">已退款</text>
+
+                    </view>
+
                     <text class="bill-date" v-if="bill.type === 'transfer'">{{ formatDate(bill.timestamp) }} | {{ getAssetName(bill.assetId) }} → {{ getAssetName(bill.targetAssetId) }}</text>
+
                     <text class="bill-date" v-else>{{ formatDate(bill.timestamp) }} | {{ getAssetName(bill.assetId) }}</text>
+
                   </view>
+
                 </view>
+
                 <view class="bill-right">
-                  <text :class="['bill-amount', bill.type === 'income' ? 'income' : 'expense']">
-                    {{ bill.type === 'income' ? '+' : '' }}{{ bill.amount.toFixed(2) }}
+
+                  <text :class="['bill-amount', getAmountClass(bill)]">
+
+                    {{ getDisplayAmount(bill) }}
+
                   </text>
-                  <text class="balance-snapshot">余额: {{ bill.balanceSnapshot }}</text>
+
+                  <text class="balance-snapshot">余额: {{ bill.type === 'transfer' ? (bill.balanceSnapshot ?? bill.targetBalanceSnapshot ?? '--') : (bill.balanceSnapshot ?? '--') }}</text>
+
                 </view>
+
               </view>
               <view class="action-buttons">
                 <button class="action-btn edit-btn" @click="editBill(bill.id)">编辑</button>
@@ -152,18 +181,138 @@ const editBill = (id) => {
 }
 
 // 退款账单
+
 const refundBill = (id) => {
-  // TODO: 实现退款功能
-  uni.showToast({
-    title: '退款功能开发中', 
-    icon: 'none'
+
+  const bill = billStore.getBill(id)
+
+  if (!bill) {
+
+    uni.showToast({ title: '账单不存在', icon: 'none' })
+
+    return
+
+  }
+
+
+
+  if (bill.type === 'transfer') {
+
+    uni.showToast({ title: '转账记录不支持退款', icon: 'none' })
+
+    activeBillId.value = null
+
+    return
+
+  }
+
+
+
+  if (bill.type === 'refund') {
+
+    uni.showToast({ title: '退款记录不能再次退款', icon: 'none' })
+
+    activeBillId.value = null
+
+    return
+
+  }
+
+
+
+  if (bill.isRefunded) {
+
+    uni.showToast({ title: '该账单已退款', icon: 'none' })
+
+    activeBillId.value = null
+
+    return
+
+  }
+
+
+
+  uni.showModal({
+
+    title: '确认退款',
+
+    content: '将按原金额生成一条退款记录，并自动修正余额。',
+
+    success: async (res) => {
+
+      if (!res.confirm) return
+
+      try {
+
+        await billStore.createRefund(id)
+
+        uni.showToast({ title: '退款已生成', icon: 'success' })
+
+      } catch (error) {
+
+        uni.showToast({ title: error.message || '退款失败', icon: 'none' })
+
+      } finally {
+
+        activeBillId.value = null
+
+      }
+
+    }
+
   })
-  activeBillId.value = null
+
 }
 
-const getCategoryName = (id) => {
-  return categoryStore.getCategoryName(id)
+
+
+const getDisplayAmount = (bill) => {
+
+  const amount = Number(bill.amount || 0).toFixed(2)
+
+  return Number(bill.amount) > 0 ? `+${amount}` : amount
+
 }
+
+
+
+const getAmountClass = (bill) => {
+
+  return Number(bill.amount) >= 0 ? 'income' : 'expense'
+
+}
+
+
+const getBillTitle = (bill) => {
+
+  if (bill.type === 'transfer') return '转账'
+
+  if (bill.type === 'refund') return `退款 · ${getCategoryName(bill.categoryId || bill.parentCategoryId)}`
+
+  return getCategoryName(bill.categoryId || bill.parentCategoryId)
+
+}
+
+
+
+const getBillStateClass = (bill) => {
+
+  if (bill.type === 'refund') return 'is-refund'
+
+  if (bill.isRefunded) return 'is-refunded'
+
+  return ''
+
+}
+
+
+
+const getCategoryName = (id) => {
+
+  return categoryStore.getCategoryName(id)
+
+}
+
 
 const getAssetName = (id) => {
     const asset = assetStore.getAsset(id)
@@ -368,5 +517,6 @@ const deleteBill = (id) => {
 
 .delete-btn {
   background-color: #ff3b30;
-}
-</style>
+}
+</style>
+

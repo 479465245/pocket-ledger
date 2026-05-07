@@ -30,3 +30,4 @@ unpackage/
 .hbuilder/
 .hbuilderx/
 manifest.json.bk
+.alma-snapshots

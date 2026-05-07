@@ -18,207 +18,191 @@ export const useBillStore = defineStore('bill', {
     save() {
       uni.setStorageSync(STORAGE_KEY, JSON.stringify(this.bills))
     },
-    
-    // Core: Add Bill with Chain Correction
+    getBill(id) {
+      return this.bills.find(b => b.id === id)
+    },
+    normalizeBillData(billData = {}) {
+      return {
+        ...billData,
+        remark: billData.remark ?? billData.note ?? '',
+        fee: Number(billData.fee || 0),
+        isIncludedInStats: billData.isIncludedInStats !== undefined ? billData.isIncludedInStats : true,
+      }
+    },
     async addBill(billData) {
-      const assetStore = useAssetStore()
       const newBill = {
         id: generateId(),
-        ...billData,
+        ...this.normalizeBillData(billData),
         timestamp: billData.timestamp || Date.now(),
-        isIncludedInStats: billData.isIncludedInStats !== undefined ? billData.isIncludedInStats : true,
         isRefunded: false,
-        // 添加手续费字段，默认为0
-        fee: billData.fee || 0
-        // 注意：保留 parentCategoryId 存储一级分类，新增 categoryId 存储实际分类ID
-      }
-      
-      // If it's a refund, link to original
-      if (newBill.type === 'refund' && newBill.originalBillId) {
-        const original = this.bills.find(b => b.id === newBill.originalBillId)
-        if (original) {
-            original.isRefunded = true
-        }
       }
 
-      // Add to local list first
+      if (newBill.type === 'refund' && newBill.originalBillId) {
+        const original = this.bills.find(b => b.id === newBill.originalBillId)
+        if (!original) {
+          throw new Error('原账单不存在')
+        }
+        if (original.isRefunded) {
+          throw new Error('该账单已退款')
+        }
+        original.isRefunded = true
+      }
+
       this.bills.push(newBill)
-      
-      // Trigger chain correction for the affected asset(s)
+
       await this.recalculateAssetBalance(newBill.assetId, newBill.timestamp)
       if (newBill.type === 'transfer' && newBill.targetAssetId) {
-          await this.recalculateAssetBalance(newBill.targetAssetId, newBill.timestamp)
+        await this.recalculateAssetBalance(newBill.targetAssetId, newBill.timestamp)
       }
-      
+
       this.save()
       return newBill.id
     },
+    async createRefund(originalBillId, overrides = {}) {
+      const original = this.bills.find(b => b.id === originalBillId)
+      if (!original) throw new Error('原账单不存在')
+      if (original.type === 'transfer') throw new Error('转账记录不支持退款')
+      if (original.type === 'refund') throw new Error('退款记录不能再次退款')
+      if (original.isRefunded) throw new Error('该账单已退款')
 
-    // 更新账单
+      const refundAmount = -Number(original.amount)
+      const remark = overrides.remark || (original.remark ? `退款：${original.remark}` : '退款')
+
+      return await this.addBill({
+        amount: refundAmount,
+        assetId: original.assetId,
+        parentCategoryId: original.parentCategoryId,
+        categoryId: original.categoryId,
+        type: 'refund',
+        timestamp: overrides.timestamp || Date.now(),
+        remark,
+        originalBillId,
+        isIncludedInStats: false,
+        fee: 0
+      })
+    },
     async updateBill(id, billData) {
       const index = this.bills.findIndex(b => b.id === id)
       if (index === -1) {
         throw new Error('账单不存在')
       }
-      
-      // 保存原始数据用于比较
+
       const originalBill = { ...this.bills[index] }
-      
-      // 更新账单数据
+
       this.bills[index] = {
         ...this.bills[index],
-        ...billData,
-        id: id, // 确保ID不变
-        // 处理手续费字段，转账类型默认0，其他类型undefined
-        fee: billData.type === 'transfer' ? (billData.fee || 0) : undefined
+        ...this.normalizeBillData(billData),
+        id,
+        fee: billData.type === 'transfer' ? Number(billData.fee || 0) : 0
       }
-      
-      // 重新计算余额
-      // 如果资产发生变化，需要重新计算原资产和新资产的余额
+
       const assetsToRecalculate = new Set()
-      
-      // 原资产
-      if (originalBill.assetId) {
-        assetsToRecalculate.add(originalBill.assetId)
-      }
-      // 新资产
-      if (billData.assetId) {
-        assetsToRecalculate.add(billData.assetId)
-      }
-      
-      // 转账类型的特殊处理
-      if (originalBill.type === 'transfer' && originalBill.targetAssetId) {
-        assetsToRecalculate.add(originalBill.targetAssetId)
-      }
-      if (billData.type === 'transfer' && billData.targetAssetId) {
-        assetsToRecalculate.add(billData.targetAssetId)
-      }
-      
-      // 重新计算所有相关资产的余额
+      if (originalBill.assetId) assetsToRecalculate.add(originalBill.assetId)
+      if (billData.assetId) assetsToRecalculate.add(billData.assetId)
+      if (originalBill.type === 'transfer' && originalBill.targetAssetId) assetsToRecalculate.add(originalBill.targetAssetId)
+      if (billData.type === 'transfer' && billData.targetAssetId) assetsToRecalculate.add(billData.targetAssetId)
+
       for (const assetId of assetsToRecalculate) {
-        await this.recalculateAssetBalance(assetId, Math.min(originalBill.timestamp, billData.timestamp))
+        await this.recalculateAssetBalance(assetId, Math.min(originalBill.timestamp, billData.timestamp || originalBill.timestamp))
       }
-      
+
       this.save()
       return id
     },
+    async recalculateAssetBalance(assetId) {
+      const assetStore = useAssetStore()
+      const asset = assetStore.getAsset(assetId)
+      if (!asset) return
 
-    // Core: Chain Correction Algorithm
-    async recalculateAssetBalance(assetId, fromTimestamp) {
-        const assetStore = useAssetStore()
-        const asset = assetStore.getAsset(assetId)
-        if (!asset) return
+      const assetBills = this.bills
+        .filter(b => b.assetId === assetId || (b.type === 'transfer' && b.targetAssetId === assetId))
+        .sort((a, b) => a.timestamp - b.timestamp)
 
-        // 1. Get all bills for this asset sorted by time (Source OR Target)
-        const assetBills = this.bills
-            .filter(b => b.assetId === assetId || (b.type === 'transfer' && b.targetAssetId === assetId))
-            .sort((a, b) => a.timestamp - b.timestamp)
+      let runningBalance = asset.initialBalance
 
-        // 2. Find starting point
-        // For simplicity and robustness on "small" data (<10k), full recalc for the asset is safer.
-        
-        let runningBalance = asset.initialBalance
-        
-        for (const bill of assetBills) {
-            let amount = Number(bill.amount)
-            
-            // Handle Transfer Logic
-            if (bill.type === 'transfer') {
-                if (bill.targetAssetId === assetId) {
-                    // If we are the target of a transfer, we receive money.
-                    // The stored amount is negative (outflow from source).
-                    // So we reverse it.
-                    // 转入账户收到的是扣除手续费后的金额
-                    const fee = Number(bill.fee) || 0
-                    amount = -amount - fee
-                }
-                // If we are the source (bill.assetId === assetId), amount is already negative. Correct.
-                // 转出账户扣除的是总金额（包含手续费）
-            }
-            
-            runningBalance += amount
-            
-            // Update snapshot only if this bill belongs primarily to this asset?
-            // Or should we store snapshots for both sides?
-            // The bill object is shared. If we update `balanceSnapshot` here, it overwrites the value for the other asset if they are processed sequentially?
-            // YES. This is a problem. A single bill object cannot store two different snapshots (one for source, one for target).
-            
-            // Solution: We shouldn't store `balanceSnapshot` on the bill itself if it differs per context.
-            // OR, we store `balanceSnapshot` and `targetBalanceSnapshot`.
-            if (bill.assetId === assetId) {
-                bill.balanceSnapshot = Number(runningBalance.toFixed(2))
-            } else if (bill.targetAssetId === assetId) {
-                bill.targetBalanceSnapshot = Number(runningBalance.toFixed(2))
-            }
+      for (const bill of assetBills) {
+        let amount = Number(bill.amount)
+
+        if (bill.type === 'transfer' && bill.targetAssetId === assetId) {
+          const fee = Number(bill.fee) || 0
+          amount = -amount - fee
         }
 
-        // 3. Update Asset's current balance to the final running balance
-        assetStore.updateBalance(assetId, Number(runningBalance.toFixed(2)))
-        
-        // Note: we modified objects inside this.bills, so just saving is enough
-        this.save()
+        runningBalance += amount
+
+        if (bill.assetId === assetId) {
+          bill.balanceSnapshot = Number(runningBalance.toFixed(2))
+        } else if (bill.targetAssetId === assetId) {
+          bill.targetBalanceSnapshot = Number(runningBalance.toFixed(2))
+        }
+      }
+
+      assetStore.updateBalance(assetId, Number(runningBalance.toFixed(2)))
+      this.save()
     },
+    async deleteBill(id) {
+      const bill = this.bills.find(b => b.id === id)
+      if (!bill) return
 
-    deleteBill(id) {
-        const bill = this.bills.find(b => b.id === id)
-        if (!bill) return
-        
-        const assetId = bill.assetId
-        const targetAssetId = bill.targetAssetId
-        const timestamp = bill.timestamp
-        
-        // Remove
-        this.bills = this.bills.filter(b => b.id !== id)
-        
-        // If it was a refund, unmark the original?
-        if (bill.type === 'refund' && bill.originalBillId) {
-             const original = this.bills.find(b => b.id === bill.originalBillId)
-             if (original) original.isRefunded = false
-        }
+      const cascadeRefundIds = bill.type === 'refund'
+        ? []
+        : this.bills.filter(b => b.originalBillId === id).map(b => b.id)
+      const idsToDelete = new Set([id, ...cascadeRefundIds])
+      const billsToDelete = this.bills.filter(b => idsToDelete.has(b.id))
+      const affectedAssets = new Set()
 
-        // Recalculate
-        this.recalculateAssetBalance(assetId, timestamp)
-        if (targetAssetId) {
-            this.recalculateAssetBalance(targetAssetId, timestamp)
+      billsToDelete.forEach(item => {
+        if (item.assetId) affectedAssets.add(item.assetId)
+        if (item.targetAssetId) affectedAssets.add(item.targetAssetId)
+        if (item.type === 'refund' && item.originalBillId) {
+          const original = this.bills.find(b => b.id === item.originalBillId)
+          if (original) original.isRefunded = false
         }
+      })
+
+      this.bills = this.bills.filter(b => !idsToDelete.has(b.id))
+
+      if (bill.type === 'refund' && bill.originalBillId) {
+        const original = this.bills.find(b => b.id === bill.originalBillId)
+        if (original) original.isRefunded = false
+      }
+
+      for (const assetId of affectedAssets) {
+        await this.recalculateAssetBalance(assetId, 0)
+      }
+
+      this.save()
     },
-
-    // Core: Migrate bills from one category to another
     migrateCategory(oldCatId, newCatId) {
-        let count = 0
-        this.bills.forEach(bill => {
-            // 更新 parentCategoryId（一级分类）
-            if (bill.parentCategoryId === oldCatId) {
-                bill.parentCategoryId = newCatId
-            }
-            // 如果 categoryId 是旧的分类ID，也更新它
-            if (bill.categoryId === oldCatId) {
-                bill.categoryId = newCatId
-                count++
-            }
-        })
-        this.save()
-        return count
+      let count = 0
+      this.bills.forEach(bill => {
+        if (bill.parentCategoryId === oldCatId) {
+          bill.parentCategoryId = newCatId
+        }
+        if (bill.categoryId === oldCatId) {
+          bill.categoryId = newCatId
+          bill.parentCategoryId = newCatId
+          count++
+        }
+      })
+      this.save()
+      return count
     },
-
     deleteBillsByCategory(catId) {
-        // Delete all bills associated with this category
-        // 检查 parentCategoryId 或 categoryId 是否匹配
-        const billsToDelete = this.bills.filter(b => b.parentCategoryId === catId || b.categoryId === catId)
-        
-        // We need to recalculate balances for all affected assets
-        const affectedAssets = new Set()
-        billsToDelete.forEach(b => affectedAssets.add(b.assetId))
-        
-        // Remove bills
-        this.bills = this.bills.filter(b => b.parentCategoryId !== catId && b.categoryId !== catId)
-        
-        // Recalculate
-        affectedAssets.forEach(assetId => {
-            this.recalculateAssetBalance(assetId, 0) // Full recalc
-        })
-        
-        this.save()
+      const billsToDelete = this.bills.filter(b => b.parentCategoryId === catId || b.categoryId === catId)
+      const affectedAssets = new Set()
+      billsToDelete.forEach(b => {
+        if (b.assetId) affectedAssets.add(b.assetId)
+        if (b.targetAssetId) affectedAssets.add(b.targetAssetId)
+      })
+
+      this.bills = this.bills.filter(b => b.parentCategoryId !== catId && b.categoryId !== catId)
+
+      affectedAssets.forEach(assetId => {
+        this.recalculateAssetBalance(assetId, 0)
+      })
+
+      this.save()
     }
   }
 })

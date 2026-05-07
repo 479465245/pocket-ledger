@@ -330,12 +330,11 @@ const startImport = async () => {
       try {
         // 查找或创建资产
         let assetId = null
-        const asset = assetStore.assets.find(a => a.name === item.asset)
+        const asset = assetStore.findByName(item.asset)
         if (asset) {
           assetId = asset.id
         } else {
-          // 创建新资产
-          const newAsset = await assetStore.addAsset({
+          const newAsset = assetStore.addAsset({
             name: item.asset,
             type: 'cash',
             balance: 0
@@ -346,12 +345,11 @@ const startImport = async () => {
         // 查找或创建目标资产（转账类型）
         let targetAssetId = null
         if (item.type === 'transfer' && item.targetAsset) {
-          const targetAsset = assetStore.assets.find(a => a.name === item.targetAsset)
+          const targetAsset = assetStore.findByName(item.targetAsset)
           if (targetAsset) {
             targetAssetId = targetAsset.id
           } else {
-            // 创建新目标资产
-            const newTargetAsset = await assetStore.addAsset({
+            const newTargetAsset = assetStore.addAsset({
               name: item.targetAsset,
               type: 'cash',
               balance: 0
@@ -369,17 +367,14 @@ const startImport = async () => {
         
         if (item.category2) {
           // 有二级分类
-          const parentCategory = categoryStore.categories.find(c => 
-            c.name === item.category1 && c.type === categoryType
-          )
+          const parentCategory = categoryStore.findCategoryByName(item.category1, categoryType)
           if (parentCategory) {
             parentCategoryId = parentCategory.id
-            const subCategory = parentCategory.children.find(c => c.name === item.category2)
+            const subCategory = categoryStore.findCategoryByName(item.category2, categoryType, parentCategoryId)
             if (subCategory) {
               categoryId = subCategory.id
             } else {
-              // 创建子分类
-              const newSubCategory = await categoryStore.addCategory({
+              const newSubCategory = categoryStore.addCategory({
                 name: item.category2,
                 parentId: parentCategoryId,
                 type: categoryType
@@ -387,14 +382,13 @@ const startImport = async () => {
               categoryId = newSubCategory.id
             }
           } else {
-            // 创建父分类和子分类
-            const newParentCategory = await categoryStore.addCategory({
+            const newParentCategory = categoryStore.addCategory({
               name: item.category1,
               type: categoryType
             })
             parentCategoryId = newParentCategory.id
             
-            const newSubCategory = await categoryStore.addCategory({
+            const newSubCategory = categoryStore.addCategory({
               name: item.category2,
               parentId: parentCategoryId,
               type: categoryType
@@ -403,15 +397,12 @@ const startImport = async () => {
           }
         } else if (item.category1) {
           // 只有一级分类
-          const category = categoryStore.categories.find(c => 
-            c.name === item.category1 && c.type === categoryType
-          )
+          const category = categoryStore.findCategoryByName(item.category1, categoryType)
           if (category) {
             parentCategoryId = category.id
-            categoryId = category.id // 一级分类的categoryId就是parentCategoryId
+            categoryId = category.id
           } else {
-            // 创建分类
-            const newCategory = await categoryStore.addCategory({
+            const newCategory = categoryStore.addCategory({
               name: item.category1,
               type: categoryType
             })
@@ -421,14 +412,19 @@ const startImport = async () => {
         }
         
         // 创建账单数据
+        const normalizedAmount = item.type === 'income' || item.type === 'refund'
+          ? Math.abs(item.amount)
+          : -Math.abs(item.amount)
+
         const billData = {
-          amount: item.amount,
+          amount: normalizedAmount,
           assetId: assetId,
           parentCategoryId: parentCategoryId,
           categoryId: categoryId,
-          note: item.note,
+          remark: item.note,
           timestamp: new Date(item.date).getTime(),
           type: item.type,
+          isIncludedInStats: item.type !== 'refund',
           fee: item.type === 'transfer' ? item.fee : undefined
         }
         
@@ -672,6 +668,69 @@ const formatFileSize = (bytes) => {
 .tip-item {
   font-size: 12px;
   color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+;
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+  padding: 16px;
+}
+
+.tip-text {
+  font-size: 14px;
+  font-weight: bold;
+  color: #1976d2;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.tip-item {
+  font-size: 12px;
+  color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+;
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+p-text {
+  font-size: 14px;
+  font-weight: bold;
+  color: #1976d2;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.tip-item {
+  font-size: 12px;
+  color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+;
   display: block;
   margin-bottom: 4px;
 }

@@ -3,20 +3,24 @@
     <scroll-view scroll-y class="bill-scroll">
         <view class="bill-list">
             <view v-if="filteredBills.length === 0" class="empty-tip">暂无账单</view>
-            <view v-for="bill in filteredBills" :key="bill.id" class="neu-card bill-item" @longpress="deleteBill(bill.id)">
+            <view v-for="bill in filteredBills" :key="bill.id" class="neu-card bill-item" :class="getBillStateClass(bill)" @longpress="deleteBill(bill.id)">
                 <view class="bill-left">
                     <view class="icon-box">
-                        <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : '¥' }}</text>
+                        <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : bill.type === 'refund' ? '↩' : '¥' }}</text>
                     </view>
                     <view class="bill-info">
-                        <text class="category-name">{{ getCategoryName(bill) }}</text>
+                        <view class="category-row">
+                            <text class="category-name">{{ getCategoryName(bill) }}</text>
+                            <text v-if="bill.type === 'refund'" class="state-badge refund">退款单</text>
+                            <text v-else-if="bill.isRefunded" class="state-badge refunded">已退款</text>
+                        </view>
                         <text class="bill-date">{{ formatDate(bill.timestamp) }} | {{ getAssetName(bill.assetId) }}</text>
                         <text class="bill-remark" v-if="bill.remark">{{ bill.remark }}</text>
                     </view>
                 </view>
                 <view class="bill-right">
-                    <text :class="['bill-amount', bill.type === 'income' ? 'income' : 'expense']">
-                        {{ bill.type === 'income' ? '+' : '' }}{{ bill.amount.toFixed(2) }}
+                    <text :class="['bill-amount', getAmountClass(bill)]">
+                        {{ getDisplayAmount(bill) }}
                     </text>
                 </view>
             </view>
@@ -120,6 +124,21 @@ const getAssetName = (id) => {
 
 const formatDate = (ts) => {
     return new Date(ts).toLocaleDateString() + ' ' + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+const getDisplayAmount = (bill) => {
+    const amount = Number(bill.amount || 0).toFixed(2)
+    return Number(bill.amount) > 0 ? `+${amount}` : amount
+}
+
+const getAmountClass = (bill) => {
+    return Number(bill.amount) >= 0 ? 'income' : 'expense'
+}
+
+const getBillStateClass = (bill) => {
+    if (bill.type === 'refund') return 'is-refund'
+    if (bill.isRefunded) return 'is-refunded'
+    return ''
 }
 
 const deleteBill = (id) => {
@@ -248,4 +267,5 @@ const deleteBill = (id) => {
 }
 .expense { color: var(--color-text); }
 .income { color: var(--color-primary); }
+</style>or-primary); }
 </style>

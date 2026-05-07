@@ -71,7 +71,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useAssetStore } from '@/store/asset'
 import { useCategoryStore } from '@/store/category'
@@ -90,6 +91,12 @@ const quickOptions = [
   { key: 'thisMonth', label: '本月' },
   { key: 'lastMonth', label: '上月' }
 ]
+
+onShow(() => {
+  billStore.init()
+  assetStore.init()
+  categoryStore.init()
+})
 
 function getDateString(date) {
   const year = date.getFullYear()
@@ -155,95 +162,6 @@ const handleExport = async () => {
     const filteredBills = billStore.bills.filter(bill => {
       return bill.timestamp >= startTimestamp && bill.timestamp <= endTimestamp
     })
-    
-    // 如果没有账单数据，创建测试数据用于演示
-    if (filteredBills.length === 0 && billStore.bills.length === 0) {
-      // 创建测试数据
-      const testBills = [
-        {
-          id: 'test1',
-          amount: 25.5,
-          assetId: 'a1',
-          parentCategoryId: 'c1',
-          subCategoryId: 'c1-1',
-          note: '早餐测试数据',
-          timestamp: new Date('2024-01-15 08:30:00').getTime(),
-          type: 'expense'
-        },
-        {
-          id: 'test2',
-          amount: 15.8,
-          assetId: 'a2',
-          parentCategoryId: 'c1',
-          subCategoryId: 'c1-2',
-          note: '午餐测试数据',
-          timestamp: new Date('2024-01-15 12:15:00').getTime(),
-          type: 'expense'
-        }
-      ]
-      
-      // 检查测试数据是否在日期范围内
-      const testDataInRange = testBills.filter(bill => {
-        return bill.timestamp >= startTimestamp && bill.timestamp <= endTimestamp
-      })
-      
-      if (testDataInRange.length > 0) {
-        // 使用测试数据导出
-        const exportData = testDataInRange.map(bill => {
-          const date = new Date(bill.timestamp)
-          const dateStr = getDateString(date)
-          const asset = assetStore.getAsset(bill.assetId)
-          const assetName = asset ? asset.name : '未知资产'
-          
-          // 获取目标资产名称（转账类型）
-          let targetAssetName = ''
-          if (bill.type === 'transfer' && bill.targetAssetId) {
-            const targetAsset = assetStore.getAsset(bill.targetAssetId)
-            targetAssetName = targetAsset ? targetAsset.name : '未知目标资产'
-          }
-          
-          // 获取分类名称
-          const parentCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
-          let categoryName = ''
-          
-          if (bill.categoryId && bill.categoryId !== bill.parentCategoryId) {
-            categoryName = categoryStore.getCategoryName(bill.categoryId)
-          }
-          
-          // 获取类型文本
-          const typeMap = {
-            'income': '收入',
-            'expense': '支出',
-            'transfer': '转账',
-            'refund': '退款'
-          }
-          const typeText = typeMap[bill.type] || '支出'
-          
-          return {
-            '日期': dateStr,
-            '类型': typeText,
-            '资产': assetName,
-            '目标资产': targetAssetName,
-            '一级分类': parentCategoryName,
-            '分类': categoryName,
-            '金额': bill.amount,
-            '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
-            '备注': bill.note || ''
-          }
-        })
-        
-        const xlsContent = generateXLS(exportData)
-        const fileName = `账单数据_${startDate.value}_${endDate.value}.xls`
-        saveXLSFile(fileName, xlsContent)
-        
-        uni.showToast({
-          title: `导出成功，共${exportData.length}条测试记录`,
-          icon: 'success',
-          duration: 2000
-        })
-        return
-      }
-    }
     
     if (filteredBills.length === 0) {
       uni.showToast({
