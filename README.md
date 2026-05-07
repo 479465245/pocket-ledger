@@ -26,14 +26,14 @@
 ## 快速开始
 
 ```bash
-npm install
-npm run dev:h5
+pnpm install
+pnpm dev:h5
 ```
 
 构建 H5 版本：
 
 ```bash
-npm run build:h5
+pnpm build:h5
 ```
 
 其他端的运行和构建脚本可在 [package.json](package.json) 中查看，例如 App、小程序、快应用等 uni-app 支持的平台。
@@ -44,6 +44,7 @@ npm run build:h5
 .
 ├─ index.html
 ├─ package.json
+├─ pnpm-lock.yaml
 ├─ vite.config.js
 ├─ src
 │  ├─ App.vue

@@ -1,4 +1,4 @@
-# Agents 开发规范
+# AGENTS.md 开发规范
 
 本文档用于约束本项目中的人工开发者和 AI 编码代理。开始改动前请先阅读本文件、[README.md](README.md) 和 [wiki/wiki.md](wiki/wiki.md)。
 
@@ -12,17 +12,17 @@
 ## 常用命令
 
 ```bash
-npm install
-npm run dev:h5
-npm run build:h5
-npm run type-check
+pnpm install
+pnpm dev:h5
+pnpm build:h5
+pnpm type-check
 ```
 
 说明：
 
-- 项目已有 `package-lock.json`，默认使用 npm。
-- 不要随意改用 yarn、pnpm 或其他包管理器。
-- 只有在新增、删除或升级依赖时才更新 `package-lock.json`。
+- 项目已有 `pnpm-lock.yaml`，默认使用 pnpm。
+- 不要随意改用 npm、yarn 或其他包管理器。
+- 只有在新增、删除或升级依赖时才更新 `pnpm-lock.yaml`。
 
 ## 目录职责
 
@@ -49,6 +49,7 @@ npm run type-check
 - 先理解现有实现，再补功能或修 bug。
 - 不做无关重构，不顺手改格式，不重排大段代码。
 - 不删除用户数据相关逻辑，除非明确知道迁移路径。
+- 不写兜底代码，不写默认值。
 - 不引入后端、云同步、登录系统等架构变化，除非任务明确要求。
 - 遇到已有本地改动时，先确认 `git status --short`，不要覆盖他人或用户的改动。
 
@@ -124,7 +125,7 @@ npm run type-check
 
 - `README.md` 放项目入口信息：简介、启动方式、目录和核心能力。
 - `wiki/wiki.md` 放更详细的业务说明、已知问题和维护建议。
-- `Agents.md` 放开发规范和代理协作规则。
+- `AGENTS.md` 放开发规范和代理协作规则。
 - 修改核心业务规则、运行命令、导入导出格式时，记得同步更新相关文档。
 
 ## 提交规范
@@ -142,12 +143,12 @@ npm run type-check
 改动完成后按风险选择验证方式：
 
 - 文档改动：检查 Markdown 渲染和链接是否正确。
-- 页面样式改动：运行 `npm run dev:h5` 后在 H5 页面手动查看。
+- 页面样式改动：运行 `pnpm dev:h5` 后在 H5 页面手动查看。
 - store 或业务逻辑改动：至少覆盖新增、编辑、删除账单后的余额变化。
 - 转账逻辑改动：同时检查转出账户、转入账户和手续费。
 - 分类逻辑改动：检查一级分类、二级分类、迁移和删除场景。
 - 导入导出改动：用小样本数据验证导入预览、实际导入和导出文件。
-- 类型或构建风险较高时：运行 `npm run type-check` 和 `npm run build:h5`。
+- 类型或构建风险较高时：运行 `pnpm type-check` 和 `pnpm build:h5`。
 
 ## 禁止事项
 

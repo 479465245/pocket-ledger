@@ -1,6 +1,7 @@
 {
   "name": "uni-app-account-book",
   "version": "0.0.0",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev:app": "uni -p app",
     "dev:app-android": "uni -p app-android",
@@ -64,7 +65,7 @@
     "@dcloudio/vite-plugin-uni": "3.0.0-alpha-3080220230511001",
     "@vitejs/plugin-vue": "^4.2.3",
     "sass": "^1.62.1",
-    "typescript": "^5.0.4",
+    "typescript": "5.4.5",
     "vite": "^4.3.5",
     "vue-tsc": "^1.6.5"
   }
