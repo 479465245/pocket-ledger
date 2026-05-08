@@ -183,13 +183,14 @@ const filteredBills = computed(() => {
     return billStore.bills.filter(b => 
         b.timestamp >= start && 
         b.timestamp <= end && 
-        b.type === currentType.value &&
+        billStore.getStatType(b) === currentType.value &&
+        (b.currency || 'CNY') === 'CNY' &&
         b.isIncludedInStats !== false // Exclude ignored bills
     )
 })
 
 const totalAmount = computed(() => {
-    return filteredBills.value.reduce((acc, cur) => acc + Math.abs(cur.amount), 0).toFixed(2)
+    return filteredBills.value.reduce((acc, cur) => acc + billStore.getStatAmount(cur), 0).toFixed(2)
 })
 
 const categoryStats = computed(() => {
@@ -197,19 +198,19 @@ const categoryStats = computed(() => {
     const total = parseFloat(totalAmount.value) || 1
     
     filteredBills.value.forEach(bill => {
-        const pid = bill.parentCategoryId
+        const pid = bill.parentCategoryId || (bill.type === 'transfer' ? 'credit-card-repayment' : 'unknown')
         if (!map[pid]) {
             // Find category info
             const cat = categoryStore.categories.find(c => c.id === pid)
             map[pid] = {
                 id: pid,
-                name: cat ? cat.name : '未知分类',
-                icon: cat ? cat.icon : '❓',
+                name: cat ? cat.name : (pid === 'credit-card-repayment' ? '信用卡还款' : '未知分类'),
+                icon: cat ? cat.icon : (pid === 'credit-card-repayment' ? '💳' : '❓'),
                 amount: 0,
                 hasChildren: cat ? (cat.children && cat.children.length > 0) : false
             }
         }
-        map[pid].amount += Math.abs(bill.amount)
+        map[pid].amount += billStore.getStatAmount(bill)
     })
     
     const sorted = Object.values(map).sort((a, b) => b.amount - a.amount)

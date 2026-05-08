@@ -131,7 +131,7 @@ const categoryStats = computed(() => {
       match = billDate.getFullYear() === pickerDate.getFullYear()
     }
     
-    return match && bill.type === currentType.value && bill.parentCategoryId === props.parentId
+    return match && billStore.getStatType(bill) === currentType.value && (bill.currency || 'CNY') === 'CNY' && bill.isIncludedInStats !== false && bill.parentCategoryId === props.parentId
   })
   
   // 调试信息
@@ -145,7 +145,7 @@ const categoryStats = computed(() => {
     firstFewBills: bills.slice(0, 3)
   })
   
-  const total = bills.reduce((sum, bill) => sum + Math.abs(bill.amount), 0)
+  const total = bills.reduce((sum, bill) => sum + billStore.getStatAmount(bill), 0)
   if (total === 0) return []
   
   // Get parent category info to look up children
@@ -185,7 +185,7 @@ const categoryStats = computed(() => {
         isOther
       }
     }
-    map[key].amount += Math.abs(bill.amount)
+    map[key].amount += billStore.getStatAmount(bill)
   })
   
   // 调试分组结果

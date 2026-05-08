@@ -6,7 +6,7 @@
             <view v-for="bill in filteredBills" :key="bill.id" class="neu-card bill-item" :class="getBillStateClass(bill)" @longpress="deleteBill(bill.id)">
                 <view class="bill-left">
                     <view class="icon-box">
-                        <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : bill.type === 'refund' ? '↩' : '¥' }}</text>
+                        <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : bill.type === 'refund' ? '↩' : bill.type === 'adjustment' ? '⚖' : '¥' }}</text>
                     </view>
                     <view class="bill-info">
                         <view class="category-row">
@@ -34,7 +34,10 @@ import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
+
 import { useAssetStore } from '@/store/asset'
+
+import { formatCurrencyAmount } from '@/utils/currency'
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
@@ -53,7 +56,9 @@ onLoad((options) => {
         let title = '账单明细'
         if (params.value.id) {
             const name = categoryStore.getCategoryName(params.value.id)
-            if (name === 'Unknown') {
+            if (params.value.id === 'credit-card-repayment') {
+                title = '信用卡还款明细'
+            } else if (name === 'Unknown') {
                 console.warn('Unknown category ID in title:', params.value.id)
                 title = '分类明细' // 使用通用标题
             } else if (params.value.filterType === 'parent_other') {
@@ -83,11 +88,14 @@ const filteredBills = computed(() => {
     return billStore.bills.filter(b => {
         // Time & Type Filter
         if (b.timestamp < start || b.timestamp > end) return false
-        if (b.type !== type) return false
+        if (billStore.getStatType(b) !== type) return false
+        if ((b.currency || 'CNY') !== 'CNY') return false
         if (b.isIncludedInStats === false) return false
 
         // Category Filter
-        if (filterType === 'parent') {
+        if (filterType === 'parent' && id === 'credit-card-repayment') {
+            return b.type === 'transfer'
+        } else if (filterType === 'parent') {
             return b.parentCategoryId === id
         } else if (filterType === 'sub') {
             return b.categoryId === id
@@ -100,7 +108,8 @@ const filteredBills = computed(() => {
 })
 
 const getCategoryName = (bill) => {
-    if (bill.type === 'transfer') return '转账'
+    if (bill.type === 'transfer') return '信用卡还款'
+    if (bill.type === 'adjustment') return '资产调整'
     // 优先使用categoryId获取分类名称
     if (bill.categoryId) {
         const name = categoryStore.getCategoryName(bill.categoryId)
@@ -126,9 +135,11 @@ const formatDate = (ts) => {
     return new Date(ts).toLocaleDateString() + ' ' + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const getDisplayAmount = (bill) => {
-    const amount = Number(bill.amount || 0).toFixed(2)
-    return Number(bill.amount) > 0 ? `+${amount}` : amount
+const getDisplayAmount = (bill) => {
+    if (bill.type === 'transfer') {
+        return formatCurrencyAmount(Math.abs(bill.amount || 0), bill.currency || 'CNY')
+    }
+    return formatCurrencyAmount(bill.amount || 0, bill.currency || 'CNY')
 }
 
 const getAmountClass = (bill) => {

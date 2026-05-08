@@ -64,7 +64,7 @@
 
                   </text>
 
-                  <text class="balance-snapshot">余额: {{ bill.type === 'transfer' ? (bill.balanceSnapshot ?? bill.targetBalanceSnapshot ?? '--') : (bill.balanceSnapshot ?? '--') }}</text>
+                  <text class="balance-snapshot">余额: {{ getBalanceSnapshotText(bill) }}</text>
 
                 </view>
 
@@ -86,7 +86,10 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
+
 import { useAssetStore } from '@/store/asset'
+
+import { formatCurrencyAmount } from '@/utils/currency'
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
@@ -122,8 +125,9 @@ const currentMonthBills = computed(() => {
 
 const currentMonthExpense = computed(() => {
   return currentMonthBills.value
-    .filter(b => b.type === 'expense')
-    .reduce((acc, cur) => acc + Math.abs(cur.amount), 0)
+    .filter(b => billStore.getStatType(b) === 'expense' && (b.currency || 'CNY') === 'CNY' && b.isIncludedInStats !== false)
+
+    .reduce((acc, cur) => acc + billStore.getStatAmount(cur), 0)
     .toFixed(2)
 })
 
@@ -296,9 +300,13 @@ const refundBill = (id) => {
 
 const getDisplayAmount = (bill) => {
 
-  const amount = Number(bill.amount || 0).toFixed(2)
-
-  return Number(bill.amount) > 0 ? `+${amount}` : amount
+  if (bill.type === 'transfer') {
+    const out = formatCurrencyAmount(Math.abs(bill.amount || 0), bill.currency || 'CNY')
+    const into = formatCurrencyAmount(bill.targetAmount || Math.abs(bill.amount || 0), bill.targetCurrency || bill.currency || 'CNY')
+    return `${out} → ${into}`
+  }
+
+  return formatCurrencyAmount(bill.amount || 0, bill.currency || 'CNY')
 
 }
 
@@ -311,12 +319,31 @@ const getAmountClass = (bill) => {
 }
 
 
+const getBalanceSnapshotText = (bill) => {
+  if (bill.type === 'transfer') {
+    const source = bill.balanceSnapshot !== undefined
+      ? formatCurrencyAmount(bill.balanceSnapshot, bill.balanceCurrency || bill.currency || 'CNY')
+      : '--'
+    const target = bill.targetBalanceSnapshot !== undefined
+      ? formatCurrencyAmount(bill.targetBalanceSnapshot, bill.targetBalanceCurrency || bill.targetCurrency || 'CNY')
+      : '--'
+    return `${source} / ${target}`
+  }
+
+  if (bill.balanceSnapshot === undefined) return '--'
+  return formatCurrencyAmount(bill.balanceSnapshot, bill.balanceCurrency || bill.currency || 'CNY')
+}
+
 const getBillTitle = (bill) => {
 
-  if (bill.type === 'transfer') return '转账'
-
-  if (bill.type === 'adjustment') return '资产调整'
-
+  if (bill.type === 'transfer') return '转账'
+
+
+
+  if (bill.type === 'adjustment') return '资产调整'
+
+
+
   if (bill.type === 'refund') return `退款 · ${getCategoryName(bill.categoryId || bill.parentCategoryId)}`
 
   return getCategoryName(bill.categoryId || bill.parentCategoryId)

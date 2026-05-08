@@ -4,6 +4,9 @@ import { useAssetStore } from './asset'
 
 const STORAGE_KEY = 'account_book_bills'
 
+const normalizeCurrency = (currency) => currency || 'CNY'
+const roundMoney = (value) => Number(Number(value || 0).toFixed(2))
+
 export const useBillStore = defineStore('bill', {
   state: () => ({
     bills: []
@@ -12,7 +15,11 @@ export const useBillStore = defineStore('bill', {
     init() {
       const stored = uni.getStorageSync(STORAGE_KEY)
       if (stored) {
-        this.bills = JSON.parse(stored)
+        this.bills = JSON.parse(stored).map(b => ({
+          ...b,
+          currency: normalizeCurrency(b.currency),
+          targetCurrency: normalizeCurrency(b.targetCurrency || b.currency)
+        }))
       }
     },
     save() {
@@ -22,8 +29,19 @@ export const useBillStore = defineStore('bill', {
       return this.bills.find(b => b.id === id)
     },
     normalizeBillData(billData = {}) {
+      const currency = normalizeCurrency(billData.currency)
+      const targetCurrency = normalizeCurrency(billData.targetCurrency || currency)
+      const amount = Number(billData.amount || 0)
+      const targetAmount = billData.targetAmount !== undefined
+        ? Number(billData.targetAmount || 0)
+        : undefined
+
       return {
         ...billData,
+        amount,
+        currency,
+        targetCurrency,
+        targetAmount,
         remark: billData.remark ?? billData.note ?? '',
         fee: Number(billData.fee || 0),
         isIncludedInStats: billData.isIncludedInStats !== undefined ? billData.isIncludedInStats : true,
@@ -50,9 +68,9 @@ export const useBillStore = defineStore('bill', {
 
       this.bills.push(newBill)
 
-      await this.recalculateAssetBalance(newBill.assetId, newBill.timestamp)
+      await this.recalculateAssetBalance(newBill.assetId)
       if (newBill.type === 'transfer' && newBill.targetAssetId) {
-        await this.recalculateAssetBalance(newBill.targetAssetId, newBill.timestamp)
+        await this.recalculateAssetBalance(newBill.targetAssetId)
       }
 
       this.save()
@@ -74,6 +92,7 @@ export const useBillStore = defineStore('bill', {
         parentCategoryId: original.parentCategoryId,
         categoryId: original.categoryId,
         type: 'refund',
+        currency: original.currency || 'CNY',
         timestamp: overrides.timestamp || Date.now(),
         remark,
         originalBillId,
@@ -103,7 +122,7 @@ export const useBillStore = defineStore('bill', {
       if (billData.type === 'transfer' && billData.targetAssetId) assetsToRecalculate.add(billData.targetAssetId)
 
       for (const assetId of assetsToRecalculate) {
-        await this.recalculateAssetBalance(assetId, Math.min(originalBill.timestamp, billData.timestamp || originalBill.timestamp))
+        await this.recalculateAssetBalance(assetId)
       }
 
       this.save()
@@ -114,30 +133,36 @@ export const useBillStore = defineStore('bill', {
       const asset = assetStore.getAsset(assetId)
       if (!asset) return
 
+      const runningBalances = {
+        CNY: Number(asset.initialBalance || 0),
+        ...(asset.initialBalances || {})
+      }
+
       const assetBills = this.bills
         .filter(b => b.assetId === assetId || (b.type === 'transfer' && b.targetAssetId === assetId))
         .sort((a, b) => a.timestamp - b.timestamp)
 
-      let runningBalance = asset.initialBalance
-
       for (const bill of assetBills) {
-        let amount = Number(bill.amount)
-
-        if (bill.type === 'transfer' && bill.targetAssetId === assetId) {
-          const fee = Number(bill.fee) || 0
-          amount = -amount - fee
+        if (bill.assetId === assetId) {
+          const currency = normalizeCurrency(bill.currency)
+          const fee = bill.type === 'transfer' ? Number(bill.fee || 0) : 0
+          const delta = Number(bill.amount || 0) - Math.abs(fee)
+          runningBalances[currency] = roundMoney((runningBalances[currency] || 0) + delta)
+          bill.balanceSnapshot = runningBalances[currency]
+          bill.balanceCurrency = currency
         }
 
-        runningBalance += amount
-
-        if (bill.assetId === assetId) {
-          bill.balanceSnapshot = Number(runningBalance.toFixed(2))
-        } else if (bill.targetAssetId === assetId) {
-          bill.targetBalanceSnapshot = Number(runningBalance.toFixed(2))
+        if (bill.type === 'transfer' && bill.targetAssetId === assetId) {
+          const targetCurrency = normalizeCurrency(bill.targetCurrency || bill.currency)
+          const fallbackTargetAmount = Math.abs(Number(bill.amount || 0))
+          const targetAmount = bill.targetAmount !== undefined ? Number(bill.targetAmount || 0) : fallbackTargetAmount
+          runningBalances[targetCurrency] = roundMoney((runningBalances[targetCurrency] || 0) + targetAmount)
+          bill.targetBalanceSnapshot = runningBalances[targetCurrency]
+          bill.targetBalanceCurrency = targetCurrency
         }
       }
 
-      assetStore.updateBalance(assetId, Number(runningBalance.toFixed(2)))
+      assetStore.updateBalances(assetId, runningBalances)
       this.save()
     },
     async deleteBill(id) {
@@ -168,10 +193,17 @@ export const useBillStore = defineStore('bill', {
       }
 
       for (const assetId of affectedAssets) {
-        await this.recalculateAssetBalance(assetId, 0)
+        await this.recalculateAssetBalance(assetId)
       }
 
       this.save()
+    },
+    getStatType(bill) {
+      if (bill.type === 'transfer' && bill.isIncludedInStats !== false && bill.currency === 'CNY') return 'expense'
+      return bill.type
+    },
+    getStatAmount(bill) {
+      return Math.abs(Number(bill.amount || 0))
     },
     migrateCategory(oldCatId, newCatId) {
       let count = 0
@@ -199,7 +231,7 @@ export const useBillStore = defineStore('bill', {
       this.bills = this.bills.filter(b => b.parentCategoryId !== catId && b.categoryId !== catId)
 
       affectedAssets.forEach(assetId => {
-        this.recalculateAssetBalance(assetId, 0)
+        this.recalculateAssetBalance(assetId)
       })
 
       this.save()

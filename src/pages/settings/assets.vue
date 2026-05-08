@@ -25,7 +25,7 @@
                 <text class="asset-type">{{ getTypeName(asset.type) }}</text>
               </view>
               <view class="asset-balance">
-                <text>¥ {{ Number(asset.currentBalance || 0).toFixed(2) }}</text>
+                <text v-for="line in getAssetBalanceLines(asset)" :key="line" class="balance-line">{{ line }}</text>
               </view>
             </view>
             <view class="action-buttons">
@@ -84,6 +84,7 @@ import { ref, computed, reactive, nextTick } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAssetStore } from '@/store/asset'
 import { useBillStore } from '@/store/bill'
+import { formatCurrencyAmount } from '@/utils/currency'
 
 const assetStore = useAssetStore()
 const billStore = useBillStore()
@@ -110,6 +111,14 @@ const assets = computed(() => assetStore.assets)
 const totalAsset = computed(() => {
   return assets.value.reduce((acc, cur) => acc + Number(cur.currentBalance || 0), 0).toFixed(2)
 })
+
+const getAssetBalanceLines = (asset) => {
+  const balances = asset.balances || { CNY: asset.currentBalance || 0 }
+  return Object.entries(balances)
+    .filter(([, amount]) => Number(amount || 0) !== 0)
+    .map(([currency, amount]) => formatCurrencyAmount(amount, currency))
+    .concat(Object.values(balances).some(amount => Number(amount || 0) !== 0) ? [] : [formatCurrencyAmount(0, 'CNY')])
+}
 
 const getTypeName = (type) => {
   const map = {
@@ -218,6 +227,8 @@ const confirmSaveAsset = async () => {
         type: 'adjustment',
         timestamp: Date.now(),
         remark: `资产调整：${oldBalance.toFixed(2)} → ${balance.toFixed(2)}`,
+        currency: 'CNY',
+        targetCurrency: 'CNY',
         parentCategoryId: '',
         categoryId: '',
         isIncludedInStats: false,
@@ -405,9 +416,17 @@ const onTouchEnd = (e) => {
 }
 
 .asset-balance {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: bold;
   color: #FF8D5D;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.balance-line {
+  display: block;
+  line-height: 1.5;
 }
 
 .fab {

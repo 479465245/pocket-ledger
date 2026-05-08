@@ -88,6 +88,34 @@
                 </view>
             </view>
             
+            <view class="transfer-row" @click="openCurrencyPicker('target')">
+                <view class="row-label">
+                    <text class="row-icon">🌍</text>
+                    <text>还款币种</text>
+                </view>
+                <view class="row-right">
+                    <text class="row-value">{{ form.targetCurrency }}</text>
+                    <text class="chevron">></text>
+                </view>
+            </view>
+
+            <view class="transfer-row input-row">
+                <view class="row-label">
+                    <text class="row-icon">💱</text>
+                    <text>转入金额</text>
+                </view>
+                <view class="row-right">
+                    <input
+                        class="fee-input"
+                        type="digit"
+                        v-model="form.targetAmountStr"
+                        placeholder="外币金额"
+                        @input="onTargetAmountInput"
+                    />
+                    <text class="fee-unit">{{ form.targetCurrency }}</text>
+                </view>
+            </view>
+            
             <!-- 手续费输入 -->
             <view class="transfer-divider">
                 <text>💰</text>
@@ -126,9 +154,28 @@
                      <text>{{ displayDate }}</text>
                  </view>
              </picker>
+             <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab !== 'transfer'">
+
+                 <text class="tag-icon">🌍</text>
+
+                 <text>{{ form.currency }}</text>
+
+             </view>
+
+             <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab === 'transfer'">
+
+                 <text class="tag-icon">💸</text>
+
+                 <text>转出 {{ form.currency }}</text>
+
+             </view>
+
              <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats">
+
                  <text class="tag-icon">{{ form.isIncludedInStats ? '📊' : '🚫' }}</text>
+
                  <text>{{ form.isIncludedInStats ? '计入统计' : '不计入' }}</text>
+
              </view>
         </view>
         
@@ -138,7 +185,7 @@
                 <input class="remark-input" v-model="form.remark" placeholder="请输入备注信息..." />
             </view>
             <view class="amount-box">
-                <text class="currency">¥</text>
+                <text class="currency">{{ displayCurrencySymbol }}</text>
                 <text class="amount-text">{{ displayAmount }}</text>
             </view>
         </view>
@@ -188,7 +235,40 @@
             </view>
         </view>
     </view>
+    <!-- Currency Picker Modal -->
+
+    <view v-if="showCurrencyPicker" class="picker-mask" @click="showCurrencyPicker = false">
+
+        <view class="picker-modal neu-card" @click.stop>
+
+            <view class="picker-title">选择币种</view>
+
+            <view class="asset-list">
+
+                <view
+
+                    v-for="c in currencies"
+
+                    :key="c.code"
+
+                    class="asset-option"
+
+                    @click="selectCurrency(c.code)"
+
+                >
+
+                    {{ c.name }} ({{ c.code }})
+
+                </view>
+
+            </view>
+
+        </view>
+
+    </view>
+
     
+
   </view>
 </template>
 
@@ -197,7 +277,11 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
+
 import { useBillStore } from '@/store/bill'
+
+import { CURRENCIES, getCurrencySymbol } from '@/utils/currency'
+
 
 const categoryStore = useCategoryStore()
 const assetStore = useAssetStore()
@@ -218,7 +302,14 @@ const scrollTop = ref(0)
 const selectedCategoryId = ref('')
 const selectedParentId = ref('') // To track which parent is expanded
 const showAssetPicker = ref(false)
+
+const showCurrencyPicker = ref(false)
+
 const pickingAssetType = ref('source')
+
+const pickingCurrencyType = ref('source')
+
+const currencies = CURRENCIES
 
 const form = reactive({
     amountStr: '0',
@@ -227,6 +318,9 @@ const form = reactive({
     assetId: '',
     parentCategoryId: '', // 一级分类ID，用于层级展示
     categoryId: '', // 实际分类ID（可以是父级或子级）
+    currency: 'CNY',
+    targetCurrency: 'CNY',
+    targetAmountStr: '',
     isIncludedInStats: true,
     // 转账相关字段
     targetAssetId: '',
@@ -259,6 +353,14 @@ const displayDate = computed(() => {
 
 const displayAmount = computed(() => {
     return form.amountStr
+})
+
+const displayCurrencySymbol = computed(() => {
+    return getCurrencySymbol(form.currency)
+})
+
+const displayTransferInAmount = computed(() => {
+    return form.targetAmountStr || '0'
 })
 
 // Watch categories change to ensure selection is valid
@@ -340,11 +442,17 @@ const loadBillData = (id) => {
     form.assetId = bill.assetId
     form.parentCategoryId = bill.parentCategoryId
     form.categoryId = bill.categoryId
+    form.currency = bill.currency || 'CNY'
+    form.targetCurrency = bill.targetCurrency || bill.currency || 'CNY'
+    form.targetAmountStr = bill.targetAmount !== undefined ? Math.abs(Number(bill.targetAmount || 0)).toString() : ''
     form.isIncludedInStats = bill.isIncludedInStats
     
     // 如果是转账，设置目标账户和手续费
     if (bill.type === 'transfer') {
-        form.targetAssetId = bill.targetAssetId
+        form.targetAmountStr = bill.targetAmount !== undefined ? Math.abs(Number(bill.targetAmount || 0)).toString() : ''
+
+        form.targetCurrency = bill.targetCurrency || bill.currency || 'CNY'
+
         form.fee = bill.fee ? bill.fee.toString() : '0'
     }
     
@@ -371,20 +479,20 @@ const loadBillData = (id) => {
 const switchTab = (val) => {
     currentTab.value = val
     if (val === 'transfer') {
-        form.isIncludedInStats = false
-        // Default target asset logic
+        form.isIncludedInStats = true
+        form.currency = 'CNY'
+        if (!form.targetCurrency) form.targetCurrency = 'CNY'
         if (!form.targetAssetId && assets.value.length > 1) {
-             // Try to find one that is not source
-             form.targetAssetId = assets.value.find(a => a.id !== form.assetId)?.id || ''
+            form.targetAssetId = assets.value.find(a => a.id !== form.assetId)?.id || ''
         }
-        // 确保手续费字段有值
         if (!form.fee) {
             form.fee = '0'
         }
     } else {
-        form.isIncludedInStats = true
-        // 非转账模式下清空手续费
+        form.isIncludedInStats = form.currency === 'CNY'
         form.fee = '0'
+        form.targetAmountStr = ''
+        form.targetCurrency = form.currency
         form.targetAssetId = ''
     }
 }
@@ -424,8 +532,57 @@ const selectAsset = (a) => {
     showAssetPicker.value = false
 }
 
+const openCurrencyPicker = (type) => {
+
+    pickingCurrencyType.value = type
+
+    showCurrencyPicker.value = true
+
+}
+
+
+
+const selectCurrency = (code) => {
+
+    if (pickingCurrencyType.value === 'target') {
+
+        form.targetCurrency = code
+
+    } else {
+
+        form.currency = code
+
+        if (currentTab.value !== 'transfer') {
+
+            form.targetCurrency = code
+
+            form.isIncludedInStats = code === 'CNY'
+
+        }
+
+    }
+
+    showCurrencyPicker.value = false
+
+}
+
+
+
 const onDateChange = (e) => {
     form.date = e.detail.value
+}
+
+const onTargetAmountInput = (e) => {
+    let value = e.detail.value
+    value = value.replace(/[^\d.]/g, '')
+    const parts = value.split('.')
+    if (parts.length > 2) {
+        value = parts[0] + '.' + parts.slice(1).join('')
+    }
+    if (parts[1] && parts[1].length > 2) {
+        value = parts[0] + '.' + parts[1].substring(0, 2)
+    }
+    form.targetAmountStr = value
 }
 
 // 手续费输入处理
@@ -481,18 +638,17 @@ const onKey = (key) => {
     }
 }
 
-const resetForm = () => {
-    form.amountStr = '0'
-    form.remark = ''
-    if (currentTab.value !== 'transfer') {
-        form.isIncludedInStats = true
-    }
-    // 重置转账相关字段
-    if (currentTab.value === 'transfer') {
-        form.fee = '0'
-    }
-    // Keep asset and date and category
-}
+const resetForm = () => {
+    form.amountStr = '0'
+    form.remark = ''
+    if (currentTab.value !== 'transfer') {
+        form.isIncludedInStats = form.currency === 'CNY'
+    }
+    if (currentTab.value === 'transfer') {
+        form.fee = '0'
+        form.targetAmountStr = ''
+    }
+}
 
 const submit = async () => {
     const val = parseFloat(form.amountStr)
@@ -506,10 +662,16 @@ const submit = async () => {
              uni.showToast({ title: '请选择转出和转入账户', icon: 'none' })
              return
         }
-        if (form.assetId === form.targetAssetId) {
-             uni.showToast({ title: '转出和转入账户不能相同', icon: 'none' })
+        const targetVal = parseFloat(form.targetAmountStr)
+
+        if (!targetVal || targetVal <= 0) {
+
+             uni.showToast({ title: '请输入转入金额', icon: 'none' })
+
              return
+
         }
+
     }
 
     try {
@@ -555,6 +717,9 @@ const submit = async () => {
 
         const billData = {
             amount: finalAmount,
+            currency: form.currency,
+            targetAmount: currentTab.value === 'transfer' ? Math.abs(parseFloat(form.targetAmountStr) || 0) : undefined,
+            targetCurrency: currentTab.value === 'transfer' ? form.targetCurrency : form.currency,
             parentCategoryId: form.parentCategoryId, // 保留一级分类用于展示
             categoryId: form.categoryId, // 实际分类ID
             assetId: form.assetId,
@@ -562,7 +727,9 @@ const submit = async () => {
             type: currentTab.value,
             timestamp: timestamp,
             remark: form.remark,
-            isIncludedInStats: form.isIncludedInStats,
+            isIncludedInStats: currentTab.value === 'transfer'
+                ? form.isIncludedInStats
+                : (form.currency === 'CNY' && form.isIncludedInStats),
             // 添加手续费字段
             fee: currentTab.value === 'transfer' ? parseFloat(form.fee) || 0 : undefined
         }
