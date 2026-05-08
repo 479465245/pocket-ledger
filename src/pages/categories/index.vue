@@ -209,7 +209,7 @@ onShow(() => {
 })
 
 const filteredCategories = computed(() => {
-    return categoryStore.categories.filter(c => c.type === currentTab.value)
+    return categoryStore.categories.filter(c => c.type === currentTab.value && !c.hidden)
 })
 
 const migrationCandidates = computed(() => {
@@ -218,7 +218,7 @@ const migrationCandidates = computed(() => {
     // If target is Level 1, candidates are other Level 1
     // If target is Level 2, candidates are other Level 2? 
     // For simplicity, let's say we migrate to a Level 1 category.
-    return categoryStore.categories.filter(c => c.id !== targetCategory.value.id && c.type === currentTab.value)
+    return categoryStore.categories.filter(c => c.id !== targetCategory.value.id && c.type === currentTab.value && !c.hidden)
 })
 
 const migrationTargetName = computed(() => {

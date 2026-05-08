@@ -328,7 +328,7 @@ const form = reactive({
 })
 
 const categories = computed(() => {
-    return categoryStore.categories.filter(c => c.type === currentTab.value)
+    return categoryStore.categories.filter(c => c.type === currentTab.value && !c.hidden)
 })
 const assets = computed(() => assetStore.assets)
 

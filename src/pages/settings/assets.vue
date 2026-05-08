@@ -84,6 +84,7 @@ import { ref, computed, reactive, nextTick } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAssetStore } from '@/store/asset'
 import { useBillStore } from '@/store/bill'
+import { ASSET_ADJUSTMENT_CATEGORY_ID } from '@/store/category'
 import { formatCurrencyAmount } from '@/utils/currency'
 
 const assetStore = useAssetStore()
@@ -202,7 +203,24 @@ const confirmSaveAsset = async () => {
 
   try {
     if (!isEditMode.value) {
-      assetStore.addAsset(name, 'digital', balance)
+      const asset = assetStore.addAsset(name, 'digital', 0)
+
+      if (balance !== 0) {
+        await billStore.addBill({
+          amount: balance,
+          assetId: asset.id,
+          type: 'adjustment',
+          timestamp: null,
+          remark: `资产新建：${balance.toFixed(2)}`,
+          currency: 'CNY',
+          targetCurrency: 'CNY',
+          parentCategoryId: ASSET_ADJUSTMENT_CATEGORY_ID,
+          categoryId: ASSET_ADJUSTMENT_CATEGORY_ID,
+          isIncludedInStats: false,
+          fee: 0
+        })
+      }
+
       uni.showToast({ title: '已添加' })
       closeAssetModal()
       return
@@ -229,8 +247,8 @@ const confirmSaveAsset = async () => {
         remark: `资产调整：${oldBalance.toFixed(2)} → ${balance.toFixed(2)}`,
         currency: 'CNY',
         targetCurrency: 'CNY',
-        parentCategoryId: '',
-        categoryId: '',
+        parentCategoryId: ASSET_ADJUSTMENT_CATEGORY_ID,
+        categoryId: ASSET_ADJUSTMENT_CATEGORY_ID,
         isIncludedInStats: false,
         fee: 0
       })
