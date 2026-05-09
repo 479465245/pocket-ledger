@@ -1,123 +1,234 @@
 <template>
-  <view class="container">
+  <scroll-view scroll-y class="container">
     <view class="header">
       <text class="title">导入账单数据</text>
-      <text class="subtitle">请选择要导入的XLS文件</text>
+      <text class="subtitle">上传支付宝、微信原始导出文件，无需修改表头</text>
     </view>
-    
-    <view class="content">
-      <view class="file-section">
+
+    <view class="content neu-card">
+      <view class="section">
+        <text class="section-title">导入来源</text>
+        <view class="source-tabs">
+          <button
+            v-for="option in providerOptions"
+            :key="option.value"
+            :class="['source-tab', selectedProvider === option.value ? 'active' : '']"
+            @click="selectProvider(option.value)"
+            :disabled="isImporting"
+          >
+            {{ option.label }}
+          </button>
+        </view>
+        <text class="source-guide">{{ providerGuide }}</text>
+      </view>
+
+      <view class="section">
         <button class="select-btn" @click="selectFile" :disabled="isImporting">
-          {{ selectedFile ? '重新选择文件' : '选择XLS文件' }}
+          {{ selectedFile ? '重新选择文件' : '选择账单文件' }}
         </button>
-        
+
         <view v-if="selectedFile" class="file-info">
-          <text class="file-name">已选择: {{ selectedFile.name }}</text>
-          <text class="file-size">大小: {{ formatFileSize(selectedFile.size) }}</text>
+          <text class="file-name">{{ selectedFile.name }}</text>
+          <text class="file-size">{{ formatFileSize(selectedFile.size) }}</text>
+        </view>
+
+        <view class="format-box">
+          <text class="format-title">可上传格式</text>
+          <text class="format-text">支付宝 / 微信：平台导出的 `.xls`、`.xlsx`、`.csv` 原始文件。</text>
+          <text class="format-text">通用模板：日期、类型、资产、目标资产、一级分类、二级分类、金额、手续费、备注。</text>
         </view>
       </view>
-      
-      <view v-if="previewData.length > 0" class="preview-section">
-        <text class="section-title">数据预览（前5条）</text>
+
+      <view v-if="parseSummary" class="section summary-section">
+        <text class="section-title">识别结果</text>
+        <view class="summary-grid">
+          <view class="summary-item">
+            <text class="summary-label">来源</text>
+            <text class="summary-value">{{ parsedProviderLabel }}</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-label">明细</text>
+            <text class="summary-value">{{ importData.length }} 条</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-label">可导入</text>
+            <text class="summary-value">{{ importableData.length }} 条</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-label">已跳过</text>
+            <text class="summary-value">{{ parseSummary.ignoredRows }} 行</text>
+          </view>
+        </view>
+
+        <view v-if="parseSummary.detectedHeaders.length" class="detected-box">
+          <text class="detected-title">已识别字段</text>
+          <text class="detected-text">{{ parseSummary.detectedHeaders.join('，') }}</text>
+        </view>
+      </view>
+
+      <view v-if="parseMessages.length" class="section validation-section">
+        <text class="section-title">文件识别提示</text>
+        <view v-for="(message, index) in parseMessages" :key="index" class="validation-item">
+          <text :class="['validation-text', message.type]">{{ message.message }}</text>
+        </view>
+      </view>
+
+      <view v-if="showCategoryFallbacks" class="section category-section">
+        <text class="section-title">未分类记录处理</text>
+        <text class="source-guide">平台账单里没有消费分类时，先为这些记录选择一个默认分类，导入后仍可逐条编辑。</text>
+
+        <picker
+          v-if="needsExpenseCategory"
+          :range="expenseCategoryLabels"
+          @change="selectDefaultCategory('expense', $event)"
+        >
+          <view class="picker-box">
+            <text>{{ selectedExpenseCategoryLabel || '选择未分类支出的默认分类' }}</text>
+          </view>
+        </picker>
+
+        <picker
+          v-if="needsIncomeCategory"
+          :range="incomeCategoryLabels"
+          @change="selectDefaultCategory('income', $event)"
+        >
+          <view class="picker-box">
+            <text>{{ selectedIncomeCategoryLabel || '选择未分类收入的默认分类' }}</text>
+          </view>
+        </picker>
+      </view>
+
+      <view v-if="importData.length > 0" class="section preview-section">
+        <text class="section-title">数据预览（前 8 条）</text>
         <scroll-view scroll-x class="preview-table">
           <view class="table-header">
+            <text class="header-cell small">行号</text>
             <text class="header-cell">日期</text>
             <text class="header-cell">类型</text>
-            <text class="header-cell">资产</text>
-            <text class="header-cell">币种</text>
+            <text class="header-cell">账户</text>
             <text class="header-cell">金额</text>
-            <text class="header-cell">目标资产</text>
-            <text class="header-cell">目标币种</text>
-            <text class="header-cell">目标金额</text>
-            <text class="header-cell">一级分类</text>
-            <text class="header-cell">二级分类</text>
-            <text class="header-cell">手续费</text>
-            <text class="header-cell">备注</text>
+            <text class="header-cell">分类</text>
+            <text class="header-cell wide">备注</text>
+            <text class="header-cell">状态</text>
           </view>
-          <view v-for="(row, index) in previewData.slice(0, 5)" :key="index" class="table-row">
+          <view v-for="row in previewRows" :key="row.rowIndex" class="table-row">
+            <text class="cell small">{{ row.rowIndex }}</text>
             <text class="cell">{{ row.date }}</text>
-            <text class="cell">{{ row.typeText }}</text>
+            <text class="cell">{{ row.typeText || '-' }}</text>
             <text class="cell">{{ row.asset }}</text>
-            <text class="cell">{{ row.targetAsset || '-' }}</text>
-            <text class="cell">{{ row.category1 }}</text>
-            <text class="cell">{{ row.category2 || '-' }}</text>
-            <text class="cell">{{ row.amount }}</text>
-            <text class="cell">{{ row.fee || '-' }}</text>
-            <text class="cell">{{ row.note }}</text>
+            <text class="cell">{{ formatAmount(row) }}</text>
+            <text class="cell">{{ getCategoryText(row) }}</text>
+            <text class="cell wide">{{ row.remark || '-' }}</text>
+            <text :class="['cell', rowStatusClass(row)]">{{ rowStatusText(row) }}</text>
           </view>
         </scroll-view>
       </view>
-      
-      <view v-if="validationResults.length > 0" class="validation-section">
+
+      <view v-if="validationResults.length > 0" class="section validation-section">
         <text class="section-title">数据校验结果</text>
-        <view v-for="(result, index) in validationResults" :key="index" class="validation-item">
+        <view v-for="(result, index) in validationResults.slice(0, 12)" :key="index" class="validation-item">
           <text :class="['validation-text', result.type]">
-            第{{ result.row }}行: {{ result.message }}
+            第{{ result.row }}行：{{ result.message }}
           </text>
         </view>
+        <text v-if="validationResults.length > 12" class="more-text">还有 {{ validationResults.length - 12 }} 条提示未展示</text>
       </view>
-      
+
       <view class="actions">
-        <button 
-          class="import-btn" 
-          @click="startImport" 
-          :disabled="!selectedFile || isImporting"
-          v-if="validationResults.length === 0 && previewData.length > 0"
+        <button
+          class="import-btn"
+          @click="startImport"
+          :disabled="!importableData.length || isImporting"
         >
-          {{ isImporting ? '导入中...' : '开始导入' }}
+          {{ isImporting ? '导入中...' : `导入可导入记录（${importableData.length}）` }}
         </button>
-        
-        <button 
-          class="continue-btn" 
-          @click="continueImport" 
+
+        <button
+          class="secondary-btn"
+          @click="resetImport"
           :disabled="isImporting"
-          v-if="validationResults.length > 0 && hasOnlyMissingAssets"
+          v-if="selectedFile || importData.length"
         >
-          继续导入（自动创建缺失资产）
+          重新开始
         </button>
       </view>
     </view>
-    
+
     <view class="tips">
-      <text class="tip-text">提示：</text>
-      <text class="tip-item">• 支持导入.xls和.xlsx格式文件</text>
-      <text class="tip-item">• 第一行为表头，不导入数据</text>
-      <text class="tip-item">• 文件列顺序：日期、类型、资产、目标资产、一级分类、二级分类、金额、手续费、备注</text>
-      <text class="tip-item">• 如果资产不存在，会提示您新建资产</text>
-      <text class="tip-item">• 如果分类不存在，会自动创建对应分类</text>
+      <text class="tip-text">提示</text>
+      <text class="tip-item">1. 支付宝和微信文件请直接上传原始导出结果，不需要删除说明行。</text>
+      <text class="tip-item">2. 重复记录会默认跳过，不覆盖你已经编辑过的本地账单。</text>
+      <text class="tip-item">3. 充值、提现、转账等余额变动默认不参与消费统计。</text>
     </view>
-  </view>
+  </scroll-view>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import * as XLSX from 'xlsx'
 import { useBillStore } from '@/store/bill.js'
 import { useCategoryStore } from '@/store/category.js'
 import { useAssetStore } from '@/store/asset.js'
+import {
+  PROVIDER_OPTIONS,
+  PROVIDER_GUIDES,
+  getProviderLabel,
+  parseImportRows
+} from '@/utils/importParsers.js'
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
 const assetStore = useAssetStore()
 
+const providerOptions = PROVIDER_OPTIONS
+const selectedProvider = ref('auto')
+const parsedProvider = ref('')
 const selectedFile = ref(null)
 const isImporting = ref(false)
-const previewData = ref([])
-const validationResults = ref([])
 const importData = ref([])
+const validationResults = ref([])
+const parseMessages = ref([])
+const parseSummary = ref(null)
+const defaultExpenseCategoryId = ref('')
+const defaultIncomeCategoryId = ref('')
 
-const hasOnlyMissingAssets = computed(() => {
-  return validationResults.value.length > 0 && 
-         validationResults.value.every(result => result.type === 'warning' && result.message.includes('资产不存在'))
+const providerGuide = computed(() => PROVIDER_GUIDES[selectedProvider.value])
+const parsedProviderLabel = computed(() => parsedProvider.value ? getProviderLabel(parsedProvider.value) : '-')
+const previewRows = computed(() => importData.value.slice(0, 8))
+const importableData = computed(() => importData.value.filter(row => !row.isDuplicate && row.validationErrors.length === 0))
+
+const expenseCategoryOptions = computed(() => buildCategoryOptions('expense'))
+const incomeCategoryOptions = computed(() => buildCategoryOptions('income'))
+const expenseCategoryLabels = computed(() => expenseCategoryOptions.value.map(option => option.label))
+const incomeCategoryLabels = computed(() => incomeCategoryOptions.value.map(option => option.label))
+const selectedExpenseCategoryLabel = computed(() => getSelectedCategoryLabel('expense'))
+const selectedIncomeCategoryLabel = computed(() => getSelectedCategoryLabel('income'))
+const needsExpenseCategory = computed(() => importData.value.some(row => rowNeedsDefaultCategory(row, 'expense')))
+const needsIncomeCategory = computed(() => importData.value.some(row => rowNeedsDefaultCategory(row, 'income')))
+const showCategoryFallbacks = computed(() => needsExpenseCategory.value || needsIncomeCategory.value)
+
+onShow(() => {
+  assetStore.init()
+  categoryStore.init()
+  billStore.init()
+  validateData()
 })
+
+const selectProvider = (provider) => {
+  selectedProvider.value = provider
+  if (selectedFile.value) {
+    parseFile(selectedFile.value)
+  }
+}
 
 const selectFile = () => {
   // #ifdef H5
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = '.xls,.xlsx'
-  input.onchange = (e) => {
-    const file = e.target.files[0]
+  input.accept = '.xls,.xlsx,.csv'
+  input.onchange = (event) => {
+    const file = event.target.files[0]
     if (file) {
       selectedFile.value = file
       parseFile(file)
@@ -125,19 +236,19 @@ const selectFile = () => {
   }
   input.click()
   // #endif
-  
+
   // #ifndef H5
   uni.chooseFile({
     count: 1,
     type: 'all',
-    extension: ['xls', 'xlsx'],
+    extension: ['xls', 'xlsx', 'csv'],
     success: (res) => {
       if (res.tempFiles && res.tempFiles.length > 0) {
         selectedFile.value = res.tempFiles[0]
         parseFile(res.tempFiles[0])
       }
     },
-    fail: (err) => {
+    fail: () => {
       uni.showToast({
         title: '文件选择失败',
         icon: 'none'
@@ -148,66 +259,37 @@ const selectFile = () => {
 }
 
 const parseFile = (file) => {
+  clearParsedData()
+
   const reader = new FileReader()
-  reader.onload = (e) => {
+  reader.onload = (event) => {
     try {
-      const data = new Uint8Array(e.target.result)
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-      
-      if (jsonData.length < 2) {
-        uni.showToast({
-          title: '文件中没有数据',
-          icon: 'none'
-        })
-        return
+      const data = new Uint8Array(event.target.result)
+      const result = parseWorkbookData(data, file.name)
+      parsedProvider.value = result.provider
+      parseSummary.value = {
+        detectedHeaders: result.detectedHeaders,
+        ignoredRows: result.ignoredRows
       }
-      
-      // 跳过第一行表头，从第二行开始解析数据
-      const rows = jsonData.slice(1)
-      
-      const parsedData = rows.map((row, index) => {
-        // 解析类型，默认为支出
-        const rawType = String(row[1] || '').toLowerCase().trim()
-        let type = 'expense'
-        let typeText = '支出'
-        
-        if (rawType === '收入' || rawType === 'income') {
-          type = 'income'
-          typeText = '收入'
-        } else if (rawType === '转账' || rawType === 'transfer') {
-          type = 'transfer'
-          typeText = '转账'
-        } else if (rawType === '退款' || rawType === 'refund') {
-          type = 'refund'
-          typeText = '退款'
-        }
-        
-        return {
-          rowIndex: index + 2, // Excel行号从2开始（第一行是表头）
-          date: formatExcelDate(row[0]),
-          type: type,
-          typeText: typeText,
-          asset: String(row[2] || ''),
-          targetAsset: String(row[3] || ''),
-          category1: String(row[4] || ''),
-          category2: String(row[5] || ''),
-          amount: parseFloat(row[6]) || 0,
-          fee: parseFloat(row[7]) || 0,
-          note: String(row[8] || '')
-        }
-      }).filter(item => item.date && item.asset && item.amount !== 0)
-      
-      previewData.value = parsedData
-      importData.value = parsedData
-      validateData(parsedData)
-      
+      parseMessages.value = [
+        ...result.errors.map(message => ({ type: 'error', message })),
+        ...result.warnings.map(message => ({ type: 'warning', message }))
+      ]
+      importData.value = decorateRows(result.rows)
+      validateData()
+
+      if (result.errors.length) {
+        uni.showToast({
+          title: result.errors[0],
+          icon: 'none',
+          duration: 3000
+        })
+      }
     } catch (error) {
       console.error('解析文件失败:', error)
+      parseMessages.value = [{ type: 'error', message: '文件解析失败，请确认文件格式是否正确' }]
       uni.showToast({
-        title: '文件解析失败，请检查文件格式',
+        title: '文件解析失败',
         icon: 'none'
       })
     }
@@ -215,250 +297,277 @@ const parseFile = (file) => {
   reader.readAsArrayBuffer(file)
 }
 
-const formatExcelDate = (excelDate) => {
-  if (!excelDate) return ''
-  
-  // Excel日期可能是数字格式
-  if (typeof excelDate === 'number') {
-    const date = new Date((excelDate - 25569) * 86400 * 1000)
-    return date.toISOString().split('T')[0]
-  }
-  
-  // 如果是字符串格式，直接返回
-  if (typeof excelDate === 'string') {
-    return excelDate
-  }
-  
-  return ''
-}
+const parseWorkbookData = (data, fileName = '') => {
+  const attempts = [
+    () => XLSX.read(data, { type: 'array', cellDates: true, raw: false }),
+    () => XLSX.read(data, { type: 'array', cellDates: true, raw: false, codepage: 936 })
+  ]
 
-const validateData = (data) => {
-  const results = []
-  
-  data.forEach((item, index) => {
-    // 验证日期
-    if (!item.date) {
-      results.push({
-        row: item.rowIndex,
-        type: 'error',
-        message: '日期不能为空'
+  if (/\.csv$/i.test(fileName)) {
+    attempts.push(
+      () => XLSX.read(new TextDecoder('utf-8').decode(data), { type: 'string', raw: false }),
+      () => XLSX.read(new TextDecoder('gbk').decode(data), { type: 'string', raw: false })
+    )
+  }
+
+  const results = attempts.map(readWorkbook => {
+    try {
+      const workbook = readWorkbook()
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
+      const rows = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        blankrows: false,
+        raw: false
       })
-    }
-    
-    // 验证类型
-    if (!['income', 'expense', 'transfer', 'refund'].includes(item.type)) {
-      results.push({
-        row: item.rowIndex,
-        type: 'warning',
-        message: `类型"${item.type}"无效，将默认为支出`
-      })
-    }
-    
-    // 验证资产
-    const asset = assetStore.assets.find(a => a.name === item.asset)
-    if (!asset && item.asset) {
-      results.push({
-        row: item.rowIndex,
-        type: 'warning',
-        message: `资产"${item.asset}"不存在`
-      })
-    }
-    
-    // 验证目标资产（转账类型）
-    if (item.type === 'transfer' && item.targetAsset) {
-      const targetAsset = assetStore.assets.find(a => a.name === item.targetAsset)
-      if (!targetAsset) {
-        results.push({
-          row: item.rowIndex,
-          type: 'warning',
-          message: `目标资产"${item.targetAsset}"不存在`
-        })
+      return parseImportRows(rows, selectedProvider.value)
+    } catch (error) {
+      return {
+        provider: '',
+        rows: [],
+        errors: ['文件解析失败，请确认文件格式是否正确'],
+        warnings: [],
+        detectedHeaders: [],
+        ignoredRows: 0
       }
-      if (item.asset === item.targetAsset) {
-        results.push({
-          row: item.rowIndex,
-          type: 'error',
-          message: '转出资产和目标资产不能相同'
-        })
-      }
-    }
-    
-    // 验证分类
-    if (!item.category1 && !item.category2) {
-      results.push({
-        row: item.rowIndex,
-        type: 'error',
-        message: '分类不能为空'
-      })
-    }
-    
-    // 验证金额
-    if (item.amount <= 0) {
-      results.push({
-        row: item.rowIndex,
-        type: 'error',
-        message: '金额必须大于0'
-      })
-    }
-    
-    // 验证手续费（转账类型）
-    if (item.type === 'transfer' && item.fee < 0) {
-      results.push({
-        row: item.rowIndex,
-        type: 'error',
-        message: '手续费不能为负数'
-      })
     }
   })
-  
+
+  return results.find(result => result.rows.length > 0 && result.errors.length === 0) ||
+    results.find(result => result.rows.length > 0) ||
+    results[0]
+}
+
+const clearParsedData = () => {
+  parsedProvider.value = ''
+  importData.value = []
+  validationResults.value = []
+  parseMessages.value = []
+  parseSummary.value = null
+  defaultExpenseCategoryId.value = ''
+  defaultIncomeCategoryId.value = ''
+}
+
+const resetImport = () => {
+  selectedFile.value = null
+  clearParsedData()
+}
+
+const decorateRows = (rows) => {
+  const keyCounts = new Map()
+
+  return rows.map(row => {
+    const externalUniqueKey = createExternalUniqueKey(row)
+    const count = keyCounts.get(externalUniqueKey) || 0
+    keyCounts.set(externalUniqueKey, count + 1)
+
+    return {
+      ...row,
+      externalUniqueKey,
+      isDuplicate: count > 0 || hasExistingDuplicate(externalUniqueKey),
+      duplicateReason: count > 0 ? '文件内重复' : '已导入',
+      validationErrors: [],
+      validationWarnings: []
+    }
+  })
+}
+
+const createExternalUniqueKey = (row) => [
+  row.provider,
+  row.date,
+  row.type,
+  row.amount,
+  row.remark,
+  row.orderNo
+].filter(part => part !== undefined && part !== null && String(part).trim() !== '').join('|')
+
+const hasExistingDuplicate = (externalUniqueKey) => {
+  return billStore.bills.some(bill => bill.externalUniqueKey === externalUniqueKey)
+}
+
+const buildCategoryOptions = (type) => {
+  const options = []
+
+  categoryStore.categories
+    .filter(category => category.type === type && !category.hidden)
+    .forEach(parent => {
+      options.push({
+        id: parent.id,
+        parentCategoryId: parent.id,
+        categoryId: parent.id,
+        label: parent.name
+      })
+
+      ;(parent.children || [])
+        .filter(child => !child.hidden)
+        .forEach(child => {
+          options.push({
+            id: child.id,
+            parentCategoryId: parent.id,
+            categoryId: child.id,
+            label: `${parent.name} / ${child.name}`
+          })
+        })
+    })
+
+  return options
+}
+
+const selectDefaultCategory = (type, event) => {
+  const index = Number(event.detail.value)
+  const options = type === 'income' ? incomeCategoryOptions.value : expenseCategoryOptions.value
+  const selected = options[index]
+  if (!selected) return
+
+  if (type === 'income') {
+    defaultIncomeCategoryId.value = selected.id
+  } else {
+    defaultExpenseCategoryId.value = selected.id
+  }
+
+  validateData()
+}
+
+const getSelectedCategoryLabel = (type) => {
+  const selectedId = type === 'income' ? defaultIncomeCategoryId.value : defaultExpenseCategoryId.value
+  const options = type === 'income' ? incomeCategoryOptions.value : expenseCategoryOptions.value
+  return options.find(option => option.id === selectedId)?.label || ''
+}
+
+const getSelectedDefaultCategory = (type) => {
+  const selectedId = type === 'income' ? defaultIncomeCategoryId.value : defaultExpenseCategoryId.value
+  const options = type === 'income' ? incomeCategoryOptions.value : expenseCategoryOptions.value
+  return options.find(option => option.id === selectedId) || null
+}
+
+const rowNeedsDefaultCategory = (row, type) => {
+  return row.type === type &&
+    row.isIncludedInStats !== false &&
+    !row.category1
+}
+
+const rowHasCategory = (row) => {
+  if (row.category1) return true
+  if (!['income', 'expense'].includes(row.type)) return true
+  if (row.isIncludedInStats === false) return true
+  return !!getSelectedDefaultCategory(row.type)
+}
+
+const validateData = () => {
+  const results = []
+
+  importData.value.forEach(row => {
+    const errors = [...(row.parseErrors || [])]
+    const warnings = []
+
+    if (!row.date) {
+      errors.push('日期不能为空')
+    } else if (Number.isNaN(parseTimestamp(row.date))) {
+      errors.push('日期格式无法识别')
+    }
+
+    if (!row.type) {
+      errors.push('账单类型不能为空')
+    }
+
+    if (!row.asset) {
+      errors.push('资产不能为空')
+    } else if (!assetStore.findByName(row.asset)) {
+      warnings.push(`资产"${row.asset}"不存在，导入时将自动创建`)
+    }
+
+    if (row.type === 'transfer') {
+      if (!row.targetAsset) {
+        errors.push('转账记录必须有目标资产')
+      } else if (row.asset === row.targetAsset) {
+        errors.push('转出资产和目标资产不能相同')
+      }
+    }
+
+    if (Number(row.amount) <= 0) {
+      errors.push('金额必须大于0')
+    }
+
+    if (!rowHasCategory(row)) {
+      errors.push(`请选择未分类${row.type === 'income' ? '收入' : '支出'}的默认分类`)
+    }
+
+    if (row.isDuplicate) {
+      warnings.push(`重复记录，导入时将跳过：${row.duplicateReason}`)
+    }
+
+    row.validationErrors = errors
+    row.validationWarnings = warnings
+
+    errors.forEach(message => {
+      results.push({ row: row.rowIndex, type: 'error', message })
+    })
+    warnings.forEach(message => {
+      results.push({ row: row.rowIndex, type: 'warning', message })
+    })
+  })
+
   validationResults.value = results
 }
 
 const startImport = async () => {
-  if (validationResults.value.length > 0) {
+  if (!importableData.value.length) {
     uni.showToast({
-      title: '请先解决数据校验问题',
+      title: '没有可导入的记录',
       icon: 'none'
     })
     return
   }
-  
+
   isImporting.value = true
-  
+
   try {
     let successCount = 0
     let errorCount = 0
-    
-    for (const item of importData.value) {
+    const skippedCount = importData.value.length - importableData.value.length
+
+    for (const item of importableData.value) {
       try {
-        // 查找或创建资产
-        let assetId = null
-        const asset = assetStore.findByName(item.asset)
-        if (asset) {
-          assetId = asset.id
-        } else {
-          const newAsset = assetStore.addAsset({
-            name: item.asset,
-            type: 'cash',
-            balance: 0
-          })
-          assetId = newAsset.id
-        }
-        
-        // 查找或创建目标资产（转账类型）
-        let targetAssetId = null
-        if (item.type === 'transfer' && item.targetAsset) {
-          const targetAsset = assetStore.findByName(item.targetAsset)
-          if (targetAsset) {
-            targetAssetId = targetAsset.id
-          } else {
-            const newTargetAsset = assetStore.addAsset({
-              name: item.targetAsset,
-              type: 'cash',
-              balance: 0
-            })
-            targetAssetId = newTargetAsset.id
-          }
-        }
-        
-        // 根据类型设置分类类型
-        const categoryType = item.type === 'income' ? 'income' : 'expense'
-        
-        // 查找或创建分类
-        let parentCategoryId = null
-        let categoryId = null
-        
-        if (item.category2) {
-          // 有二级分类
-          const parentCategory = categoryStore.findCategoryByName(item.category1, categoryType)
-          if (parentCategory) {
-            parentCategoryId = parentCategory.id
-            const subCategory = categoryStore.findCategoryByName(item.category2, categoryType, parentCategoryId)
-            if (subCategory) {
-              categoryId = subCategory.id
-            } else {
-              const newSubCategory = categoryStore.addCategory({
-                name: item.category2,
-                parentId: parentCategoryId,
-                type: categoryType
-              })
-              categoryId = newSubCategory.id
-            }
-          } else {
-            const newParentCategory = categoryStore.addCategory({
-              name: item.category1,
-              type: categoryType
-            })
-            parentCategoryId = newParentCategory.id
-            
-            const newSubCategory = categoryStore.addCategory({
-              name: item.category2,
-              parentId: parentCategoryId,
-              type: categoryType
-            })
-            categoryId = newSubCategory.id
-          }
-        } else if (item.category1) {
-          // 只有一级分类
-          const category = categoryStore.findCategoryByName(item.category1, categoryType)
-          if (category) {
-            parentCategoryId = category.id
-            categoryId = category.id
-          } else {
-            const newCategory = categoryStore.addCategory({
-              name: item.category1,
-              type: categoryType
-            })
-            parentCategoryId = newCategory.id
-            categoryId = newCategory.id
-          }
-        }
-        
-        // 创建账单数据
+        const assetId = ensureAsset(item.asset, item.provider)
+        const targetAssetId = item.type === 'transfer' && item.targetAsset
+          ? ensureAsset(item.targetAsset, item.provider)
+          : null
+        const category = ensureCategory(item)
         const normalizedAmount = item.type === 'income' || item.type === 'refund'
-          ? Math.abs(item.amount)
-          : -Math.abs(item.amount)
+          ? Math.abs(Number(item.amount))
+          : -Math.abs(Number(item.amount))
 
         const billData = {
           amount: normalizedAmount,
-          assetId: assetId,
-          parentCategoryId: parentCategoryId,
-          categoryId: categoryId,
-          remark: item.note,
-          timestamp: new Date(item.date).getTime(),
+          assetId,
+          targetAssetId,
+          parentCategoryId: category.parentCategoryId,
+          categoryId: category.categoryId,
+          remark: item.remark,
+          timestamp: parseTimestamp(item.date),
           type: item.type,
-          isIncludedInStats: item.type !== 'refund',
-          fee: item.type === 'transfer' ? item.fee : undefined
+          isIncludedInStats: item.isIncludedInStats,
+          fee: item.type === 'transfer' ? Number(item.fee || 0) : 0,
+          importProvider: item.provider,
+          externalUniqueKey: item.externalUniqueKey,
+          externalOrderNo: item.orderNo
         }
-        
-        // 添加目标资产ID（转账类型）
-        if (targetAssetId) {
-          billData.targetAssetId = targetAssetId
-        }
-        
-        // 创建账单
+
         await billStore.addBill(billData)
-        
-        successCount++
-        
+        successCount += 1
       } catch (error) {
         console.error('导入失败:', error)
-        errorCount++
+        errorCount += 1
       }
     }
-    
+
     uni.showToast({
-      title: `导入完成：成功${successCount}条，失败${errorCount}条`,
+      title: `成功${successCount}条，跳过${skippedCount}条，失败${errorCount}条`,
       icon: 'success',
       duration: 3000
     })
-    
-    // 重置状态
-    selectedFile.value = null
-    previewData.value = []
-    validationResults.value = []
-    importData.value = []
-    
+
+    resetImport()
   } catch (error) {
     console.error('导入过程出错:', error)
     uni.showToast({
@@ -470,140 +579,335 @@ const startImport = async () => {
   }
 }
 
-const continueImport = () => {
-  // 继续导入，自动创建缺失的资产
-  startImport()
+const ensureAsset = (name, provider) => {
+  const existing = assetStore.findByName(name)
+  if (existing) return existing.id
+
+  const newAsset = assetStore.addAsset({
+    name,
+    type: provider === 'generic' ? 'cash' : 'digital',
+    initialBalance: 0
+  })
+  return newAsset.id
+}
+
+const ensureCategory = (item) => {
+  if (!['income', 'expense', 'refund'].includes(item.type)) {
+    return { parentCategoryId: null, categoryId: null }
+  }
+
+  const categoryType = item.type === 'income' ? 'income' : 'expense'
+  if (!item.category1) {
+    const selected = getSelectedDefaultCategory(categoryType)
+    return selected
+      ? { parentCategoryId: selected.parentCategoryId, categoryId: selected.categoryId }
+      : { parentCategoryId: null, categoryId: null }
+  }
+
+  const parent = categoryStore.findCategoryByName(item.category1, categoryType) ||
+    categoryStore.addCategory({
+      name: item.category1,
+      type: categoryType
+    })
+
+  if (!item.category2) {
+    return { parentCategoryId: parent.id, categoryId: parent.id }
+  }
+
+  const child = categoryStore.findCategoryByName(item.category2, categoryType, parent.id) ||
+    categoryStore.addCategory({
+      name: item.category2,
+      parentId: parent.id,
+      type: categoryType
+    })
+
+  return { parentCategoryId: parent.id, categoryId: child.id }
+}
+
+const parseTimestamp = (dateText) => {
+  const normalized = String(dateText).replace(/-/g, '/')
+  return new Date(normalized).getTime()
+}
+
+const formatAmount = (row) => {
+  const sign = row.type === 'income' || row.type === 'refund' ? '+' : '-'
+  return `${sign}${Number(row.amount || 0).toFixed(2)}`
+}
+
+const getCategoryText = (row) => {
+  if (row.category2) return `${row.category1} / ${row.category2}`
+  if (row.category1) return row.category1
+  if (row.isIncludedInStats === false) return '不参与统计'
+  if (!['income', 'expense'].includes(row.type)) return '-'
+  return getSelectedCategoryLabel(row.type) || '未选择'
+}
+
+const rowStatusText = (row) => {
+  if (row.isDuplicate) return '重复'
+  if (row.validationErrors.length) return '待处理'
+  if (row.validationWarnings.length) return '可导入'
+  return '可导入'
+}
+
+const rowStatusClass = (row) => {
+  if (row.isDuplicate) return 'status-warning'
+  if (row.validationErrors.length) return 'status-error'
+  return 'status-ready'
 }
 
 const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes'
+  if (!bytes) return '0 Bytes'
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
 }
 </script>
 
 <style scoped>
 .container {
+  height: 100vh;
+  box-sizing: border-box;
   padding: 20px;
-  background-color: #f5f5f5;
-  min-height: 100vh;
+  background: var(--color-bg);
 }
 
 .header {
-  text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 18px;
 }
 
 .title {
-  font-size: 24px;
-  font-weight: bold;
-  color: #333;
   display: block;
   margin-bottom: 8px;
+  color: var(--color-text);
+  font-size: 24px;
+  font-weight: 700;
 }
 
 .subtitle {
+  color: var(--color-text-light);
   font-size: 14px;
-  color: #666;
 }
 
 .content {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
+  padding: 18px;
+  margin-bottom: 16px;
 }
 
-.file-section {
-  margin-bottom: 20px;
+.section {
+  margin-bottom: 22px;
 }
 
-.select-btn {
-  width: 100%;
-  height: 48px;
-  background: #007aff;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  margin-bottom: 12px;
-}
-
-.select-btn[disabled] {
-  background: #ccc;
-}
-
-.file-info {
-  background: #f8f9fa;
-  padding: 12px;
-  border-radius: 6px;
-}
-
-.file-name {
-  display: block;
-  font-size: 14px;
-  color: #333;
-  margin-bottom: 4px;
-}
-
-.file-size {
-  display: block;
-  font-size: 12px;
-  color: #666;
-}
-
-.preview-section {
-  margin-bottom: 20px;
+.section:last-child {
+  margin-bottom: 0;
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: bold;
-  color: #333;
   display: block;
+  margin-bottom: 12px;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.source-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin-bottom: 12px;
 }
 
-.preview-table {
-  background: #f8f9fa;
-  border-radius: 6px;
+.source-tab {
+  min-height: 40px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 12px;
+  background: #fff3e7;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 40px;
+}
+
+.source-tab.active {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.source-guide {
+  display: block;
+  color: var(--color-text-light);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.select-btn,
+.import-btn,
+.secondary-btn {
+  width: 100%;
+  min-height: 46px;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.select-btn {
+  margin-bottom: 12px;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.import-btn {
+  background: var(--color-secondary);
+  color: #fff;
+}
+
+.import-btn[disabled],
+.select-btn[disabled],
+.secondary-btn[disabled] {
+  opacity: 0.55;
+}
+
+.secondary-btn {
+  margin-top: 10px;
+  background: #fff3e7;
+  color: var(--color-primary);
+}
+
+.file-info,
+.format-box,
+.detected-box,
+.picker-box {
   padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.file-info {
+  margin-bottom: 12px;
+}
+
+.file-name,
+.file-size,
+.format-title,
+.format-text,
+.detected-title,
+.detected-text,
+.more-text {
+  display: block;
+}
+
+.file-name {
+  margin-bottom: 4px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.file-size,
+.format-text,
+.detected-text,
+.more-text {
+  color: var(--color-text-light);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.format-title,
+.detected-title {
+  margin-bottom: 6px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.summary-item {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.summary-label,
+.summary-value {
+  display: block;
+}
+
+.summary-label {
+  margin-bottom: 4px;
+  color: var(--color-text-light);
+  font-size: 12px;
+}
+
+.summary-value {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.picker-box {
+  margin-top: 10px;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.preview-table {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.table-header,
+.table-row {
+  display: flex;
+  min-width: 840px;
 }
 
 .table-header {
-  display: flex;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(74, 74, 74, 0.12);
+}
+
+.header-cell,
+.cell {
+  box-sizing: border-box;
+  width: 110px;
+  padding: 10px 8px;
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .header-cell {
-  flex: 1;
-  font-size: 12px;
-  font-weight: bold;
-  color: #333;
-  text-align: center;
-  min-width: 80px;
+  font-weight: 700;
 }
 
-.table-row {
-  display: flex;
-  margin-bottom: 6px;
+.small {
+  width: 54px;
 }
 
-.cell {
-  flex: 1;
-  font-size: 12px;
-  color: #666;
-  text-align: center;
-  min-width: 80px;
-  padding: 4px;
+.wide {
+  width: 220px;
 }
 
-.validation-section {
-  margin-bottom: 20px;
+.status-ready {
+  color: var(--color-secondary);
+  font-weight: 700;
+}
+
+.status-warning {
+  color: #c8892e;
+  font-weight: 700;
+}
+
+.status-error {
+  color: #d94f4f;
+  font-weight: 700;
 }
 
 .validation-item {
@@ -611,67 +915,42 @@ const formatFileSize = (bytes) => {
 }
 
 .validation-text {
-  font-size: 14px;
+  display: block;
+  font-size: 13px;
+  line-height: 19px;
 }
 
 .validation-text.error {
-  color: #ff3b30;
+  color: #d94f4f;
 }
 
 .validation-text.warning {
-  color: #ff9500;
-}
-
-.actions {
-  display: flex;
-  gap: 12px;
-}
-
-.import-btn, .continue-btn {
-  flex: 1;
-  height: 44px;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.import-btn {
-  background: #34c759;
-  color: white;
-}
-
-.import-btn[disabled] {
-  background: #ccc;
-}
-
-.continue-btn {
-  background: #ff9500;
-  color: white;
-}
-
-.continue-btn[disabled] {
-  background: #ccc;
+  color: #c8892e;
 }
 
 .tips {
-  background: #e3f2fd;
-  border-radius: 8px;
   padding: 16px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  background: rgba(136, 177, 148, 0.14);
+}
+
+.tip-text,
+.tip-item {
+  display: block;
 }
 
 .tip-text {
-  font-size: 14px;
-  font-weight: bold;
-  color: #1976d2;
-  display: block;
   margin-bottom: 8px;
+  color: var(--color-secondary);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .tip-item {
-  font-size: 12px;
-  color: #666;
-  display: block;
   margin-bottom: 4px;
+  color: var(--color-text-light);
+  font-size: 12px;
+  line-height: 18px;
 }
 </style>
