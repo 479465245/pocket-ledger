@@ -1,0 +1,43 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF6E8"/>
+      <stop offset="0.5" stop-color="#FFE7C8"/>
+      <stop offset="1" stop-color="#FFD1A3"/>
+    </linearGradient>
+    <linearGradient id="wallet" x1="232" y1="300" x2="812" y2="766" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF9F6E"/>
+      <stop offset="1" stop-color="#FF7A45"/>
+    </linearGradient>
+    <linearGradient id="card" x1="556" y1="430" x2="806" y2="610" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#91C89F"/>
+      <stop offset="1" stop-color="#5EA873"/>
+    </linearGradient>
+    <filter id="shadow" x="84" y="84" width="856" height="856" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="34" flood-color="#A86A3C" flood-opacity="0.22"/>
+    </filter>
+    <filter id="soft" x="180" y="210" width="704" height="620" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#B35C31" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <circle cx="790" cy="210" r="86" fill="#FFFFFF" fill-opacity="0.34"/>
+  <circle cx="218" cy="790" r="118" fill="#FFFFFF" fill-opacity="0.26"/>
+
+  <g filter="url(#shadow)">
+    <rect x="128" y="128" width="768" height="768" rx="196" fill="url(#bg)"/>
+  </g>
+
+  <g filter="url(#soft)">
+    <path d="M260 366C260 324.026 294.026 290 336 290H650C697.496 290 736 328.504 736 376V408H336C294.026 408 260 373.974 260 332V366Z" fill="#FFB17E"/>
+    <rect x="224" y="362" width="576" height="370" rx="92" fill="url(#wallet)"/>
+    <path d="M224 454C224 403.19 265.19 362 316 362H708C758.81 362 800 403.19 800 454V486H224V454Z" fill="#FFB98C" fill-opacity="0.42"/>
+    <rect x="548" y="438" width="264" height="194" rx="78" fill="url(#card)"/>
+    <circle cx="638" cy="535" r="34" fill="#FFF8EA"/>
+    <path d="M372 590H472" stroke="#FFF8EA" stroke-width="42" stroke-linecap="round"/>
+    <path d="M422 540V640" stroke="#FFF8EA" stroke-width="42" stroke-linecap="round"/>
+  </g>
+
+  <path d="M336 770C408 808 588 812 690 760" stroke="#B75D36" stroke-opacity="0.22" stroke-width="28" stroke-linecap="round"/>
+</svg>
