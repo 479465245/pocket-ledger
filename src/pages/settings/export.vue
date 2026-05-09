@@ -5,7 +5,7 @@
         <text class="icon">📤</text>
       </view>
       <text class="title">导出数据</text>
-      <text class="description">将账单数据导出为 Excel 格式</text>
+      <text class="description">将账单数据导出为 Excel 格式，包含多币种字段</text>
       
       <!-- 日期范围选择 -->
       <view class="date-range-section">
@@ -63,7 +63,7 @@
         <text class="tip-title">导出说明：</text>
         <text class="tip-item">1. 包含指定日期范围内的所有账单记录</text>
         <text class="tip-item">2. 导出格式为 Excel (.xls)</text>
-        <text class="tip-item">3. 包含列：日期、资产、一级分类、分类、金额、备注</text>
+        <text class="tip-item">3. 包含列：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、分类、手续费、备注</text>
         <text class="tip-item">4. 可在电脑上进行数据分析</text>
       </view>
     </view>
@@ -198,7 +198,8 @@ const handleExport = async () => {
         'income': '收入',
         'expense': '支出',
         'transfer': '转账',
-        'refund': '退款'
+        'refund': '退款',
+        'adjustment': '资产调整'
       }
       const typeText = typeMap[bill.type] || '支出'
       
@@ -206,10 +207,13 @@ const handleExport = async () => {
         '日期': dateStr,
         '类型': typeText,
         '资产': assetName,
+        '币种': bill.currency || 'CNY',
+        '金额': bill.amount,
         '目标资产': targetAssetName,
+        '目标币种': bill.type === 'transfer' ? (bill.targetCurrency || bill.currency || 'CNY') : '',
+        '目标金额': bill.type === 'transfer' ? (bill.targetAmount ?? Math.abs(Number(bill.amount || 0))) : '',
         '一级分类': parentCategoryName,
         '分类': categoryName,
-        '金额': bill.amount,
         '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
         '备注': bill.remark || bill.note || ''
       }
@@ -266,7 +270,7 @@ function generateXLS(data) {
         value = ''
       } else if (typeof value === 'number') {
         // 金额格式化为两位小数
-        if (header === '金额') {
+        if (['金额', '目标金额', '手续费'].includes(header)) {
           value = value.toFixed(2)
         }
       }

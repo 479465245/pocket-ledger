@@ -24,10 +24,13 @@
             <text class="header-cell">日期</text>
             <text class="header-cell">类型</text>
             <text class="header-cell">资产</text>
+            <text class="header-cell">币种</text>
+            <text class="header-cell">金额</text>
             <text class="header-cell">目标资产</text>
+            <text class="header-cell">目标币种</text>
+            <text class="header-cell">目标金额</text>
             <text class="header-cell">一级分类</text>
             <text class="header-cell">二级分类</text>
-            <text class="header-cell">金额</text>
             <text class="header-cell">手续费</text>
             <text class="header-cell">备注</text>
           </view>

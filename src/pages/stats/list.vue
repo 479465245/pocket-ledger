@@ -89,7 +89,7 @@ const filteredBills = computed(() => {
         // Time & Type Filter
         if (b.timestamp < start || b.timestamp > end) return false
         if (billStore.getStatType(b) !== type) return false
-        if ((b.currency || 'CNY') !== 'CNY') return false
+        if (params.value.currency && (b.currency || 'CNY') !== params.value.currency) return false
         if (b.isIncludedInStats === false) return false
 
         // Category Filter

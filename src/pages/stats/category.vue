@@ -31,7 +31,7 @@
           <view class="pie-hole neu-card">
             <view class="center-total">
               <text class="label">总计</text>
-              <text class="value">¥{{ totalAmount }}</text>
+              <text class="value">{{ totalAmount }}</text>
             </view>
           </view>
           
@@ -66,7 +66,7 @@
 
         <!-- List -->
         <view class="stat-list">
-          <view v-for="(item, index) in categoryStats" :key="item.id" class="stat-item neu-card" @click="onItemClick(item)">
+          <view v-for="(item, index) in categoryStats" :key="item.statKey || item.id" class="stat-item neu-card" @click="onItemClick(item)">
             <view class="item-left">
               <view class="color-dot" :style="{ background: item.color }"></view>
               <view class="icon-box">
@@ -78,7 +78,7 @@
               </view>
             </view>
             <view class="item-right">
-              <text class="item-amount">{{ item.amount.toFixed(2) }}</text>
+              <text class="item-amount">{{ item.displayAmount }}</text>
               <text class="chevron">></text>
             </view>
           </view>
@@ -92,12 +92,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
+import { formatCurrencyAmount } from '@/utils/currency'
 
 const props = defineProps({
   parentId: String,
   period: String,
   date: String,
-  type: String
+  type: String,
+  currency: String
 })
 
 const billStore = useBillStore()
@@ -114,14 +116,29 @@ const parentCategory = computed(() =>
 const PALETTE = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9', '#F8C471', '#82E0AA']
 
 const totalAmount = computed(() => {
-  return categoryStats.value.reduce((sum, item) => sum + item.amount, 0).toFixed(2)
+  const map = {}
+  categoryStats.value.forEach(item => {
+    Object.entries(item.amountMap || {}).forEach(([currency, amount]) => {
+      map[currency] = (map[currency] || 0) + Number(amount || 0)
+    })
+  })
+  const entries = Object.entries(map).filter(([, amount]) => Number(amount || 0) !== 0)
+  if (entries.length === 0) return formatCurrencyAmount(0, 'CNY')
+  return entries.map(([currency, amount]) => formatCurrencyAmount(amount, currency)).join(' / ')
 })
+
+const formatAmountMap = (amountMap = {}) => {
+  const entries = Object.entries(amountMap).filter(([, amount]) => Number(amount || 0) !== 0)
+  if (entries.length === 0) return formatCurrencyAmount(0, props.currency || 'CNY')
+  return entries.map(([currency, amount]) => formatCurrencyAmount(amount, currency)).join(' / ')
+}
 
 const categoryStats = computed(() => {
   const map = {}
   const bills = billStore.bills.filter(bill => {
     const billDate = new Date(bill.timestamp)
     const pickerDate = new Date(pickerValue.value)
+    const billCurrency = bill.currency || 'CNY'
     
     let match = false
     if (periodType.value === 'month') {
@@ -131,85 +148,65 @@ const categoryStats = computed(() => {
       match = billDate.getFullYear() === pickerDate.getFullYear()
     }
     
-    return match && billStore.getStatType(bill) === currentType.value && (bill.currency || 'CNY') === 'CNY' && bill.isIncludedInStats !== false && bill.parentCategoryId === props.parentId
-  })
-  
-  // 调试信息
-  console.log('categoryStats debug:', {
-    parentId: props.parentId,
-    currentType: currentType.value,
-    periodType: periodType.value,
-    pickerValue: pickerValue.value,
-    totalBills: billStore.bills.length,
-    filteredBills: bills.length,
-    firstFewBills: bills.slice(0, 3)
+    return match &&
+      billStore.getStatType(bill) === currentType.value &&
+      bill.isIncludedInStats !== false &&
+      bill.parentCategoryId === props.parentId &&
+      (!props.currency || billCurrency === props.currency)
   })
   
   const total = bills.reduce((sum, bill) => sum + billStore.getStatAmount(bill), 0)
   if (total === 0) return []
   
-  // Get parent category info to look up children
   const parent = categoryStore.categories.find(c => c.id === props.parentId)
   
   bills.forEach(bill => {
+    const currency = bill.currency || 'CNY'
     let key, name, icon, isOther = false
-    
-    // Determine if it's a sub-category or "Other" (Parent directly)
-    // If categoryId exists and is different from parentId, it's a sub-category
     const subId = (bill.categoryId && bill.categoryId !== props.parentId) ? bill.categoryId : null
     
     if (subId) {
-        key = subId
+        key = `${subId}__${currency}`
         const subCat = parent?.children?.find(c => c.id === subId)
         if (subCat) {
             name = subCat.name
             icon = subCat.icon
         } else {
-            console.warn('Sub category not found:', subId, 'for parent:', props.parentId)
             name = '未知子类'
             icon = '❓'
         }
     } else {
-        key = 'other'
-        name = parent ? parent.name : '其他' // Use parent name instead of '其他'
-        icon = parent ? parent.icon : '📦' // Use parent icon or generic
+        key = `other__${currency}`
+        name = parent ? parent.name : '其他'
+        icon = parent ? parent.icon : '📦'
         isOther = true
     }
     
     if (!map[key]) {
       map[key] = {
-        id: key, // This will be 'other' or subId
+        statKey: key,
+        id: isOther ? 'other' : subId,
+        currency,
         name,
         icon,
         amount: 0,
+        amountMap: {},
         isOther
       }
     }
-    map[key].amount += billStore.getStatAmount(bill)
-  })
-  
-  // 调试分组结果
-  console.log('Grouping result:', {
-    totalGroups: Object.keys(map).length,
-    groups: Object.values(map)
+    const amount = billStore.getStatAmount(bill)
+    map[key].amount += amount
+    map[key].amountMap[currency] = (map[key].amountMap[currency] || 0) + amount
   })
   
   const sorted = Object.values(map).sort((a, b) => b.amount - a.amount)
   
-  const result = sorted.map((item, index) => ({
+  return sorted.map((item, index) => ({
     ...item,
     percent: (item.amount / total) * 100,
+    displayAmount: formatAmountMap(item.amountMap),
     color: PALETTE[index % PALETTE.length]
   }))
-  
-  // 调试最终结果
-  console.log('Final category stats:', {
-    totalAmount: total,
-    itemCount: result.length,
-    items: result
-  })
-  
-  return result
 })
 
 const pieGradient = computed(() => {
@@ -276,7 +273,7 @@ const chartLabels = computed(() => {
         id: item.id,
         name: item.name,
         percent: p.toFixed(1) + '%',
-        amount: '¥' + Math.round(item.amount),
+        amount: item.displayAmount,
         color: item.color,
         linePath,
         style,
@@ -294,7 +291,7 @@ const onItemClick = (item) => {
   const filterType = item.isOther ? 'parent_other' : 'sub'
   const targetId = item.isOther ? props.parentId : item.id
   uni.navigateTo({
-    url: `/pages/stats/list?id=${targetId}&filterType=${filterType}&period=${periodType.value}&date=${pickerValue.value}&type=${currentType.value}`
+    url: `/pages/stats/list?id=${targetId}&filterType=${filterType}&period=${periodType.value}&date=${pickerValue.value}&type=${currentType.value}&currency=${item.currency || props.currency || ''}`
   })
 }
 

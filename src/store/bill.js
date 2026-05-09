@@ -18,7 +18,10 @@ export const useBillStore = defineStore('bill', {
         this.bills = JSON.parse(stored).map(b => ({
           ...b,
           currency: normalizeCurrency(b.currency),
-          targetCurrency: normalizeCurrency(b.targetCurrency || b.currency)
+          targetCurrency: normalizeCurrency(b.targetCurrency || b.currency),
+          isIncludedInStats: ['income', 'expense'].includes(b.type) && normalizeCurrency(b.currency) !== 'CNY' && b.isIncludedInStats === false
+            ? true
+            : b.isIncludedInStats
         }))
       }
     },

@@ -63,18 +63,31 @@
     <view class="transfer-area" v-if="currentTab === 'transfer'">
         <view class="transfer-card">
             <view class="transfer-row" @click="openAssetPicker('source')">
+
                 <view class="row-label">
+
                     <text class="row-icon">📤</text>
+
                     <text>转出账户</text>
+
                 </view>
+
                 <view class="row-right">
+
                     <text class="row-value">{{ selectedAssetName }}</text>
+
                     <text class="chevron">></text>
+
                 </view>
+
             </view>
+
             
+
             <view class="transfer-divider">
+
                 <text>⬇️</text>
+
             </view>
 
             <view class="transfer-row" @click="openAssetPicker('target')">
@@ -91,7 +104,7 @@
             <view class="transfer-row" @click="openCurrencyPicker('target')">
                 <view class="row-label">
                     <text class="row-icon">🌍</text>
-                    <text>还款币种</text>
+                    <text>转入币种</text>
                 </view>
                 <view class="row-right">
                     <text class="row-value">{{ form.targetCurrency }}</text>
@@ -109,7 +122,7 @@
                         class="fee-input"
                         type="digit"
                         v-model="form.targetAmountStr"
-                        placeholder="外币金额"
+                        placeholder="转入金额"
                         @input="onTargetAmountInput"
                     />
                     <text class="fee-unit">{{ form.targetCurrency }}</text>
@@ -449,6 +462,7 @@ const loadBillData = (id) => {
     
     // 如果是转账，设置目标账户和手续费
     if (bill.type === 'transfer') {
+        form.targetAssetId = bill.targetAssetId
         form.targetAmountStr = bill.targetAmount !== undefined ? Math.abs(Number(bill.targetAmount || 0)).toString() : ''
 
         form.targetCurrency = bill.targetCurrency || bill.currency || 'CNY'
@@ -480,7 +494,8 @@ const switchTab = (val) => {
     currentTab.value = val
     if (val === 'transfer') {
         form.isIncludedInStats = true
-        form.currency = 'CNY'
+
+        form.currency = form.currency || 'CNY'
         if (!form.targetCurrency) form.targetCurrency = 'CNY'
         if (!form.targetAssetId && assets.value.length > 1) {
             form.targetAssetId = assets.value.find(a => a.id !== form.assetId)?.id || ''
@@ -489,7 +504,7 @@ const switchTab = (val) => {
             form.fee = '0'
         }
     } else {
-        form.isIncludedInStats = form.currency === 'CNY'
+        form.isIncludedInStats = true
         form.fee = '0'
         form.targetAmountStr = ''
         form.targetCurrency = form.currency
@@ -542,29 +557,96 @@ const openCurrencyPicker = (type) => {
 
 
 
+const isSameTransferCurrency = () => {
+    return currentTab.value === 'transfer' && form.currency === form.targetCurrency
+}
+
+const syncTargetAmountFromSource = () => {
+    if (isSameTransferCurrency()) {
+        form.targetAmountStr = form.amountStr === '0' ? '' : form.amountStr
+    }
+}
+
+const syncSourceAmountFromTarget = () => {
+    if (isSameTransferCurrency()) {
+        form.amountStr = form.targetAmountStr || '0'
+    }
+}
+
+const syncSameCurrencyAmount = () => {
+    if (!isSameTransferCurrency()) return
+
+    if (form.amountStr && form.amountStr !== '0') {
+        form.targetAmountStr = form.amountStr
+    } else if (form.targetAmountStr) {
+        form.amountStr = form.targetAmountStr
+    }
+}
+
 const selectCurrency = (code) => {
+
+
 
     if (pickingCurrencyType.value === 'target') {
 
+
+
         form.targetCurrency = code
+
+
 
     } else {
 
+
+
         form.currency = code
 
-        if (currentTab.value !== 'transfer') {
 
-            form.targetCurrency = code
 
-            form.isIncludedInStats = code === 'CNY'
+        if (currentTab.value === 'transfer') {
+
+
+
+            form.isIncludedInStats = true
+
+
 
         }
 
+
+
+
+
+
+
+        if (currentTab.value !== 'transfer') {
+
+
+
+            form.targetCurrency = code
+
+
+
+            form.isIncludedInStats = true
+
+
+
+        }
+
+
+
     }
+
+
+
+    syncSameCurrencyAmount()
 
     showCurrencyPicker.value = false
 
+
+
 }
+
 
 
 
@@ -583,6 +665,7 @@ const onTargetAmountInput = (e) => {
         value = parts[0] + '.' + parts[1].substring(0, 2)
     }
     form.targetAmountStr = value
+    syncSourceAmountFromTarget()
 }
 
 // 手续费输入处理
@@ -610,68 +693,108 @@ const onKey = (key) => {
         } else {
             form.amountStr = '0'
         }
+        syncTargetAmountFromSource()
         return
     }
     
     if (['+', '-'].includes(key)) {
-        // Simple calculation support could be added here
-        // For now, just ignoring operators or maybe implementing simple sum?
-        // Requirement didn't strictly say calculator, but keypads usually imply it.
-        // Let's keep it simple string for now, or just append if we want to support expr.
-        // Given complexity, let's stick to simple number input first.
-        return 
+        return
     }
 
     if (key === '.') {
         if (form.amountStr.includes('.')) return
         form.amountStr += '.'
+        syncTargetAmountFromSource()
         return
     }
 
     if (form.amountStr === '0') {
         form.amountStr = key
     } else {
-        // Limit length
         if (form.amountStr.length < 10) {
              form.amountStr += key
         }
     }
+
+    syncTargetAmountFromSource()
 }
 
-const resetForm = () => {
-    form.amountStr = '0'
-    form.remark = ''
-    if (currentTab.value !== 'transfer') {
-        form.isIncludedInStats = form.currency === 'CNY'
-    }
-    if (currentTab.value === 'transfer') {
-        form.fee = '0'
-        form.targetAmountStr = ''
-    }
-}
+const resetForm = () => {
+
+    form.amountStr = '0'
+
+    form.remark = ''
+
+    if (currentTab.value !== 'transfer') {
+
+        form.isIncludedInStats = true
+
+    }
+
+    if (currentTab.value === 'transfer') {
+
+        form.fee = '0'
+
+        form.targetAmountStr = ''
+
+    }
+
+}
+
 
 const submit = async () => {
     const val = parseFloat(form.amountStr)
-    if (val === 0) {
-        uni.showToast({ title: '金额不能为0', icon: 'none' })
-        return
-    }
-    
+
     if (currentTab.value === 'transfer') {
-        if (!form.assetId || !form.targetAssetId) {
-             uni.showToast({ title: '请选择转出和转入账户', icon: 'none' })
+        if (!form.assetId) {
+             uni.showToast({ title: '请选择转出账户', icon: 'none' })
              return
         }
+        if (!form.targetAssetId) {
+             uni.showToast({ title: '请选择转入账户', icon: 'none' })
+             return
+        }
+        if (!form.currency) {
+             uni.showToast({ title: '请选择转出币种', icon: 'none' })
+             return
+        }
+        if (!form.targetCurrency) {
+             uni.showToast({ title: '请选择转入币种', icon: 'none' })
+             return
+        }
+        if (!val || val <= 0) {
+             uni.showToast({ title: '请输入转出金额', icon: 'none' })
+             return
+        }
+
         const targetVal = parseFloat(form.targetAmountStr)
-
         if (!targetVal || targetVal <= 0) {
-
              uni.showToast({ title: '请输入转入金额', icon: 'none' })
-
              return
-
         }
 
+        const feeVal = form.fee === '' ? 0 : parseFloat(form.fee)
+        if (Number.isNaN(feeVal) || feeVal < 0) {
+             uni.showToast({ title: '请输入正确手续费', icon: 'none' })
+             return
+        }
+    } else {
+        if (!form.assetId) {
+             uni.showToast({ title: '请选择账户', icon: 'none' })
+             return
+        }
+        if (!form.currency) {
+             uni.showToast({ title: '请选择币种', icon: 'none' })
+             return
+        }
+        if (!form.categoryId) {
+             uni.showToast({ title: '请选择分类', icon: 'none' })
+             return
+        }
+        if (!val || val <= 0) {
+             uni.showToast({ title: currentTab.value === 'income' ? '请输入收入金额' : '请输入支出金额', icon: 'none' })
+             return
+        }
     }
 
     try {
@@ -727,9 +850,7 @@ const submit = async () => {
             type: currentTab.value,
             timestamp: timestamp,
             remark: form.remark,
-            isIncludedInStats: currentTab.value === 'transfer'
-                ? form.isIncludedInStats
-                : (form.currency === 'CNY' && form.isIncludedInStats),
+            isIncludedInStats: form.isIncludedInStats,
             // 添加手续费字段
             fee: currentTab.value === 'transfer' ? parseFloat(form.fee) || 0 : undefined
         }
@@ -1048,23 +1169,47 @@ const submit = async () => {
 
 /* Transfer Area */
 .transfer-area {
+
     flex: 1;
+
     display: flex;
+
     justify-content: center;
+
+    align-items: flex-start;
+
     padding: 20px;
-    overflow-y: auto; /* Allow scrolling if content is tall */
+
+    overflow-y: auto;
+
 }
 
+
+
 .transfer-card {
+
     width: 100%;
+
     background: var(--color-bg);
+
     border-radius: 20px;
+
     padding: 20px;
+
     box-shadow: var(--shadow-light), var(--shadow-dark);
+
     display: flex;
+
     flex-direction: column;
-    justify-content: center;
-    height: 200px; /* Approximate height */
+
+    justify-content: flex-start;
+
+    min-height: 0;
+
+    height: auto;
+
+    box-sizing: border-box;
+
 }
 
 .transfer-row {
@@ -1118,13 +1263,21 @@ const submit = async () => {
 }
 
 .fee-input {
-    width: 80px;
+
+    width: 110px;
+
     text-align: right;
+
     font-size: 16px;
+
     color: var(--color-text);
+
     border: none;
+
     background: transparent;
+
     outline: none;
+
 }
 
 .fee-unit {

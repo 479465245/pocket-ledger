@@ -22,9 +22,8 @@
                 <text class="divider">|</text>
                 <text :class="['tab', currentType === 'income' ? 'active' : '']" @click="currentType = 'income'">收入</text>
             </view>
-            <view class="total-row">
-                <text class="currency">¥</text>
-                <text class="amount">{{ totalAmount }}</text>
+            <view class="total-row multi-total">
+                <text class="amount multi-amount">{{ totalAmount }}</text>
             </view>
         </view>
     </view>
@@ -38,7 +37,7 @@
                 <view class="pie-hole neu-card">
                     <view class="center-total">
                         <text class="label">总计</text>
-                        <text class="value">¥{{ totalAmount }}</text>
+                        <text class="value">{{ totalAmount }}</text>
                     </view>
                 </view>
                 
@@ -73,7 +72,7 @@
 
             <!-- List -->
             <view class="stat-list">
-                <view v-for="(item, index) in categoryStats" :key="item.id" class="stat-item neu-card" @click="onItemClick(item)">
+                <view v-for="(item, index) in categoryStats" :key="item.statKey || item.id" class="stat-item neu-card" @click="onItemClick(item)">
                     <view class="item-left">
                         <view class="color-dot" :style="{ background: item.color }"></view>
                         <view class="icon-box">
@@ -85,7 +84,7 @@
                         </view>
                     </view>
                     <view class="item-right">
-                        <text class="item-amount">{{ item.amount.toFixed(2) }}</text>
+                        <text class="item-amount">{{ item.displayAmount }}</text>
                         <text class="chevron">></text>
                     </view>
                     <!-- Progress Bar (Optional, below) -->
@@ -106,6 +105,7 @@ import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
+import { formatCurrencyAmount } from '@/utils/currency'
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
@@ -184,40 +184,59 @@ const filteredBills = computed(() => {
         b.timestamp >= start && 
         b.timestamp <= end && 
         billStore.getStatType(b) === currentType.value &&
-        (b.currency || 'CNY') === 'CNY' &&
-        b.isIncludedInStats !== false // Exclude ignored bills
+        b.isIncludedInStats !== false
     )
 })
 
-const totalAmount = computed(() => {
-    return filteredBills.value.reduce((acc, cur) => acc + billStore.getStatAmount(cur), 0).toFixed(2)
+const formatAmountMap = (amountMap = {}) => {
+    const entries = Object.entries(amountMap).filter(([, amount]) => Number(amount || 0) !== 0)
+    if (entries.length === 0) return formatCurrencyAmount(0, 'CNY')
+    return entries.map(([currency, amount]) => formatCurrencyAmount(amount, currency)).join(' / ')
+}
+
+const totalAmountMap = computed(() => {
+    const map = {}
+    filteredBills.value.forEach(bill => {
+        const currency = bill.currency || 'CNY'
+        map[currency] = (map[currency] || 0) + billStore.getStatAmount(bill)
+    })
+    return map
 })
+
+const totalAmount = computed(() => formatAmountMap(totalAmountMap.value))
 
 const categoryStats = computed(() => {
     const map = {}
-    const total = parseFloat(totalAmount.value) || 1
+    const totalForPercent = filteredBills.value.reduce((acc, bill) => acc + billStore.getStatAmount(bill), 0) || 1
     
     filteredBills.value.forEach(bill => {
+        const currency = bill.currency || 'CNY'
         const pid = bill.parentCategoryId || (bill.type === 'transfer' ? 'credit-card-repayment' : 'unknown')
-        if (!map[pid]) {
-            // Find category info
+        const key = `${pid}__${currency}`
+        if (!map[key]) {
             const cat = categoryStore.categories.find(c => c.id === pid)
-            map[pid] = {
+            map[key] = {
+                statKey: key,
                 id: pid,
-                name: cat ? cat.name : (pid === 'credit-card-repayment' ? '信用卡还款' : '未知分类'),
+                currency,
+                name: cat ? cat.name : (pid === 'credit-card-repayment' ? '信用卡还款' : '未知分类'),
                 icon: cat ? cat.icon : (pid === 'credit-card-repayment' ? '💳' : '❓'),
                 amount: 0,
+                amountMap: {},
                 hasChildren: cat ? (cat.children && cat.children.length > 0) : false
             }
         }
-        map[pid].amount += billStore.getStatAmount(bill)
+        const amount = billStore.getStatAmount(bill)
+        map[key].amount += amount
+        map[key].amountMap[currency] = (map[key].amountMap[currency] || 0) + amount
     })
     
     const sorted = Object.values(map).sort((a, b) => b.amount - a.amount)
     
     return sorted.map((item, index) => ({
         ...item,
-        percent: (item.amount / total) * 100,
+        percent: (item.amount / totalForPercent) * 100,
+        displayAmount: formatAmountMap(item.amountMap),
         color: PALETTE[index % PALETTE.length]
     }))
 })
@@ -289,7 +308,7 @@ const chartLabels = computed(() => {
                 id: item.id,
                 name: item.name,
                 percent: p.toFixed(1) + '%',
-                amount: '¥' + Math.round(item.amount),
+                amount: item.displayAmount,
                 color: item.color,
                 linePath,
                 style,
@@ -307,12 +326,12 @@ const onItemClick = (item) => {
     if (item.hasChildren) {
         // Go to Level 2 Stats
         uni.navigateTo({
-            url: `/pages/stats/category?parentId=${item.id}&period=${periodType.value}&date=${pickerValue.value}&type=${currentType.value}`
+            url: `/pages/stats/category?parentId=${item.id}&period=${periodType.value}&date=${pickerValue.value}&type=${currentType.value}&currency=${item.currency || ''}`
         })
     } else {
         // Go to Bill List (Filter by Parent, since no children)
         uni.navigateTo({
-            url: `/pages/stats/list?id=${item.id}&filterType=parent&period=${periodType.value}&date=${pickerValue.value}&type=${currentType.value}`
+            url: `/pages/stats/list?id=${item.id}&filterType=parent&period=${periodType.value}&date=${pickerValue.value}&type=${currentType.value}&currency=${item.currency || ''}`
         })
     }
 }
