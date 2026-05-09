@@ -168,7 +168,7 @@ const deleteBill = (id) => {
 <style lang="scss" scoped>
 .container {
   height: 100%;
-  background-color: var(--color-bg);
+  background: var(--app-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -176,7 +176,7 @@ const deleteBill = (id) => {
 
 .fixed-header {
     flex-shrink: 0;
-    background: var(--color-bg);
+    background: transparent;
     padding-bottom: 10px;
     z-index: 10;
 }
@@ -237,7 +237,8 @@ const deleteBill = (id) => {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: #FFF9F0;
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
     display: flex;
     align-items: center;

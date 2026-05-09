@@ -12,9 +12,30 @@ export const PROVIDER_GUIDES = {
   generic: '上传按本应用模板整理的表格：日期、类型、资产、目标资产、一级分类、二级分类、金额、手续费、备注。'
 }
 
-const PLATFORM_ASSET_NAME = {
+const PLATFORM_WALLET_ASSET_NAME = {
   alipay: '支付宝',
   wechat: '微信钱包'
+}
+
+const PAYMENT_DISCOUNT_KEYWORDS = [
+  '红包',
+  '立减',
+  '优惠',
+  '支付享优惠',
+  '集分宝',
+  '奖励金',
+  '商家优惠'
+]
+
+const BANK_CARD_KEYWORDS = [
+  '银行卡',
+  '储蓄卡',
+  '信用卡'
+]
+
+const WALLET_PAYMENT_KEYWORDS = {
+  alipay: ['账户余额', '余额', '余额宝', '支付宝余额'],
+  wechat: ['零钱', '零钱通', '微信钱包']
 }
 
 const HEADER_ALIASES = {
@@ -173,6 +194,60 @@ const parseGenericType = (value) => {
   return null
 }
 
+const getPaymentParts = (paymentMethod) => normalizeText(paymentMethod)
+  .split(/[&＋+、,，/]/)
+  .map(part => normalizeText(part))
+  .filter(Boolean)
+
+const isDiscountPart = (part) => PAYMENT_DISCOUNT_KEYWORDS.some(keyword => part.includes(keyword))
+
+const isBankCardPayment = (paymentMethod) => {
+  const text = normalizeText(paymentMethod)
+  return BANK_CARD_KEYWORDS.some(keyword => text.includes(keyword)) ||
+    /银行.*卡/.test(text)
+}
+
+const isWalletPayment = (paymentMethod, provider) => {
+  const text = normalizeText(paymentMethod)
+  return (WALLET_PAYMENT_KEYWORDS[provider] || []).some(keyword => text.includes(keyword))
+}
+
+const resolvePlatformAsset = (provider, paymentMethod) => {
+  const parts = getPaymentParts(paymentMethod)
+  const primaryPart = parts.find(part => !isDiscountPart(part)) || parts[0] || ''
+  const source = primaryPart || normalizeText(paymentMethod)
+
+  if (!source || isWalletPayment(source, provider)) {
+    return {
+      asset: PLATFORM_WALLET_ASSET_NAME[provider],
+      assetType: 'digital',
+      paymentMethod: normalizeText(paymentMethod)
+    }
+  }
+
+  if (isBankCardPayment(source)) {
+    return {
+      asset: source,
+      assetType: source.includes('信用卡') ? 'credit' : 'bank',
+      paymentMethod: normalizeText(paymentMethod)
+    }
+  }
+
+  if (source.includes('花呗')) {
+    return {
+      asset: '花呗',
+      assetType: 'credit',
+      paymentMethod: normalizeText(paymentMethod)
+    }
+  }
+
+  return {
+    asset: source,
+    assetType: 'digital',
+    paymentMethod: normalizeText(paymentMethod)
+  }
+}
+
 const noStatsKeywords = [
   '转账',
   '提现',
@@ -286,7 +361,9 @@ const parsePlatformRow = (row, headerMap, rowIndex, provider) => {
   const orderNo = getCell(row, headerMap, 'orderNo')
   const merchantOrderNo = getCell(row, headerMap, 'merchantOrderNo')
   const remark = getCell(row, headerMap, 'remark')
+  const paymentMethod = getCell(row, headerMap, 'paymentMethod')
   const amount = parseAmount(getCell(row, headerMap, 'amount'))
+  const assetInfo = resolvePlatformAsset(provider, paymentMethod)
   const classified = classifyPlatformType({
     direction: getCell(row, headerMap, 'direction'),
     text: createRemark([category, tradeType, counterparty, product, remark]),
@@ -303,13 +380,15 @@ const parsePlatformRow = (row, headerMap, rowIndex, provider) => {
     date: formatExcelDate(row[headerMap.date]),
     type: classified.type,
     typeText: classified.typeText,
-    asset: PLATFORM_ASSET_NAME[provider],
+    asset: assetInfo.asset,
+    assetType: assetInfo.assetType,
+    paymentMethod: assetInfo.paymentMethod,
     targetAsset: '',
     category1: provider === 'alipay' ? category : '',
     category2: '',
     amount: amount ?? 0,
     fee: 0,
-    remark: createRemark([tradeType, counterparty, product, account, status, remark, orderNo || merchantOrderNo]),
+    remark: createRemark([tradeType, counterparty, product, account, paymentMethod, status, remark, orderNo || merchantOrderNo]),
     orderNo: orderNo || merchantOrderNo,
     isIncludedInStats: classified.isIncludedInStats,
     parseErrors: errors

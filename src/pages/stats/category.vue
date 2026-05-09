@@ -303,7 +303,7 @@ const goBack = () => {
 <style lang="scss" scoped>
 .container {
   height: 100%;
-  background-color: var(--color-bg);
+  background: var(--app-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -311,7 +311,7 @@ const goBack = () => {
 
 .fixed-header {
     flex-shrink: 0;
-    background: var(--color-bg);
+    background: transparent;
     padding-bottom: 10px;
     z-index: 10;
 }
@@ -410,8 +410,8 @@ const goBack = () => {
     width: 200px;
     height: 200px;
     border-radius: 50%;
-    background: #eee;
-    box-shadow: var(--shadow-dark);
+    background: var(--glass-bg-soft);
+    box-shadow: var(--glass-shadow-soft);
 }
 
 .pie-hole {
@@ -422,8 +422,11 @@ const goBack = () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-bg);
-    box-shadow: var(--shadow-light), var(--shadow-dark);
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-soft);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     
     .center-total {
         display: flex;
@@ -458,14 +461,14 @@ const goBack = () => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--glass-bg-strong);
     padding: 4px 8px;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: var(--glass-shadow-soft);
     pointer-events: none;
     white-space: nowrap;
     backdrop-filter: blur(2px);
-    border: 1px solid rgba(255,255,255,0.3);
+    border: 1px solid var(--glass-border);
     
     .lbl-name {
         font-size: 11px;
@@ -514,8 +517,9 @@ const goBack = () => {
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--color-bg);
-            box-shadow: var(--shadow-light), var(--shadow-dark);
+            background: var(--glass-bg-strong);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow-soft);
             margin-right: 12px;
             font-size: 16px;
         }

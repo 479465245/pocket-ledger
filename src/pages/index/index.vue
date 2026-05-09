@@ -1,6 +1,24 @@
 <template>
   <view class="container">
-    <view class="fixed-header">
+    <view v-if="isFirstUse" :class="['start-screen', isStarting ? 'is-starting' : '', isStartWaiting ? 'is-waiting' : '']">
+      <view v-if="isStarting" class="start-ripple ripple-one"></view>
+      <view v-if="isStarting" class="start-ripple ripple-two"></view>
+      <view v-if="isStarting" class="start-ripple ripple-three"></view>
+
+      <button v-if="isStartWaiting" class="start-skip" @click.stop="skipStartUpload">跳过上传</button>
+      <view v-if="isStartWaiting" class="start-upload-stage" @click="retryStartFilePicker">
+        <view class="wait-orbit orbit-one"></view>
+        <view class="wait-orbit orbit-two"></view>
+        <view class="wait-orbit orbit-three"></view>
+        <view class="wait-core"></view>
+      </view>
+
+      <button v-else class="yuanqi-button" :disabled="isStarting" @click="goStart">
+        <text class="yuanqi-text">元起</text>
+      </button>
+    </view>
+
+    <view v-if="!isFirstUse" class="fixed-header">
       <view class="segment-wrap neu-card">
         <view
           :class="['segment-item', currentView === 'bill' ? 'active' : '']"
@@ -34,12 +52,27 @@
         </template>
       </view>
 
+      <view class="asset-action-strip" v-if="currentView === 'asset'">
+        <button class="asset-tool-btn" @click="openAddAsset">
+          <text class="tool-mark">+</text>
+          <text class="tool-text">资产</text>
+        </button>
+        <button class="asset-tool-btn" @click="goImport">
+          <text class="tool-mark">↧</text>
+          <text class="tool-text">导入</text>
+        </button>
+        <button class="asset-tool-btn" @click="goExport">
+          <text class="tool-mark">↥</text>
+          <text class="tool-text">导出</text>
+        </button>
+      </view>
+
       <view class="actions" v-if="currentView === 'bill'">
         <button class="neu-btn add-btn" @click="goAddBill">+ 记一笔</button>
       </view>
     </view>
 
-    <scroll-view v-if="currentView === 'bill'" scroll-y class="bill-scroll">
+    <scroll-view v-if="!isFirstUse && currentView === 'bill'" scroll-y class="bill-scroll">
       <view class="bill-list">
         <view v-if="displayedBills.length === 0" class="empty-tip">本月暂无账单</view>
         <view v-for="bill in displayedBills" :key="bill.id" class="bill-item-wrapper">
@@ -83,7 +116,7 @@
       </view>
     </scroll-view>
 
-    <scroll-view v-else scroll-y class="bill-scroll">
+    <scroll-view v-else-if="!isFirstUse" scroll-y class="bill-scroll">
       <view class="asset-list-home">
         <view v-if="assets.length === 0" class="empty-tip">暂无资产</view>
         <view v-for="asset in assets" :key="asset.id" class="asset-item-wrapper">
@@ -116,9 +149,7 @@
       </view>
     </scroll-view>
 
-    <view v-if="currentView === 'asset'" class="asset-fab neu-btn" @click="openAddAsset">+</view>
-
-    <view v-if="showAssetModal" class="modal-mask">
+    <view v-if="!isFirstUse && showAssetModal" class="modal-mask">
       <view class="modal neu-card" @click.stop>
         <view class="modal-title">{{ isEditAssetMode ? '编辑资产' : '添加资产' }}</view>
         <view class="input-wrap" @click.stop="focusAssetNameInput">
@@ -157,13 +188,16 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, nextTick } from 'vue'
+import { ref, computed, reactive, nextTick, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
 import { ASSET_ADJUSTMENT_CATEGORY_ID } from '@/store/category'
 import { formatCurrencyAmount } from '@/utils/currency'
+
+const ONBOARDING_SKIPPED_KEY = 'account_book_onboarding_skipped'
+const PENDING_IMPORT_FILE_KEY = '__jizhanPendingImportFile'
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
@@ -173,6 +207,11 @@ onShow(() => {
   categoryStore.init()
   assetStore.init()
   billStore.init()
+  hasSkippedOnboarding.value = uni.getStorageSync(ONBOARDING_SKIPPED_KEY) === '1'
+  isStarting.value = false
+  isStartWaiting.value = false
+  isImportPickerOpen.value = false
+  syncFirstUseChrome()
 })
 
 const now = new Date()
@@ -190,6 +229,10 @@ const assetTouchStartY = ref(0)
 const assetIsMoving = ref(false)
 const showAssetModal = ref(false)
 const isEditAssetMode = ref(false)
+const isStarting = ref(false)
+const isStartWaiting = ref(false)
+const isImportPickerOpen = ref(false)
+const hasSkippedOnboarding = ref(false)
 const editingAssetId = ref('')
 const assetForm = reactive({ name: '', balance: '' })
 const assetNameInputFocus = ref(false)
@@ -250,6 +293,20 @@ const displayedBills = computed(() => {
 })
 
 const assets = computed(() => assetStore.assets)
+const isFirstUse = computed(() => !hasSkippedOnboarding.value && assets.value.length === 0 && billStore.bills.length === 0)
+
+const syncFirstUseChrome = () => {
+  if (isFirstUse.value) {
+    uni.hideTabBar({ animation: false })
+    uni.setNavigationBarTitle({ title: '' })
+    return
+  }
+
+  uni.showTabBar({ animation: false })
+  uni.setNavigationBarTitle({ title: '记账本' })
+}
+
+watch(isFirstUse, syncFirstUseChrome)
 
 const totalAsset = computed(() => {
   return assets.value.reduce((acc, cur) => acc + Number(cur.currentBalance || 0), 0).toFixed(2)
@@ -267,7 +324,8 @@ const getAssetIcon = (type) => {
   const map = {
     cash: '💵',
     digital: '📱',
-    bank: '💳'
+    bank: '💳',
+    credit: '◇'
   }
   return map[type] || '💼'
 }
@@ -276,7 +334,8 @@ const getTypeName = (type) => {
   const map = {
     cash: '现金',
     digital: '电子钱包',
-    bank: '银行卡'
+    bank: '银行卡',
+    credit: '信用账户'
   }
   return map[type] || type
 }
@@ -285,8 +344,83 @@ const goAddBill = () => {
   uni.navigateTo({ url: '/pages/bill/add' })
 }
 
-const goAssetManage = () => {
-  uni.navigateTo({ url: '/pages/settings/assets' })
+const goImport = () => {
+  if (openImportFilePicker({ delay: 80 })) return
+  uni.navigateTo({ url: '/pages/settings/import?start=1&pick=1' })
+}
+
+const goExport = () => {
+  uni.navigateTo({ url: '/pages/settings/export' })
+}
+
+const goStart = () => {
+  if (isStarting.value) return
+  isStarting.value = true
+  isStartWaiting.value = true
+
+  if (openImportFilePicker({ delay: 520, keepWaitingOnCancel: true })) return
+
+  setTimeout(() => {
+    uni.navigateTo({ url: '/pages/settings/import?start=1&pick=1' })
+  }, 720)
+}
+
+const retryStartFilePicker = () => {
+  if (!isStartWaiting.value || isImportPickerOpen.value) return
+  openImportFilePicker({ delay: 360, keepWaitingOnCancel: true })
+}
+
+const skipStartUpload = () => {
+  uni.setStorageSync(ONBOARDING_SKIPPED_KEY, '1')
+  hasSkippedOnboarding.value = true
+  isStarting.value = false
+  isStartWaiting.value = false
+  isImportPickerOpen.value = false
+  syncFirstUseChrome()
+}
+
+const openImportFilePicker = ({ delay = 0, keepWaitingOnCancel = false } = {}) => {
+  // #ifdef H5
+  if (isImportPickerOpen.value) return true
+  isImportPickerOpen.value = true
+
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.xls,.xlsx,.csv'
+
+  const handleCancel = () => {
+    isImportPickerOpen.value = false
+    if (!keepWaitingOnCancel) {
+      isStarting.value = false
+      isStartWaiting.value = false
+      return
+    }
+    isStartWaiting.value = true
+  }
+
+  input.onchange = (event) => {
+    isImportPickerOpen.value = false
+    const file = event.target.files[0]
+    if (!file) {
+      handleCancel()
+      return
+    }
+
+    window[PENDING_IMPORT_FILE_KEY] = file
+    setTimeout(() => {
+      uni.navigateTo({ url: '/pages/settings/import?start=1&auto=1' })
+    }, delay)
+  }
+
+  input.oncancel = handleCancel
+  input.click()
+  setTimeout(() => {
+    isImportPickerOpen.value = false
+  }, 1200)
+  return true
+  // #endif
+
+  return false
 }
 
 const onTouchStart = (e) => {
@@ -622,10 +756,219 @@ const onAssetTouchEnd = (e) => {
 <style lang="scss" scoped>
 .container {
   height: 100vh;
-  background-color: var(--color-bg);
+  background: var(--app-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.start-screen {
+  flex: 1;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.start-screen.is-waiting {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.92) 0, rgba(255, 255, 255, 0.5) 34%, transparent 62%),
+    var(--app-bg);
+}
+
+.start-skip {
+  position: absolute;
+  top: calc(18px + env(safe-area-inset-top));
+  right: 18px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 38px;
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  z-index: 5;
+}
+
+.start-skip::after {
+  border: none;
+}
+
+.start-upload-stage {
+  width: min(72vw, 310px);
+  height: min(72vw, 310px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+.wait-orbit {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 22px 54px rgba(35, 48, 65, 0.12);
+  backdrop-filter: blur(18px) saturate(1.24);
+  -webkit-backdrop-filter: blur(18px) saturate(1.24);
+  transform: scale(0.36);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.orbit-one {
+  width: 120px;
+  height: 120px;
+  animation: waitOrbit 2.45s ease-in-out infinite;
+}
+
+.orbit-two {
+  width: 168px;
+  height: 168px;
+  animation: waitOrbit 2.45s ease-in-out 0.28s infinite;
+}
+
+.orbit-three {
+  width: 220px;
+  height: 220px;
+  animation: waitOrbit 2.45s ease-in-out 0.56s infinite;
+}
+
+.wait-core {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.32) 36%, rgba(255, 141, 93, 0.22) 68%, rgba(72, 187, 120, 0.16));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 18px 44px rgba(255, 141, 93, 0.2),
+    0 28px 70px rgba(35, 48, 65, 0.13);
+  backdrop-filter: blur(22px) saturate(1.36);
+  -webkit-backdrop-filter: blur(22px) saturate(1.36);
+  animation: waitCore 1.86s ease-in-out infinite;
+}
+
+.yuanqi-button {
+  width: 168px;
+  height: 168px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  transition: transform 0.62s ease, opacity 0.42s ease;
+}
+
+.yuanqi-button:active {
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
+}
+
+.yuanqi-button::after {
+  border: none;
+}
+
+.yuanqi-text {
+  color: var(--color-primary);
+  font-family: YouYuan, '幼圆', 'Microsoft YaHei', sans-serif;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: 0;
+  transition: opacity 0.28s ease, transform 0.36s ease;
+}
+
+.start-screen.is-starting .yuanqi-button {
+  transform: scale(0.86);
+  opacity: 0;
+}
+
+.start-screen.is-starting .yuanqi-text {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+.start-ripple {
+  position: absolute;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: rgba(255, 141, 93, 0.13);
+  box-shadow:
+    0 0 0 1px rgba(255, 141, 93, 0.18),
+    0 0 42px rgba(255, 141, 93, 0.18);
+  transform: scale(0.72);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ripple-one {
+  animation: yuanqiRipple 0.78s ease-out forwards;
+}
+
+.ripple-two {
+  animation: yuanqiRipple 0.82s ease-out 0.08s forwards;
+}
+
+.ripple-three {
+  animation: yuanqiRipple 0.86s ease-out 0.16s forwards;
+}
+
+@keyframes yuanqiRipple {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.72;
+  }
+  68% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(9);
+    opacity: 0;
+  }
+}
+
+@keyframes waitOrbit {
+  0% {
+    transform: scale(0.34);
+    opacity: 0;
+  }
+  36% {
+    opacity: 0.82;
+  }
+  100% {
+    transform: scale(1.28);
+    opacity: 0;
+  }
+}
+
+@keyframes waitCore {
+  0%,
+  100% {
+    transform: scale(0.94);
+  }
+  50% {
+    transform: scale(1.08);
+  }
 }
 
 .fixed-header {
@@ -639,7 +982,11 @@ const onAssetTouchEnd = (e) => {
   padding: 5px;
   margin-bottom: 15px;
   border-radius: 22px;
-  background: var(--color-bg);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .segment-item {
@@ -656,9 +1003,9 @@ const onAssetTouchEnd = (e) => {
 }
 
 .segment-item.active {
-  background: var(--color-text);
+  background: rgba(35, 48, 65, 0.84);
   color: #fff;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 22px rgba(35, 48, 65, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .header {
@@ -666,8 +1013,12 @@ const onAssetTouchEnd = (e) => {
   margin-bottom: 24px;
   text-align: center;
   padding: 30px 0;
-  border-radius: 20px;
-  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
+  border-radius: 26px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .summary-card {
@@ -693,6 +1044,63 @@ const onAssetTouchEnd = (e) => {
   margin-top: 6px;
   font-size: 12px;
   color: var(--color-text-light);
+}
+
+.asset-action-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: -8px 0 14px;
+}
+
+.asset-tool-btn {
+  width: 100%;
+  height: 52px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  background: var(--glass-bg-strong);
+  box-sizing: border-box;
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.asset-tool-btn:active {
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
+}
+
+.asset-tool-btn::after {
+  border: none;
+}
+
+.tool-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 141, 93, 0.16);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 24px;
+  flex-shrink: 0;
+}
+
+.tool-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .add-btn {
@@ -749,7 +1157,10 @@ const onAssetTouchEnd = (e) => {
   align-items: center;
   position: relative;
   z-index: 1;
-  background-color: var(--color-bg);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .bill-left {
@@ -762,8 +1173,11 @@ const onAssetTouchEnd = (e) => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #FFF9F0;
-  box-shadow: 3px 3px 6px #d9d4cc, -3px -3px 6px #ffffff;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -881,7 +1295,10 @@ const onAssetTouchEnd = (e) => {
   border-radius: 18px;
   position: relative;
   z-index: 1;
-  background-color: var(--color-bg);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .asset-action-buttons {
@@ -920,7 +1337,8 @@ const onAssetTouchEnd = (e) => {
   width: 42px;
   height: 42px;
   border-radius: 16px;
-  background: #FFF9F0;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
   display: flex;
   align-items: center;
@@ -970,25 +1388,6 @@ const onAssetTouchEnd = (e) => {
   border: none;
   font-size: 16px;
 }
-.asset-fab {
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: #FFF9F0;
-  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px rgba(255, 255, 255, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  color: #FF8D5D;
-  border: none;
-  z-index: 100;
-  padding: 0;
-}
-
 .modal-mask {
   position: fixed;
   top: 0;
@@ -1007,9 +1406,12 @@ const onAssetTouchEnd = (e) => {
   width: 80%;
   max-width: 400px;
   padding: 30px;
-  background: #FFF9F0;
+  background: var(--glass-bg-strong);
   border-radius: 20px;
-  box-shadow: 10px 10px 30px rgba(0, 0, 0, 0.1), -10px -10px 30px rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   position: relative;
   z-index: 1001;
   pointer-events: auto;
@@ -1038,10 +1440,10 @@ const onAssetTouchEnd = (e) => {
   min-height: 52px;
   line-height: 52px;
   padding: 0 15px;
-  border: none;
+  border: 1px solid var(--glass-border);
   border-radius: 10px;
-  background: #FFF9F0;
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
   font-size: 16px;
   box-sizing: border-box;
   color: #333;
@@ -1067,15 +1469,15 @@ const onAssetTouchEnd = (e) => {
 .modal-btn {
   flex: 1;
   padding: 15px;
-  border: none;
-  border-radius: 10px;
-  background: #FFF9F0;
-  box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow-soft);
   font-size: 16px;
 }
 
 .modal-btn:active {
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
 }
 
 .cancel { color: #666; }

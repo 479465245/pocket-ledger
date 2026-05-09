@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="container">
     <!-- Header: Tabs -->
     <view class="header-tabs">
@@ -66,6 +66,8 @@
 
                 <view class="row-label">
 
+                    <text class="row-icon">📤</text>
+
                     <text>转出账户</text>
 
                 </view>
@@ -80,90 +82,73 @@
 
             </view>
 
-
-
-            <view class="transfer-row" @click="openAssetPicker('target')">
-
-                <view class="row-label">
-
-                    <text>转入账户</text>
-
-                </view>
-
-                <view class="row-right">
-
-                    <text class="row-value">{{ assets.find(a => a.id === form.targetAssetId)?.name || '选择账户' }}</text>
-
-                    <text class="chevron">></text>
-
-                </view>
-
-            </view>
-
-
-
-            <view class="transfer-row input-row">
-
-                <view class="row-label">
-
-                    <text>转入金额</text>
-
-                </view>
-
-                <view class="row-right">
-
-                    <input
-
-                        class="fee-input"
-
-                        type="digit"
-
-                        v-model="form.targetAmountStr"
-
-                        placeholder="转入金额"
-
-                        @input="onTargetAmountInput"
-
-                    />
-
-                    <view class="fee-unit currency-selector" @click="openCurrencyPicker('target')">{{ form.targetCurrency }}</view>
-
-                </view>
-
-            </view>
-
             
 
-            <!-- 手续费输入 -->
+            <view class="transfer-divider">
 
-            <view class="transfer-row">
+                <text>⬇️</text>
 
+            </view>
+
+            <view class="transfer-row" @click="openAssetPicker('target')">
                 <view class="row-label">
-
-                    <text>手续费</text>
-
+                    <text class="row-icon">📥</text>
+                    <text>转入账户</text>
                 </view>
-
                 <view class="row-right">
-
-                    <input 
-
-                        class="fee-input" 
-
-                        type="digit" 
-
-                        v-model="form.fee" 
-
-                        placeholder="0"
-
-                        @input="onFeeInput"
-
-                    />
-
-                    <text class="fee-unit">元</text>
-
+                    <text class="row-value">{{ assets.find(a => a.id === form.targetAssetId)?.name || '选择账户' }}</text>
+                    <text class="chevron">></text>
                 </view>
+            </view>
+            
+            <view class="transfer-row" @click="openCurrencyPicker('target')">
+                <view class="row-label">
+                    <text class="row-icon">🌍</text>
+                    <text>转入币种</text>
+                </view>
+                <view class="row-right">
+                    <text class="row-value">{{ form.targetCurrency }}</text>
+                    <text class="chevron">></text>
+                </view>
+            </view>
 
+            <view class="transfer-row input-row">
+                <view class="row-label">
+                    <text class="row-icon">💱</text>
+                    <text>转入金额</text>
+                </view>
+                <view class="row-right">
+                    <input
+                        class="fee-input"
+                        type="digit"
+                        v-model="form.targetAmountStr"
+                        placeholder="转入金额"
+                        @input="onTargetAmountInput"
+                    />
+                    <text class="fee-unit">{{ form.targetCurrency }}</text>
+                </view>
+            </view>
+            
+            <!-- 手续费输入 -->
+            <view class="transfer-divider">
+                <text>💰</text>
+            </view>
+            
+            <view class="transfer-row">
+                <view class="row-label">
+                    <text class="row-icon">💳</text>
+                    <text>手续费</text>
+                </view>
+                <view class="row-right">
+                    <input 
+                        class="fee-input" 
+                        type="digit" 
+                        v-model="form.fee" 
+                        placeholder="0"
+                        @input="onFeeInput"
+                    />
+                    <text class="fee-unit">元</text>
+                </view>
             </view>
         </view>
     </view>
@@ -171,27 +156,42 @@
     <!-- Bottom Panel -->
     <view class="bottom-panel neu-card-top">
         <!-- Input Row 1: Asset & Date & Stats -->
-        <scroll-view scroll-x class="options-scroll" :show-scrollbar="false">
-            <view class="options-row">
-                <view class="option-tag" @click="openAssetPicker('source')" v-if="currentTab !== 'transfer'">
-                    <text>{{ selectedAssetName }}</text>
-                </view>
-                <picker class="option-picker" mode="date" :value="form.date" @change="onDateChange">
-                    <view class="option-tag">
-                        <text>{{ displayDate }}</text>
-                    </view>
-                </picker>
-                <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab !== 'transfer'">
-                    <text>{{ form.currency }}</text>
-                </view>
-                <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab === 'transfer'">
-                    <text>转出 {{ form.currency }}</text>
-                </view>
-                <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats">
-                    <text>{{ form.isIncludedInStats ? '计入统计' : '不计入统计' }}</text>
-                </view>
-            </view>
-        </scroll-view>
+        <view class="options-row">
+             <view class="option-tag" @click="openAssetPicker('source')" v-if="currentTab !== 'transfer'">
+                 <text class="tag-icon">💳</text>
+                 <text>{{ selectedAssetName }}</text>
+             </view>
+             <picker mode="date" :value="form.date" @change="onDateChange">
+                 <view class="option-tag">
+                     <text class="tag-icon">📅</text>
+                     <text>{{ displayDate }}</text>
+                 </view>
+             </picker>
+             <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab !== 'transfer'">
+
+                 <text class="tag-icon">🌍</text>
+
+                 <text>{{ form.currency }}</text>
+
+             </view>
+
+             <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab === 'transfer'">
+
+                 <text class="tag-icon">💸</text>
+
+                 <text>转出 {{ form.currency }}</text>
+
+             </view>
+
+             <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats">
+
+                 <text class="tag-icon">{{ form.isIncludedInStats ? '📊' : '🚫' }}</text>
+
+                 <text>{{ form.isIncludedInStats ? '计入统计' : '不计入' }}</text>
+
+             </view>
+        </view>
+        
         <!-- Input Row 2: Remark & Amount -->
         <view class="input-display-row">
             <view class="remark-box">
@@ -881,7 +881,7 @@ const submit = async () => {
   flex-direction: column;
   height: 100%; /* Match page height */
   /* height: calc(100vh - var(--window-top)); */ /* Try this for H5 if navbar issue persists */
-  background-color: var(--color-bg);
+  background: var(--app-bg);
   overflow: hidden;
 }
 
@@ -891,7 +891,7 @@ const submit = async () => {
     justify-content: center;
     padding-top: 20px;
     padding-bottom: 10px;
-    background: var(--color-bg);
+    background: transparent;
     z-index: 10;
     flex-shrink: 0;
 }
@@ -902,13 +902,13 @@ const submit = async () => {
     font-size: 16px;
     color: var(--color-text-light);
     font-weight: bold;
-    border-radius: 16px;
+    border-radius: 20px;
     transition: all 0.3s;
     
     &.active {
         color: #fff;
-        background: var(--color-text); /* Black/Dark Grey */
-        box-shadow: var(--shadow-light), var(--shadow-dark);
+        background: rgba(35, 48, 65, 0.84);
+        box-shadow: 0 10px 22px rgba(35, 48, 65, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
     }
 }
 
@@ -939,7 +939,9 @@ const submit = async () => {
     width: 50px;
     height: 50px;
     border-radius: 18px;
-    background: #f0f4f8; /* Slightly different bg for icon */
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-soft);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -956,7 +958,7 @@ const submit = async () => {
     
     &.setting {
         background: transparent;
-        border: 1px solid #ddd;
+        border: 1px solid var(--glass-border);
     }
     
     .plus-badge {
@@ -972,7 +974,7 @@ const submit = async () => {
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 2px solid #fff;
+        border: 2px solid rgba(255, 255, 255, 0.78);
     }
 }
 
@@ -990,7 +992,7 @@ const submit = async () => {
     .divider-text {
         font-size: 12px;
         color: var(--color-text-light);
-        background: var(--color-bg);
+        background: var(--glass-bg-strong);
         padding: 0 10px;
     }
 }
@@ -1012,72 +1014,48 @@ const submit = async () => {
 
 /* Bottom Panel */
 .bottom-panel {
-
-    background: #f8fcf8; /* Light Mint/Cream */
-
-    border-radius: 24px 24px 0 0;
-
-    box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
-
-    padding: 10px 16px;
-
-    padding-bottom: calc(10px + constant(safe-area-inset-bottom));
-
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
-
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    border-radius: 30px 30px 0 0;
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    padding: 20px;
+    padding-bottom: calc(20px + constant(safe-area-inset-bottom));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
     flex-shrink: 0;
-
 }
 
 /* Options Row */
-.options-scroll {
-    width: 100%;
-    margin-bottom: 8px;
-    white-space: nowrap;
-}
-
 .options-row {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: nowrap;
-    min-width: 100%;
-}
-
-.option-picker {
-    flex-shrink: 0;
+    display: flex;
+    margin-bottom: 15px;
 }
 
 .option-tag {
-    width: max-content;
-    height: 34px;
-    box-sizing: border-box;
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    background: #fff;
-    padding: 0 16px;
-    border-radius: 17px;
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    padding: 5px 12px;
+    border-radius: 15px;
     margin-right: 10px;
     font-size: 12px;
-    line-height: 34px;
     color: var(--color-text);
-    white-space: nowrap;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    box-shadow: var(--glass-shadow-soft);
 }
+
+.tag-icon {
+    margin-right: 5px;
+}
+
 /* Input Display Row */
 .input-display-row {
-
     display: flex;
-
     justify-content: space-between;
-
     align-items: center;
-
-    margin-bottom: 8px;
-
+    margin-bottom: 20px;
     padding: 0 5px;
-
 }
 
 .remark-box {
@@ -1096,45 +1074,49 @@ const submit = async () => {
 }
 
 .currency {
-    font-size: 18px;
+    font-size: 20px;
     margin-right: 5px;
     margin-bottom: 5px;
 }
 
 .amount-text {
-    font-size: 32px;
+    font-size: 36px;
     font-weight: bold;
 }
 
 /* Keypad */
 .keypad {
-    background: #eef5ef; /* Greenish tint bg */
-    border-radius: 16px;
-    padding: 4px;
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 5px;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .key-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     &:last-child { margin-bottom: 0; }
 }
 
 .key-cell {
     width: 23%;
-    height: 44px;
-    background: #fff;
+    height: 55px;
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 500;
     color: var(--color-text);
-    box-shadow: 0 2px 0 rgba(0,0,0,0.05);
+    box-shadow: var(--glass-shadow-soft);
     
     &:active {
-        background: #f0f0f0;
+        background: rgba(255, 255, 255, 0.78);
         transform: translateY(2px);
         box-shadow: none;
     }
@@ -1181,8 +1163,12 @@ const submit = async () => {
 .picker-modal {
     width: 80%;
     padding: 20px;
-    background: #fff;
-    border-radius: 16px;
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
 }
 .picker-title {
     text-align: center;
@@ -1218,13 +1204,16 @@ const submit = async () => {
 
     width: 100%;
 
-    background: var(--color-bg);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
 
-    border-radius: 16px;
+    border-radius: 20px;
 
     padding: 20px;
 
-    box-shadow: var(--shadow-light), var(--shadow-dark);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
 
     display: flex;
 
@@ -1246,10 +1235,11 @@ const submit = async () => {
     align-items: center;
     padding: 15px;
     border-radius: 15px;
-    background: #f0f4f8;
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--glass-border);
     margin-bottom: 10px;
     &:active {
-        background: #e1e6eb;
+        background: rgba(255, 255, 255, 0.72);
     }
 }
 
@@ -1308,22 +1298,9 @@ const submit = async () => {
 
 }
 
-.fee-unit {
-    font-size: 14px;
-    color: var(--color-text-light);
-    margin-left: 5px;
-}
-
-.currency-selector {
-    min-width: 48px;
-    height: 28px;
-    line-height: 28px;
-    padding: 0 10px;
-    border-radius: 14px;
-    background: #fff;
-    color: var(--color-text);
-    text-align: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+.fee-unit {
+    font-size: 14px;
+    color: var(--color-text-light);
+    margin-left: 5px;
 }
 </style>
-

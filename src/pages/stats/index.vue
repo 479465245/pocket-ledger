@@ -340,7 +340,7 @@ const onItemClick = (item) => {
 <style lang="scss" scoped>
 .container {
   height: 100%;
-  background-color: var(--color-bg);
+  background: var(--app-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -348,7 +348,7 @@ const onItemClick = (item) => {
 
 .fixed-header {
     flex-shrink: 0;
-    background: var(--color-bg);
+    background: transparent;
     padding-bottom: 10px;
     z-index: 10;
 }
@@ -373,9 +373,10 @@ const onItemClick = (item) => {
         transition: all 0.2s;
         
         &.active {
-            background: var(--color-bg);
+            background: var(--glass-bg-strong);
+            border: 1px solid var(--glass-border);
             color: var(--color-primary);
-            box-shadow: var(--shadow-light), var(--shadow-dark);
+            box-shadow: var(--glass-shadow-soft);
             font-weight: bold;
         }
     }
@@ -388,8 +389,11 @@ const onItemClick = (item) => {
     border-radius: 12px;
     font-size: 14px;
     color: var(--color-text);
-    background: var(--color-bg);
-    box-shadow: var(--shadow-light), var(--shadow-dark);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-soft);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     
     .arrow {
         margin-left: 6px;
@@ -459,7 +463,7 @@ const onItemClick = (item) => {
     height: 200px;
     border-radius: 50%;
     /* Gradient handled by inline style */
-    box-shadow: var(--shadow-light), var(--shadow-dark);
+    box-shadow: var(--glass-shadow);
     flex-shrink: 0;
 }
 
@@ -468,11 +472,14 @@ const onItemClick = (item) => {
     width: 110px;
     height: 110px;
     border-radius: 50%;
-    background: var(--color-bg);
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow: var(--shadow-light), var(--shadow-dark); 
+    box-shadow: var(--glass-shadow-soft);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -510,14 +517,14 @@ const onItemClick = (item) => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--glass-bg-strong);
     padding: 4px 8px;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: var(--glass-shadow-soft);
     pointer-events: none;
     white-space: nowrap;
     backdrop-filter: blur(2px);
-    border: 1px solid rgba(255,255,255,0.3);
+    border: 1px solid var(--glass-border);
     
     .lbl-name {
         font-size: 11px;
@@ -566,7 +573,8 @@ const onItemClick = (item) => {
 .icon-box {
     width: 36px;
     height: 36px;
-    background: #FFF9F0;
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
     border-radius: 50%;
     display: flex;
     align-items: center;

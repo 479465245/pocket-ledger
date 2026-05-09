@@ -4,7 +4,7 @@
       "path": "pages/index/index",
       "style": {
         "navigationBarTitleText": "记账本",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -12,7 +12,7 @@
       "path": "pages/bill/add",
       "style": {
         "navigationBarTitleText": "记一笔",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -20,7 +20,7 @@
       "path": "pages/stats/index",
       "style": {
         "navigationBarTitleText": "统计",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -28,7 +28,7 @@
       "path": "pages/stats/category",
       "style": {
         "navigationBarTitleText": "分类详情",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -36,7 +36,7 @@
       "path": "pages/stats/list",
       "style": {
         "navigationBarTitleText": "账单明细",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -44,7 +44,7 @@
       "path": "pages/settings/index",
       "style": {
         "navigationBarTitleText": "设置",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -52,7 +52,7 @@
       "path": "pages/settings/assets",
       "style": {
         "navigationBarTitleText": "资产管理",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -60,7 +60,7 @@
       "path": "pages/settings/import",
       "style": {
         "navigationBarTitleText": "数据导入",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -68,7 +68,7 @@
       "path": "pages/settings/export",
       "style": {
         "navigationBarTitleText": "数据导出",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -76,7 +76,7 @@
       "path": "pages/categories/index",
       "style": {
         "navigationBarTitleText": "分类管理",
-        "navigationBarBackgroundColor": "#FFF9F0",
+        "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }
     }
@@ -84,13 +84,13 @@
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "uni-app",
-    "navigationBarBackgroundColor": "#F8F8F8",
-    "backgroundColor": "#F8F8F8"
+    "navigationBarBackgroundColor": "#F7FAFF",
+    "backgroundColor": "#F7FAFF"
   },
   "tabBar": {
     "color": "#8A8A8A",
     "selectedColor": "#FF8D5D",
-    "backgroundColor": "#FFF9F0",
+    "backgroundColor": "#F7FAFF",
     "borderStyle": "white",
     "list": [
       {
@@ -104,12 +104,6 @@
         "text": "统计",
         "iconPath": "static/tabbar/chart.png",
         "selectedIconPath": "static/tabbar/chart-active.png"
-      },
-      {
-        "pagePath": "pages/settings/index",
-        "text": "设置",
-        "iconPath": "static/tabbar/wallet.png",
-        "selectedIconPath": "static/tabbar/wallet-active.png"
       }
     ]
   }

@@ -345,7 +345,7 @@ function saveXLSFile(fileName, content) {
 <style scoped>
 .container {
   padding: 20px;
-  background-color: #FFF9F0;
+  background: var(--app-bg);
   min-height: 100vh;
   display: flex;
   align-items: flex-start;
@@ -355,9 +355,12 @@ function saveXLSFile(fileName, content) {
 .content-card {
   width: 100%;
   padding: 30px 20px;
-  background: #FFF9F0;
-  border-radius: 20px;
-  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 26px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -368,8 +371,9 @@ function saveXLSFile(fileName, content) {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: #FFF9F0;
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -383,13 +387,13 @@ function saveXLSFile(fileName, content) {
 .title {
   font-size: 24px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 10px;
 }
 
 .description {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-light);
   margin-bottom: 30px;
 }
 
@@ -402,7 +406,7 @@ function saveXLSFile(fileName, content) {
   display: block;
   font-size: 16px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 15px;
 }
 
@@ -419,7 +423,7 @@ function saveXLSFile(fileName, content) {
 .date-label {
   display: block;
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-light);
   margin-bottom: 5px;
 }
 
@@ -427,10 +431,11 @@ function saveXLSFile(fileName, content) {
   width: 100%;
   padding: 12px;
   border-radius: 8px;
-  background: #FFF9F0;
-  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.1), inset -2px -2px 5px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
   font-size: 14px;
-  color: #333;
+  color: var(--color-text);
 }
 
 .date-text {
@@ -455,18 +460,18 @@ function saveXLSFile(fileName, content) {
 .neu-btn {
   width: 100%;
   padding: 15px;
-  border: none;
-  border-radius: 10px;
-  background: #FFF9F0;
-  box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow-soft);
   font-size: 16px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 15px;
 }
 
 .neu-btn:active {
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
 }
 
 .neu-btn:disabled {
@@ -474,7 +479,7 @@ function saveXLSFile(fileName, content) {
 }
 
 .primary-btn {
-  color: #FF8D5D;
+  color: var(--color-primary);
 }
 
 .tips {
@@ -487,7 +492,7 @@ function saveXLSFile(fileName, content) {
   display: block;
   font-size: 14px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 10px;
 }
 

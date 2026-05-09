@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { generateId } from '@/utils/uuid'
 
 const STORAGE_KEY = 'account_book_assets'
+const BILL_STORAGE_KEY = 'account_book_bills'
 
 const withCurrencyBalances = (asset) => {
   const cnyBalance = Number(asset.currentBalance ?? asset.initialBalance ?? 0)
@@ -23,11 +24,36 @@ const withCurrencyBalances = (asset) => {
   }
 }
 
-const defaultAssets = [
-  { id: 'a1', name: '现金', type: 'cash', initialBalance: 0, currentBalance: 0 },
-  { id: 'a2', name: '微信钱包', type: 'digital', initialBalance: 0, currentBalance: 0 },
-  { id: 'a3', name: '支付宝', type: 'digital', initialBalance: 0, currentBalance: 0 },
-].map(withCurrencyBalances)
+const isZeroAsset = (asset) => {
+  const balances = asset.balances || {}
+  return Number(asset.initialBalance || 0) === 0 &&
+    Number(asset.currentBalance || 0) === 0 &&
+    Object.values(balances).every(amount => Number(amount || 0) === 0)
+}
+
+const hasStoredBills = () => {
+  const stored = uni.getStorageSync(BILL_STORAGE_KEY)
+  if (!stored) return false
+
+  try {
+    const bills = JSON.parse(stored)
+    return Array.isArray(bills) && bills.length > 0
+  } catch (error) {
+    return true
+  }
+}
+
+const shouldDropLegacyDefaultAssets = (assets) => {
+  const legacyAssets = [
+    { id: 'a1', name: '现金' },
+    { id: 'a2', name: '微信钱包' },
+    { id: 'a3', name: '支付宝' }
+  ]
+
+  return !hasStoredBills() &&
+    assets.length === legacyAssets.length &&
+    legacyAssets.every(legacy => assets.some(asset => asset.id === legacy.id && asset.name === legacy.name && isZeroAsset(asset)))
+}
 
 export const useAssetStore = defineStore('asset', {
   state: () => ({
@@ -37,10 +63,11 @@ export const useAssetStore = defineStore('asset', {
     init() {
       const stored = uni.getStorageSync(STORAGE_KEY)
       if (stored) {
-        this.assets = JSON.parse(stored).map(withCurrencyBalances)
+        const assets = JSON.parse(stored).map(withCurrencyBalances)
+        this.assets = shouldDropLegacyDefaultAssets(assets) ? [] : assets
         this.save()
       } else {
-        this.assets = defaultAssets
+        this.assets = []
         this.save()
       }
     },

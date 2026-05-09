@@ -372,7 +372,7 @@ const confirmDelete = () => {
 <style lang="scss" scoped>
 .container {
   padding: 0;
-  background-color: #FFF9F0;
+  background: var(--app-bg);
   /* Flex Layout for No-Global-Scroll */
   height: 100%; /* Match page height */
   display: flex;
@@ -406,8 +406,8 @@ const confirmDelete = () => {
     
     &.active {
         color: #fff;
-        background: var(--color-text);
-        box-shadow: var(--shadow-light), var(--shadow-dark);
+        background: rgba(35, 48, 65, 0.84);
+        box-shadow: 0 10px 22px rgba(35, 48, 65, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
     }
 }
 
@@ -434,7 +434,8 @@ const confirmDelete = () => {
     position: relative;
     width: 100%;
     height: 70px; /* Fixed height for Level 1 */
-    background: #FFF9F0; /* Match card bg */
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
     border-radius: 15px;
     overflow: hidden; /* Ensure actions are hidden by default */
 }
@@ -452,14 +453,16 @@ const confirmDelete = () => {
     width: 100%;
     height: 100%;
     z-index: 10; /* Higher than actions */
-    background: #FFF9F0; /* Crucial to cover actions */
+    background: var(--glass-bg-strong);
     transition: transform 0.1s linear;
     display: flex;
     align-items: center;
     padding: 0 15px;
     box-sizing: border-box;
     /* Shadow for depth when sliding */
-    box-shadow: 2px 0 5px rgba(0,0,0,0.05); 
+    box-shadow: var(--glass-shadow-soft);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .swipe-actions {
@@ -507,7 +510,7 @@ const confirmDelete = () => {
     width: 35px;
     height: 35px;
     border-radius: 12px;
-    background: #f0f4f8;
+    background: var(--glass-bg-soft);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -566,8 +569,9 @@ const confirmDelete = () => {
   margin-bottom: calc(40rpx + constant(safe-area-inset-bottom));
   margin-bottom: calc(40rpx + env(safe-area-inset-bottom));
   flex-shrink: 0; /* Fixed at bottom */
-  background: #E0E5EC;
-  box-shadow: 6px 6px 12px #b8b9be, -6px -6px 12px #ffffff;
+  background: var(--glass-bg-soft);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   border-radius: 20rpx;
   color: #6D7587;
   font-weight: bold;
@@ -592,8 +596,12 @@ const confirmDelete = () => {
 .modal {
     width: 80%;
     padding: 25px;
-    background: var(--color-bg);
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
     border-radius: 20px;
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     max-height: 80vh;
     display: flex;
     flex-direction: column;
@@ -619,7 +627,7 @@ const confirmDelete = () => {
 .neu-input {
     width: 100%;
     height: 40px;
-    background: #f0f4f8;
+    background: var(--glass-bg-soft);
     border-radius: 10px;
     padding: 0 10px;
     font-size: 14px;
@@ -628,7 +636,7 @@ const confirmDelete = () => {
 .selected-icon {
     width: 50px;
     height: 50px;
-    background: #f0f4f8;
+    background: var(--glass-bg-soft);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -642,7 +650,8 @@ const confirmDelete = () => {
 
 .icon-picker-area {
     height: 200px;
-    background: #f9f9f9;
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--glass-border);
     border-radius: 10px;
     margin-bottom: 20px;
     padding: 10px;
@@ -666,11 +675,12 @@ const confirmDelete = () => {
     font-size: 20px;
     margin: 5px;
     border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-soft);
     
     &:active {
-        background: #e0e0e0;
+        background: rgba(255, 255, 255, 0.72);
     }
 }
 
@@ -689,7 +699,7 @@ const confirmDelete = () => {
         justify-content: center;
     }
     
-    .cancel { color: var(--color-text-light); background: #f0f4f8; }
+    .cancel { color: var(--color-text-light); background: var(--glass-bg-soft); }
     .confirm { color: #fff; background: var(--color-primary); }
     .delete-confirm { color: #fff; background: #e74c3c; }
 }
@@ -717,7 +727,8 @@ const confirmDelete = () => {
     .picker-trigger {
         display: flex;
         align-items: center;
-        background: #fff;
+        background: var(--glass-bg-strong);
+        border: 1px solid var(--glass-border);
     }
 }
 </style>

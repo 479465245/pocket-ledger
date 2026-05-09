@@ -53,7 +53,7 @@ const navigateTo = (page) => {
 <style scoped>
 .container {
   padding: 20px;
-  background-color: #FFF9F0;
+  background: var(--app-bg);
   min-height: 100vh;
 }
 
@@ -61,15 +61,18 @@ const navigateTo = (page) => {
   padding: 30px;
   margin-bottom: 20px;
   text-align: center;
-  background: #FFF9F0;
-  border-radius: 20px;
-  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 26px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .label {
   display: block;
   font-size: 16px;
-  color: #666;
+  color: var(--color-text-light);
   margin-bottom: 10px;
 }
 
@@ -77,7 +80,7 @@ const navigateTo = (page) => {
   display: block;
   font-size: 36px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text);
 }
 
 .menu-list {
@@ -91,14 +94,17 @@ const navigateTo = (page) => {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  background: #FFF9F0;
-  border-radius: 15px;
-  box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .menu-text {
   font-size: 18px;
-  color: #333;
+  color: var(--color-text);
 }
 
 .arrow {

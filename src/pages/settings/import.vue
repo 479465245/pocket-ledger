@@ -1,5 +1,18 @@
 <template>
-  <scroll-view scroll-y class="container">
+  <view class="import-page">
+  <view v-if="isStartUploadMode" :class="['start-upload-container', isStartCompleting ? 'is-completing' : '']">
+    <button class="skip-upload" @click="skipStartUpload">跳过上传</button>
+    <view class="upload-stage" @click="selectFile">
+      <view class="upload-ring ring-one"></view>
+      <view class="upload-ring ring-two"></view>
+      <view class="upload-ring ring-three"></view>
+      <view class="upload-core">
+        <view class="upload-glint"></view>
+      </view>
+    </view>
+  </view>
+
+  <scroll-view v-else scroll-y class="container">
     <view class="header">
       <text class="title">导入账单数据</text>
       <text class="subtitle">上传支付宝、微信原始导出文件，无需修改表头</text>
@@ -60,6 +73,15 @@
           </view>
         </view>
 
+        <view v-if="assetSummary.length" class="asset-summary">
+          <text class="detected-title">已识别资产</text>
+          <view class="asset-tags">
+            <text v-for="asset in assetSummary" :key="asset.name" class="asset-tag">
+              {{ asset.name }} · {{ asset.count }} 条
+            </text>
+          </view>
+        </view>
+
         <view v-if="parseSummary.detectedHeaders.length" class="detected-box">
           <text class="detected-title">已识别字段</text>
           <text class="detected-text">{{ parseSummary.detectedHeaders.join('，') }}</text>
@@ -106,6 +128,7 @@
             <text class="header-cell">日期</text>
             <text class="header-cell">类型</text>
             <text class="header-cell">账户</text>
+            <text class="header-cell">支付方式</text>
             <text class="header-cell">金额</text>
             <text class="header-cell">分类</text>
             <text class="header-cell wide">备注</text>
@@ -116,6 +139,7 @@
             <text class="cell">{{ row.date }}</text>
             <text class="cell">{{ row.typeText || '-' }}</text>
             <text class="cell">{{ row.asset }}</text>
+            <text class="cell">{{ row.paymentMethod || '-' }}</text>
             <text class="cell">{{ formatAmount(row) }}</text>
             <text class="cell">{{ getCategoryText(row) }}</text>
             <text class="cell wide">{{ row.remark || '-' }}</text>
@@ -161,11 +185,12 @@
       <text class="tip-item">3. 充值、提现、转账等余额变动默认不参与消费统计。</text>
     </view>
   </scroll-view>
+  </view>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import * as XLSX from 'xlsx'
 import { useBillStore } from '@/store/bill.js'
 import { useCategoryStore } from '@/store/category.js'
@@ -176,6 +201,9 @@ import {
   getProviderLabel,
   parseImportRows
 } from '@/utils/importParsers.js'
+
+const ONBOARDING_SKIPPED_KEY = 'account_book_onboarding_skipped'
+const PENDING_IMPORT_FILE_KEY = '__jizhanPendingImportFile'
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
@@ -192,11 +220,25 @@ const parseMessages = ref([])
 const parseSummary = ref(null)
 const defaultExpenseCategoryId = ref('')
 const defaultIncomeCategoryId = ref('')
+const isStartUploadMode = ref(false)
+const isStartCompleting = ref(false)
 
 const providerGuide = computed(() => PROVIDER_GUIDES[selectedProvider.value])
 const parsedProviderLabel = computed(() => parsedProvider.value ? getProviderLabel(parsedProvider.value) : '-')
 const previewRows = computed(() => importData.value.slice(0, 8))
 const importableData = computed(() => importData.value.filter(row => !row.isDuplicate && row.validationErrors.length === 0))
+const assetSummary = computed(() => {
+  const counts = new Map()
+
+  importData.value.forEach(row => {
+    if (!row.asset) return
+    counts.set(row.asset, (counts.get(row.asset) || 0) + 1)
+  })
+
+  return Array.from(counts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+})
 
 const expenseCategoryOptions = computed(() => buildCategoryOptions('expense'))
 const incomeCategoryOptions = computed(() => buildCategoryOptions('income'))
@@ -208,12 +250,71 @@ const needsExpenseCategory = computed(() => importData.value.some(row => rowNeed
 const needsIncomeCategory = computed(() => importData.value.some(row => rowNeedsDefaultCategory(row, 'income')))
 const showCategoryFallbacks = computed(() => needsExpenseCategory.value || needsIncomeCategory.value)
 
+onLoad((options) => {
+  isStartUploadMode.value = options.start === '1'
+  syncImportChrome()
+  setTimeout(() => {
+    startPendingUpload(options)
+  }, 240)
+})
+
 onShow(() => {
   assetStore.init()
   categoryStore.init()
   billStore.init()
   validateData()
+  syncImportChrome()
 })
+
+const syncImportChrome = () => {
+  uni.setNavigationBarTitle({
+    title: isStartUploadMode.value ? '' : '数据导入'
+  })
+}
+
+const exitStartUploadMode = () => {
+  isStartUploadMode.value = false
+  syncImportChrome()
+}
+
+const skipStartUpload = () => {
+  finishStartFlow({ skipped: true })
+}
+
+const finishStartFlow = ({ skipped = false } = {}) => {
+  if (skipped) {
+    uni.setStorageSync(ONBOARDING_SKIPPED_KEY, '1')
+  }
+
+  isStartCompleting.value = true
+
+  setTimeout(() => {
+    uni.switchTab({
+      url: '/pages/index/index',
+      fail: () => {
+        uni.reLaunch({ url: '/pages/index/index' })
+      }
+    })
+  }, 720)
+}
+
+const startPendingUpload = (options = {}) => {
+  if (!isStartUploadMode.value) return
+
+  // #ifdef H5
+  const pendingFile = window[PENDING_IMPORT_FILE_KEY]
+  if (pendingFile) {
+    window[PENDING_IMPORT_FILE_KEY] = null
+    selectedFile.value = pendingFile
+    parseFile(pendingFile, { autoImport: true })
+    return
+  }
+  // #endif
+
+  if (options.pick === '1') {
+    selectFile({ autoImport: true })
+  }
+}
 
 const selectProvider = (provider) => {
   selectedProvider.value = provider
@@ -222,7 +323,7 @@ const selectProvider = (provider) => {
   }
 }
 
-const selectFile = () => {
+const selectFile = (options = {}) => {
   // #ifdef H5
   const input = document.createElement('input')
   input.type = 'file'
@@ -231,7 +332,10 @@ const selectFile = () => {
     const file = event.target.files[0]
     if (file) {
       selectedFile.value = file
-      parseFile(file)
+      if (!isStartUploadMode.value) {
+        exitStartUploadMode()
+      }
+      parseFile(file, { autoImport: isStartUploadMode.value || options.autoImport })
     }
   }
   input.click()
@@ -245,7 +349,10 @@ const selectFile = () => {
     success: (res) => {
       if (res.tempFiles && res.tempFiles.length > 0) {
         selectedFile.value = res.tempFiles[0]
-        parseFile(res.tempFiles[0])
+        if (!isStartUploadMode.value) {
+          exitStartUploadMode()
+        }
+        parseFile(res.tempFiles[0], { autoImport: isStartUploadMode.value || options.autoImport })
       }
     },
     fail: () => {
@@ -258,7 +365,7 @@ const selectFile = () => {
   // #endif
 }
 
-const parseFile = (file) => {
+const parseFile = (file, options = {}) => {
   clearParsedData()
 
   const reader = new FileReader()
@@ -276,7 +383,14 @@ const parseFile = (file) => {
         ...result.warnings.map(message => ({ type: 'warning', message }))
       ]
       importData.value = decorateRows(result.rows)
+      if (options.autoImport) {
+        prepareStartDefaultCategories()
+      }
       validateData()
+
+      if (options.autoImport && !result.errors.length) {
+        startImportAndEnterHome()
+      }
 
       if (result.errors.length) {
         uni.showToast({
@@ -510,6 +624,128 @@ const validateData = () => {
   validationResults.value = results
 }
 
+const ensureStartFallbackCategory = (type) => {
+  const name = type === 'income' ? '未分类收入' : '未分类支出'
+  return categoryStore.findCategoryByName(name, type) ||
+    categoryStore.addCategory({
+      name,
+      type,
+      icon: '🏷️'
+    })
+}
+
+const prepareStartDefaultCategories = () => {
+  if (importData.value.some(row => rowNeedsDefaultCategory(row, 'expense'))) {
+    defaultExpenseCategoryId.value = ensureStartFallbackCategory('expense').id
+  }
+
+  if (importData.value.some(row => rowNeedsDefaultCategory(row, 'income'))) {
+    defaultIncomeCategoryId.value = ensureStartFallbackCategory('income').id
+  }
+}
+
+const ensureAssetsFromParsedRows = () => {
+  importData.value.forEach(row => {
+    if (row.asset) {
+      ensureAsset(row)
+    }
+
+    if (row.type === 'transfer' && row.targetAsset) {
+      ensureAsset({ asset: row.targetAsset, provider: row.provider, assetType: row.assetType })
+    }
+  })
+}
+
+const runImportRows = async (rows, { showToast = true, resetAfter = true } = {}) => {
+  let successCount = 0
+  let errorCount = 0
+  const skippedCount = importData.value.length - rows.length
+
+  for (const item of rows) {
+    try {
+      const assetId = ensureAsset(item)
+      const targetAssetId = item.type === 'transfer' && item.targetAsset
+        ? ensureAsset({ asset: item.targetAsset, provider: item.provider, assetType: item.assetType })
+        : null
+      const category = ensureCategory(item)
+      const normalizedAmount = item.type === 'income' || item.type === 'refund'
+        ? Math.abs(Number(item.amount))
+        : -Math.abs(Number(item.amount))
+
+      const billData = {
+        amount: normalizedAmount,
+        assetId,
+        targetAssetId,
+        parentCategoryId: category.parentCategoryId,
+        categoryId: category.categoryId,
+        remark: item.remark,
+        timestamp: parseTimestamp(item.date),
+        type: item.type,
+        isIncludedInStats: item.isIncludedInStats,
+        fee: item.type === 'transfer' ? Number(item.fee || 0) : 0,
+        importProvider: item.provider,
+        externalUniqueKey: item.externalUniqueKey,
+        externalOrderNo: item.orderNo
+      }
+
+      await billStore.addBill(billData)
+      successCount += 1
+    } catch (error) {
+      console.error('导入失败:', error)
+      errorCount += 1
+    }
+  }
+
+  if (showToast) {
+    uni.showToast({
+      title: `成功${successCount}条，跳过${skippedCount}条，失败${errorCount}条`,
+      icon: 'success',
+      duration: 3000
+    })
+  }
+
+  if (resetAfter) {
+    resetImport()
+  }
+
+  return { successCount, errorCount, skippedCount }
+}
+
+const startImportAndEnterHome = async () => {
+  if (!importData.value.length) {
+    uni.showToast({ title: '未识别到账单', icon: 'none' })
+    return
+  }
+
+  prepareStartDefaultCategories()
+  validateData()
+
+  const rows = importableData.value
+  isImporting.value = true
+
+  try {
+    const result = rows.length
+      ? await runImportRows(rows, { showToast: false, resetAfter: false })
+      : { successCount: 0, errorCount: 0 }
+
+    if (result.successCount === 0) {
+      ensureAssetsFromParsedRows()
+    }
+
+    if (assetStore.assets.length === 0 && billStore.bills.length === 0) {
+      uni.setStorageSync(ONBOARDING_SKIPPED_KEY, '1')
+    }
+
+    resetImport()
+    finishStartFlow()
+  } catch (error) {
+    console.error('导入过程出错:', error)
+    uni.showToast({ title: '导入失败，请重试', icon: 'none' })
+  } finally {
+    isImporting.value = false
+  }
+}
+
 const startImport = async () => {
   if (!importableData.value.length) {
     uni.showToast({
@@ -522,52 +758,7 @@ const startImport = async () => {
   isImporting.value = true
 
   try {
-    let successCount = 0
-    let errorCount = 0
-    const skippedCount = importData.value.length - importableData.value.length
-
-    for (const item of importableData.value) {
-      try {
-        const assetId = ensureAsset(item.asset, item.provider)
-        const targetAssetId = item.type === 'transfer' && item.targetAsset
-          ? ensureAsset(item.targetAsset, item.provider)
-          : null
-        const category = ensureCategory(item)
-        const normalizedAmount = item.type === 'income' || item.type === 'refund'
-          ? Math.abs(Number(item.amount))
-          : -Math.abs(Number(item.amount))
-
-        const billData = {
-          amount: normalizedAmount,
-          assetId,
-          targetAssetId,
-          parentCategoryId: category.parentCategoryId,
-          categoryId: category.categoryId,
-          remark: item.remark,
-          timestamp: parseTimestamp(item.date),
-          type: item.type,
-          isIncludedInStats: item.isIncludedInStats,
-          fee: item.type === 'transfer' ? Number(item.fee || 0) : 0,
-          importProvider: item.provider,
-          externalUniqueKey: item.externalUniqueKey,
-          externalOrderNo: item.orderNo
-        }
-
-        await billStore.addBill(billData)
-        successCount += 1
-      } catch (error) {
-        console.error('导入失败:', error)
-        errorCount += 1
-      }
-    }
-
-    uni.showToast({
-      title: `成功${successCount}条，跳过${skippedCount}条，失败${errorCount}条`,
-      icon: 'success',
-      duration: 3000
-    })
-
-    resetImport()
+    await runImportRows(importableData.value)
   } catch (error) {
     console.error('导入过程出错:', error)
     uni.showToast({
@@ -579,13 +770,14 @@ const startImport = async () => {
   }
 }
 
-const ensureAsset = (name, provider) => {
+const ensureAsset = (item) => {
+  const name = item.asset
   const existing = assetStore.findByName(name)
   if (existing) return existing.id
 
   const newAsset = assetStore.addAsset({
     name,
-    type: provider === 'generic' ? 'cash' : 'digital',
+    type: item.assetType || (item.provider === 'generic' ? 'cash' : 'digital'),
     initialBalance: 0
   })
   return newAsset.id
@@ -665,11 +857,165 @@ const formatFileSize = (bytes) => {
 </script>
 
 <style scoped>
+.import-page {
+  min-height: 100vh;
+  background: var(--app-bg);
+}
+
+.start-upload-container {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 141, 93, 0.16), transparent 34%),
+    var(--app-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.skip-upload {
+  position: fixed;
+  top: calc(var(--window-top, 44px) + 14px);
+  right: 18px;
+  z-index: 5;
+  width: auto;
+  min-width: 72px;
+  height: 34px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 18px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  color: var(--color-text-light);
+  font-size: 12px;
+  line-height: 34px;
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.skip-upload::after {
+  border: none;
+}
+
+.upload-stage {
+  width: 238px;
+  height: 238px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-ring {
+  position: absolute;
+  width: 138px;
+  height: 138px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 141, 93, 0.16);
+  background: rgba(255, 141, 93, 0.06);
+  box-shadow: 0 0 34px rgba(255, 141, 93, 0.1);
+  opacity: 0;
+  animation: uploadPulse 2.4s ease-out infinite;
+}
+
+.ring-two {
+  animation-delay: 0.72s;
+}
+
+.ring-three {
+  animation-delay: 1.44s;
+}
+
+.upload-core {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  animation: uploadBreathe 2.8s ease-in-out infinite;
+}
+
+.start-upload-container.is-completing .skip-upload {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.start-upload-container.is-completing .upload-ring {
+  animation: uploadFinishRipple 0.72s ease-out forwards;
+}
+
+.start-upload-container.is-completing .upload-core {
+  animation: uploadFinishCore 0.72s ease-in forwards;
+}
+
+.upload-glint {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  top: 22px;
+  left: 24px;
+  background: rgba(255, 255, 255, 0.82);
+  filter: blur(1px);
+}
+
+@keyframes uploadPulse {
+  0% {
+    transform: scale(0.56);
+    opacity: 0.62;
+  }
+  72% {
+    opacity: 0.18;
+  }
+  100% {
+    transform: scale(1.74);
+    opacity: 0;
+  }
+}
+
+@keyframes uploadBreathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes uploadFinishRipple {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.46;
+  }
+  100% {
+    transform: scale(7.2);
+    opacity: 0;
+  }
+}
+
+@keyframes uploadFinishCore {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.72);
+    opacity: 0;
+  }
+}
+
 .container {
   height: 100vh;
   box-sizing: border-box;
   padding: 20px;
-  background: var(--color-bg);
+  background: transparent;
 }
 
 .header {
@@ -718,18 +1064,22 @@ const formatFileSize = (bytes) => {
 }
 
 .source-tab {
+  width: 100%;
   min-height: 40px;
+  margin: 0;
   padding: 0 10px;
   border: none;
   border-radius: 12px;
-  background: #fff3e7;
+  background: var(--glass-bg-soft);
+  border: 1px solid var(--glass-border);
+  box-sizing: border-box;
   color: var(--color-text);
   font-size: 14px;
   line-height: 40px;
 }
 
 .source-tab.active {
-  background: var(--color-primary);
+  background: rgba(255, 141, 93, 0.84);
   color: #fff;
   font-weight: 700;
 }
@@ -754,12 +1104,12 @@ const formatFileSize = (bytes) => {
 
 .select-btn {
   margin-bottom: 12px;
-  background: var(--color-primary);
+  background: rgba(255, 141, 93, 0.86);
   color: #fff;
 }
 
 .import-btn {
-  background: var(--color-secondary);
+  background: rgba(61, 155, 114, 0.86);
   color: #fff;
 }
 
@@ -771,20 +1121,26 @@ const formatFileSize = (bytes) => {
 
 .secondary-btn {
   margin-top: 10px;
-  background: #fff3e7;
+  background: var(--glass-bg-soft);
   color: var(--color-primary);
 }
 
 .file-info,
 .format-box,
 .detected-box,
+.asset-summary,
 .picker-box {
   padding: 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.68);
+  background: var(--glass-bg-soft);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
-.file-info {
+.file-info,
+.asset-summary {
   margin-bottom: 12px;
 }
 
@@ -832,7 +1188,8 @@ const formatFileSize = (bytes) => {
 .summary-item {
   padding: 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.68);
+  background: var(--glass-bg-soft);
+  border: 1px solid var(--glass-border);
 }
 
 .summary-label,
@@ -852,6 +1209,22 @@ const formatFileSize = (bytes) => {
   font-weight: 700;
 }
 
+.asset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.asset-tag {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 141, 93, 0.16);
+  border: 1px solid rgba(255, 141, 93, 0.18);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .picker-box {
   margin-top: 10px;
   color: var(--color-text);
@@ -860,13 +1233,16 @@ const formatFileSize = (bytes) => {
 
 .preview-table {
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.68);
+  background: var(--glass-bg-soft);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .table-header,
 .table-row {
   display: flex;
-  min-width: 840px;
+  min-width: 950px;
 }
 
 .table-header {
@@ -932,7 +1308,10 @@ const formatFileSize = (bytes) => {
   padding: 16px;
   margin-bottom: 20px;
   border-radius: 16px;
-  background: rgba(136, 177, 148, 0.14);
+  background: rgba(61, 155, 114, 0.12);
+  border: 1px solid rgba(61, 155, 114, 0.16);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .tip-text,
