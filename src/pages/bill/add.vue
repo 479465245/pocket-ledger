@@ -66,8 +66,6 @@
 
                 <view class="row-label">
 
-                    <text class="row-icon">📤</text>
-
                     <text>转出账户</text>
 
                 </view>
@@ -82,73 +80,90 @@
 
             </view>
 
-            
 
-            <view class="transfer-divider">
-
-                <text>⬇️</text>
-
-            </view>
 
             <view class="transfer-row" @click="openAssetPicker('target')">
+
                 <view class="row-label">
-                    <text class="row-icon">📥</text>
+
                     <text>转入账户</text>
+
                 </view>
+
                 <view class="row-right">
+
                     <text class="row-value">{{ assets.find(a => a.id === form.targetAssetId)?.name || '选择账户' }}</text>
+
                     <text class="chevron">></text>
+
                 </view>
-            </view>
-            
-            <view class="transfer-row" @click="openCurrencyPicker('target')">
-                <view class="row-label">
-                    <text class="row-icon">🌍</text>
-                    <text>转入币种</text>
-                </view>
-                <view class="row-right">
-                    <text class="row-value">{{ form.targetCurrency }}</text>
-                    <text class="chevron">></text>
-                </view>
+
             </view>
 
+
+
             <view class="transfer-row input-row">
+
                 <view class="row-label">
-                    <text class="row-icon">💱</text>
+
                     <text>转入金额</text>
+
                 </view>
+
                 <view class="row-right">
+
                     <input
+
                         class="fee-input"
+
                         type="digit"
+
                         v-model="form.targetAmountStr"
+
                         placeholder="转入金额"
+
                         @input="onTargetAmountInput"
+
                     />
-                    <text class="fee-unit">{{ form.targetCurrency }}</text>
+
+                    <view class="fee-unit currency-selector" @click="openCurrencyPicker('target')">{{ form.targetCurrency }}</view>
+
                 </view>
+
             </view>
+
             
+
             <!-- 手续费输入 -->
-            <view class="transfer-divider">
-                <text>💰</text>
-            </view>
-            
+
             <view class="transfer-row">
+
                 <view class="row-label">
-                    <text class="row-icon">💳</text>
+
                     <text>手续费</text>
+
                 </view>
+
                 <view class="row-right">
+
                     <input 
+
                         class="fee-input" 
+
                         type="digit" 
+
                         v-model="form.fee" 
+
                         placeholder="0"
+
                         @input="onFeeInput"
+
                     />
+
                     <text class="fee-unit">元</text>
+
                 </view>
+
             </view>
         </view>
     </view>
@@ -1293,10 +1308,22 @@ const submit = async () => {
 
 }
 
-.fee-unit {
-    font-size: 14px;
-    color: var(--color-text-light);
-    margin-left: 5px;
+.fee-unit {
+    font-size: 14px;
+    color: var(--color-text-light);
+    margin-left: 5px;
+}
+
+.currency-selector {
+    min-width: 48px;
+    height: 28px;
+    line-height: 28px;
+    padding: 0 10px;
+    border-radius: 14px;
+    background: #fff;
+    color: var(--color-text);
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 </style>
 
