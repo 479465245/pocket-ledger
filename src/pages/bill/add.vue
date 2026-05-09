@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <!-- Header: Tabs -->
     <view class="header-tabs">
@@ -156,42 +156,27 @@
     <!-- Bottom Panel -->
     <view class="bottom-panel neu-card-top">
         <!-- Input Row 1: Asset & Date & Stats -->
-        <view class="options-row">
-             <view class="option-tag" @click="openAssetPicker('source')" v-if="currentTab !== 'transfer'">
-                 <text class="tag-icon">💳</text>
-                 <text>{{ selectedAssetName }}</text>
-             </view>
-             <picker mode="date" :value="form.date" @change="onDateChange">
-                 <view class="option-tag">
-                     <text class="tag-icon">📅</text>
-                     <text>{{ displayDate }}</text>
-                 </view>
-             </picker>
-             <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab !== 'transfer'">
-
-                 <text class="tag-icon">🌍</text>
-
-                 <text>{{ form.currency }}</text>
-
-             </view>
-
-             <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab === 'transfer'">
-
-                 <text class="tag-icon">💸</text>
-
-                 <text>转出 {{ form.currency }}</text>
-
-             </view>
-
-             <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats">
-
-                 <text class="tag-icon">{{ form.isIncludedInStats ? '📊' : '🚫' }}</text>
-
-                 <text>{{ form.isIncludedInStats ? '计入统计' : '不计入' }}</text>
-
-             </view>
-        </view>
-        
+        <scroll-view scroll-x class="options-scroll" :show-scrollbar="false">
+            <view class="options-row">
+                <view class="option-tag" @click="openAssetPicker('source')" v-if="currentTab !== 'transfer'">
+                    <text>{{ selectedAssetName }}</text>
+                </view>
+                <picker class="option-picker" mode="date" :value="form.date" @change="onDateChange">
+                    <view class="option-tag">
+                        <text>{{ displayDate }}</text>
+                    </view>
+                </picker>
+                <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab !== 'transfer'">
+                    <text>{{ form.currency }}</text>
+                </view>
+                <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab === 'transfer'">
+                    <text>转出 {{ form.currency }}</text>
+                </view>
+                <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats">
+                    <text>{{ form.isIncludedInStats ? '计入统计' : '不计入统计' }}</text>
+                </view>
+            </view>
+        </scroll-view>
         <!-- Input Row 2: Remark & Amount -->
         <view class="input-display-row">
             <view class="remark-box">
@@ -902,7 +887,7 @@ const submit = async () => {
     font-size: 16px;
     color: var(--color-text-light);
     font-weight: bold;
-    border-radius: 20px;
+    border-radius: 16px;
     transition: all 0.3s;
     
     &.active {
@@ -1012,44 +997,72 @@ const submit = async () => {
 
 /* Bottom Panel */
 .bottom-panel {
+
     background: #f8fcf8; /* Light Mint/Cream */
-    border-radius: 30px 30px 0 0;
+
+    border-radius: 24px 24px 0 0;
+
     box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
-    padding: 20px;
-    padding-bottom: calc(20px + constant(safe-area-inset-bottom));
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+
+    padding: 10px 16px;
+
+    padding-bottom: calc(10px + constant(safe-area-inset-bottom));
+
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+
     flex-shrink: 0;
+
 }
 
 /* Options Row */
+.options-scroll {
+    width: 100%;
+    margin-bottom: 8px;
+    white-space: nowrap;
+}
+
 .options-row {
-    display: flex;
-    margin-bottom: 15px;
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    min-width: 100%;
+}
+
+.option-picker {
+    flex-shrink: 0;
 }
 
 .option-tag {
-    display: flex;
+    width: max-content;
+    height: 34px;
+    box-sizing: border-box;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
     background: #fff;
-    padding: 5px 12px;
-    border-radius: 15px;
+    padding: 0 16px;
+    border-radius: 17px;
     margin-right: 10px;
     font-size: 12px;
+    line-height: 34px;
     color: var(--color-text);
+    white-space: nowrap;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
-
-.tag-icon {
-    margin-right: 5px;
-}
-
 /* Input Display Row */
 .input-display-row {
+
     display: flex;
+
     justify-content: space-between;
+
     align-items: center;
-    margin-bottom: 20px;
+
+    margin-bottom: 8px;
+
     padding: 0 5px;
+
 }
 
 .remark-box {
@@ -1068,39 +1081,39 @@ const submit = async () => {
 }
 
 .currency {
-    font-size: 20px;
+    font-size: 18px;
     margin-right: 5px;
     margin-bottom: 5px;
 }
 
 .amount-text {
-    font-size: 36px;
+    font-size: 32px;
     font-weight: bold;
 }
 
 /* Keypad */
 .keypad {
     background: #eef5ef; /* Greenish tint bg */
-    border-radius: 20px;
-    padding: 5px;
+    border-radius: 16px;
+    padding: 4px;
 }
 
 .key-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     &:last-child { margin-bottom: 0; }
 }
 
 .key-cell {
     width: 23%;
-    height: 55px;
+    height: 44px;
     background: #fff;
     border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 500;
     color: var(--color-text);
     box-shadow: 0 2px 0 rgba(0,0,0,0.05);
@@ -1154,7 +1167,7 @@ const submit = async () => {
     width: 80%;
     padding: 20px;
     background: #fff;
-    border-radius: 20px;
+    border-radius: 16px;
 }
 .picker-title {
     text-align: center;
@@ -1192,7 +1205,7 @@ const submit = async () => {
 
     background: var(--color-bg);
 
-    border-radius: 20px;
+    border-radius: 16px;
 
     padding: 20px;
 
@@ -1286,3 +1299,4 @@ const submit = async () => {
     margin-left: 5px;
 }
 </style>
+
