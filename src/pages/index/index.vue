@@ -345,8 +345,7 @@ const goAddBill = () => {
 }
 
 const goImport = () => {
-  if (openImportFilePicker({ delay: 80 })) return
-  uni.navigateTo({ url: '/pages/settings/import?start=1&pick=1' })
+  uni.navigateTo({ url: '/pages/settings/import' })
 }
 
 const goExport = () => {
