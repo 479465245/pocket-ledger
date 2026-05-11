@@ -12,6 +12,7 @@ const withCurrencyBalances = (asset) => {
 
   return {
     ...asset,
+    includeInTotal: asset.includeInTotal !== false,
     currency: asset.currency || 'CNY',
     balances,
     initialBalances: {
@@ -24,9 +25,9 @@ const withCurrencyBalances = (asset) => {
 }
 
 const defaultAssets = [
-  { id: 'a1', name: '现金', type: 'cash', initialBalance: 0, currentBalance: 0 },
-  { id: 'a2', name: '微信钱包', type: 'digital', initialBalance: 0, currentBalance: 0 },
-  { id: 'a3', name: '支付宝', type: 'digital', initialBalance: 0, currentBalance: 0 },
+  { id: 'a1', name: '现金', type: 'cash', initialBalance: 0, currentBalance: 0, includeInTotal: true },
+  { id: 'a2', name: '微信钱包', type: 'digital', initialBalance: 0, currentBalance: 0, includeInTotal: true },
+  { id: 'a3', name: '支付宝', type: 'digital', initialBalance: 0, currentBalance: 0, includeInTotal: true },
 ].map(withCurrencyBalances)
 
 export const useAssetStore = defineStore('asset', {
@@ -62,7 +63,8 @@ export const useAssetStore = defineStore('asset', {
         initialBalance: currency === 'CNY' ? balance : 0,
         currentBalance: currency === 'CNY' ? balance : 0,
         initialBalances: { [currency]: balance },
-        balances: { [currency]: balance }
+        balances: { [currency]: balance },
+        includeInTotal: payload.includeInTotal !== false
       })
 
       this.assets.push(asset)
@@ -98,6 +100,7 @@ export const useAssetStore = defineStore('asset', {
       }
 
       if (payload.name !== undefined) asset.name = payload.name
+      if (payload.includeInTotal !== undefined) asset.includeInTotal = payload.includeInTotal !== false
       if (payload.type !== undefined) asset.type = payload.type
       if (payload.currency !== undefined) asset.currency = payload.currency
       if (payload.initialBalance !== undefined) {

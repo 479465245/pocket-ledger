@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 
 onLaunch(() => {
@@ -78,7 +78,7 @@ page {
   box-shadow: inset 4px 4px 8px #d9d4cc, inset -4px -4px 8px #ffffff;
   padding: 10px 15px;
   border: none;
-  outline: none;
+  
 }
 
 /* Text Colors */
@@ -86,3 +86,4 @@ page {
 .text-secondary { color: #88B194; }
 .text-dark { color: #4A4A4A; }
 </style>
+

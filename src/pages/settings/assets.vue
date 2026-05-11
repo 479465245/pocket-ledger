@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <!-- 总资产卡片 -->
     <view class="total-assets-card neu-card">
@@ -23,6 +23,7 @@
               <view class="asset-info">
                 <text class="asset-name">{{ asset.name }}</text>
                 <text class="asset-type">{{ getTypeName(asset.type) }}</text>
+                <text v-if="asset.includeInTotal === false" class="exclude-total-badge">不计入总计</text>
               </view>
               <view class="asset-balance">
                 <text v-for="line in getAssetBalanceLines(asset)" :key="line" class="balance-line">{{ line }}</text>
@@ -69,6 +70,13 @@
             @input="onAssetBalanceInput"
           />
         </view>
+        <view class="input-wrap switch-wrap">
+          <view class="switch-info">
+            <text class="switch-title">计入总计</text>
+            <text class="switch-desc">关闭后，该资产金额不计入资产总计</text>
+          </view>
+          <switch :checked="assetForm.includeInTotal" color="#88B194" @change="onAssetIncludeInTotalChange" />
+        </view>
         <text v-if="isEditMode" class="edit-tip">修改总金额后，会自动生成一条资产调整记录。</text>
         <view class="modal-actions">
           <button class="neu-btn cancel" @click="closeAssetModal">取消</button>
@@ -110,7 +118,10 @@ onShow(() => {
 const assets = computed(() => assetStore.assets)
 
 const totalAsset = computed(() => {
-  return assets.value.reduce((acc, cur) => acc + Number(cur.currentBalance || 0), 0).toFixed(2)
+  return assets.value
+    .filter(asset => asset.includeInTotal !== false)
+    .reduce((acc, cur) => acc + Number(cur.currentBalance || 0), 0)
+    .toFixed(2)
 })
 
 const getAssetBalanceLines = (asset) => {
@@ -150,6 +161,10 @@ const onAssetBalanceInput = (e) => {
   assetForm.balance = e.detail.value
 }
 
+const onAssetIncludeInTotalChange = (e) => {
+  assetForm.includeInTotal = e.detail.value
+}
+
 const resetInputFocus = () => {
   nameInputFocus.value = false
   balanceInputFocus.value = false
@@ -161,6 +176,7 @@ const openAddAsset = () => {
   editingAssetId.value = ''
   assetForm.name = ''
   assetForm.balance = ''
+  assetForm.includeInTotal = true
   activeAssetId.value = null
   showAssetModal.value = true
 }
@@ -175,6 +191,7 @@ const openEditAsset = (asset) => {
   setTimeout(() => {
     assetForm.name = asset.name || ''
     assetForm.balance = Number(asset.currentBalance || 0).toFixed(2)
+    assetForm.includeInTotal = asset.includeInTotal !== false
   }, 0)
 }
 
@@ -184,7 +201,7 @@ const closeAssetModal = () => {
   isEditMode.value = false
   editingAssetId.value = ''
   assetForm.name = ''
-  assetForm.balance = ''
+  assetForm.includeInTotal = true
 }
 
 const confirmSaveAsset = async () => {
@@ -203,7 +220,12 @@ const confirmSaveAsset = async () => {
 
   try {
     if (!isEditMode.value) {
-      const asset = assetStore.addAsset(name, 'digital', 0)
+      const asset = assetStore.addAsset({
+        name,
+        type: 'digital',
+        initialBalance: 0,
+        includeInTotal: assetForm.includeInTotal
+      })
 
       if (balance !== 0) {
         await billStore.addBill({
@@ -236,7 +258,7 @@ const confirmSaveAsset = async () => {
     const oldBalance = Number(asset.currentBalance || 0)
     const delta = Number((balance - oldBalance).toFixed(2))
 
-    assetStore.updateAsset(asset.id, { name })
+    assetStore.updateAsset(asset.id, { name, includeInTotal: assetForm.includeInTotal })
 
     if (delta !== 0) {
       await billStore.addBill({
@@ -433,6 +455,16 @@ const onTouchEnd = (e) => {
   margin-top: 5px;
 }
 
+.exclude-total-badge {
+  margin-top: 5px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(136, 177, 148, 0.16);
+  color: #88B194;
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .asset-balance {
   font-size: 16px;
   font-weight: bold;
@@ -530,6 +562,38 @@ const onTouchEnd = (e) => {
   margin-bottom: 20px;
 }
 
+.switch-wrap {
+  height: auto;
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #FFF9F0;
+  border-radius: 10px;
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+}
+
+.switch-info {
+  display: flex;
+  flex-direction: column;
+  margin-right: 12px;
+}
+
+.switch-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+}
+
+.switch-desc {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #999;
+  line-height: 16px;
+}
+
 .edit-tip {
   display: block;
   color: #999;
@@ -540,8 +604,11 @@ const onTouchEnd = (e) => {
 
 .modal-actions {
   display: flex;
-  gap: 15px;
   justify-content: space-between;
+}
+
+.modal-actions .neu-btn:first-child {
+  margin-right: 15px;
 }
 
 .neu-btn {
@@ -569,3 +636,4 @@ const onTouchEnd = (e) => {
   font-weight: bold;
 }
 </style>
+

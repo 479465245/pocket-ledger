@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="deprecated-page">
     <view class="card">
       <text class="title">旧版导入页面已废弃</text>
@@ -34,3 +34,4 @@
   line-height: 1.7;
 }
 </style>
+

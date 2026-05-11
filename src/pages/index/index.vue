@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <view class="fixed-header">
       <view class="segment-wrap neu-card">
@@ -101,6 +101,7 @@
                 <view class="asset-info">
                   <text class="asset-name">{{ asset.name }}</text>
                   <text class="asset-type">{{ getTypeName(asset.type) }}</text>
+                  <text v-if="asset.includeInTotal === false" class="exclude-total-badge">不计入总计</text>
                 </view>
               </view>
               <view class="asset-balance">
@@ -145,6 +146,13 @@
             @blur="assetBalanceInputFocus = false"
             @input="onAssetBalanceInput"
           />
+        </view>
+        <view class="input-wrap switch-wrap">
+          <view class="switch-info">
+            <text class="switch-title">计入总计</text>
+            <text class="switch-desc">关闭后，该资产金额不计入资产总计</text>
+          </view>
+          <switch :checked="assetForm.includeInTotal" color="#88B194" @change="onAssetIncludeInTotalChange" />
         </view>
         <text v-if="isEditAssetMode" class="edit-tip">修改总金额后，会自动生成一条资产调整记录。</text>
         <view class="modal-actions">
@@ -252,7 +260,10 @@ const displayedBills = computed(() => {
 const assets = computed(() => assetStore.assets)
 
 const totalAsset = computed(() => {
-  return assets.value.reduce((acc, cur) => acc + Number(cur.currentBalance || 0), 0).toFixed(2)
+  return assets.value
+    .filter(asset => asset.includeInTotal !== false)
+    .reduce((acc, cur) => acc + Number(cur.currentBalance || 0), 0)
+    .toFixed(2)
 })
 
 const getAssetBalanceLines = (asset) => {
@@ -463,12 +474,17 @@ const onAssetBalanceInput = (e) => {
   assetForm.balance = e.detail.value
 }
 
+const onAssetIncludeInTotalChange = (e) => {
+  assetForm.includeInTotal = e.detail.value
+}
+
 const openAddAsset = () => {
   resetAssetInputFocus()
   isEditAssetMode.value = false
   editingAssetId.value = ''
   assetForm.name = ''
   assetForm.balance = ''
+  assetForm.includeInTotal = true
   activeAssetId.value = null
   showAssetModal.value = true
 }
@@ -483,6 +499,7 @@ const openEditAsset = (asset) => {
   setTimeout(() => {
     assetForm.name = asset.name || ''
     assetForm.balance = Number(asset.currentBalance || 0).toFixed(2)
+    assetForm.includeInTotal = asset.includeInTotal !== false
   }, 0)
 }
 
@@ -493,6 +510,7 @@ const closeAssetModal = () => {
   editingAssetId.value = ''
   assetForm.name = ''
   assetForm.balance = ''
+  assetForm.includeInTotal = true
 }
 
 const confirmSaveAsset = async () => {
@@ -511,7 +529,12 @@ const confirmSaveAsset = async () => {
 
   try {
     if (!isEditAssetMode.value) {
-      const asset = assetStore.addAsset(name, 'digital', 0)
+      const asset = assetStore.addAsset({
+        name,
+        type: 'digital',
+        initialBalance: 0,
+        includeInTotal: assetForm.includeInTotal
+      })
 
       if (balance !== 0) {
         await billStore.addBill({
@@ -544,7 +567,7 @@ const confirmSaveAsset = async () => {
     const oldBalance = Number(asset.currentBalance || 0)
     const delta = Number((balance - oldBalance).toFixed(2))
 
-    assetStore.updateAsset(asset.id, { name })
+    assetStore.updateAsset(asset.id, { name, includeInTotal: assetForm.includeInTotal })
 
     if (delta !== 0) {
       await billStore.addBill({
@@ -639,7 +662,7 @@ const onAssetTouchEnd = (e) => {
   padding: 5px;
   margin-bottom: 15px;
   border-radius: 22px;
-  background: var(--color-bg);
+  background: #FFF9F0;
 }
 
 .segment-item {
@@ -651,14 +674,14 @@ const onAssetTouchEnd = (e) => {
   justify-content: center;
   font-size: 15px;
   font-weight: bold;
-  color: var(--color-text-light);
+  color: #8A8A8A;
   transition: all 0.25s ease;
 }
 
 .segment-item.active {
-  background: var(--color-text);
-  color: #fff;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  background: #4A4A4A;
+  color: #FFFFFF;
+  box-shadow: 0 4px 10px rgba(74, 74, 74, 0.18);
 }
 
 .header {
@@ -667,7 +690,7 @@ const onAssetTouchEnd = (e) => {
   text-align: center;
   padding: 30px 0;
   border-radius: 20px;
-  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
+  box-shadow: inset -6px -6px 16px #ffffff, inset 6px 6px 16px #a3b1c6;
 }
 
 .summary-card {
@@ -782,7 +805,6 @@ const onAssetTouchEnd = (e) => {
 .category-row {
   display: flex;
   align-items: center;
-  gap: 6px;
 }
 
 .category-name {
@@ -921,7 +943,7 @@ const onAssetTouchEnd = (e) => {
   height: 42px;
   border-radius: 16px;
   background: #FFF9F0;
-  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
+  box-shadow: inset -6px -6px 16px #ffffff, inset 6px 6px 16px #a3b1c6;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -945,6 +967,16 @@ const onAssetTouchEnd = (e) => {
   font-size: 12px;
   color: var(--color-text-light);
   margin-top: 4px;
+}
+
+.exclude-total-badge {
+  margin-top: 4px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(136, 177, 148, 0.16);
+  color: #88B194;
+  font-size: 10px;
+  line-height: 14px;
 }
 
 .asset-balance {
@@ -1050,6 +1082,38 @@ const onAssetTouchEnd = (e) => {
   pointer-events: auto;
 }
 
+.switch-wrap {
+  height: auto;
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #FFF9F0;
+  border-radius: 10px;
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+}
+
+.switch-info {
+  display: flex;
+  flex-direction: column;
+  margin-right: 12px;
+}
+
+.switch-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+}
+
+.switch-desc {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #999;
+  line-height: 16px;
+}
+
 .edit-tip {
   display: block;
   color: #999;
@@ -1060,8 +1124,11 @@ const onAssetTouchEnd = (e) => {
 
 .modal-actions {
   display: flex;
-  gap: 15px;
   justify-content: space-between;
+}
+
+.modal-actions .modal-btn:first-child {
+  margin-right: 15px;
 }
 
 .modal-btn {
@@ -1084,3 +1151,4 @@ const onAssetTouchEnd = (e) => {
   font-weight: bold;
 }
 </style>
+

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <scroll-view scroll-y class="container">
     <view class="header">
       <text class="title">导入账单数据</text>
@@ -711,10 +711,13 @@ const formatFileSize = (bytes) => {
 }
 
 .source-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+
+  display: flex;
+
+  margin-right: -10px;
+
   margin-bottom: 12px;
+
 }
 
 .source-tab {
@@ -823,14 +826,23 @@ const formatFileSize = (bytes) => {
 }
 
 .summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  margin-right: -10px;
+
   margin-bottom: 12px;
+
 }
 
-.summary-item {
-  padding: 12px;
+.summary-item {
+  box-sizing: border-box;
+  width: 50%;
+  padding: 12px;
+  padding-right: 10px;
+  margin-bottom: 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
 }
@@ -954,3 +966,4 @@ const formatFileSize = (bytes) => {
   line-height: 18px;
 }
 </style>
+

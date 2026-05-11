@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <view class="fixed-header">
       <!-- Back & Title -->
@@ -411,7 +411,7 @@ const goBack = () => {
     height: 200px;
     border-radius: 50%;
     background: #eee;
-    box-shadow: var(--shadow-dark);
+    box-shadow: 6px 6px 16px #a3b1c6;
 }
 
 .pie-hole {
@@ -423,7 +423,7 @@ const goBack = () => {
     align-items: center;
     justify-content: center;
     background: var(--color-bg);
-    box-shadow: var(--shadow-light), var(--shadow-dark);
+    box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
     
     .center-total {
         display: flex;
@@ -515,7 +515,7 @@ const goBack = () => {
             align-items: center;
             justify-content: center;
             background: var(--color-bg);
-            box-shadow: var(--shadow-light), var(--shadow-dark);
+            box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
             margin-right: 12px;
             font-size: 16px;
         }

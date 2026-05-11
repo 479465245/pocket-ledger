@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <view class="fixed-header">
         <!-- Period Switch & Date Picker -->
@@ -375,7 +375,7 @@ const onItemClick = (item) => {
         &.active {
             background: var(--color-bg);
             color: var(--color-primary);
-            box-shadow: var(--shadow-light), var(--shadow-dark);
+            box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
             font-weight: bold;
         }
     }
@@ -389,7 +389,7 @@ const onItemClick = (item) => {
     font-size: 14px;
     color: var(--color-text);
     background: var(--color-bg);
-    box-shadow: var(--shadow-light), var(--shadow-dark);
+    box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
     
     .arrow {
         margin-left: 6px;
@@ -459,7 +459,7 @@ const onItemClick = (item) => {
     height: 200px;
     border-radius: 50%;
     /* Gradient handled by inline style */
-    box-shadow: var(--shadow-light), var(--shadow-dark);
+    box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
     flex-shrink: 0;
 }
 
@@ -472,7 +472,7 @@ const onItemClick = (item) => {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow: var(--shadow-light), var(--shadow-dark); 
+    box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6; 
     display: flex;
     justify-content: center;
     align-items: center;
@@ -572,7 +572,7 @@ const onItemClick = (item) => {
     align-items: center;
     justify-content: center;
     margin-right: 12px;
-    box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
+    box-shadow: inset -6px -6px 16px #ffffff, inset 6px 6px 16px #a3b1c6;
 }
 
 .name-box {

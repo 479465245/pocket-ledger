@@ -407,29 +407,50 @@ watch(categories, (newVal) => {
     }
 })
 
-onMounted(() => {
+const initStores = () => {
+
     categoryStore.init()
+
     assetStore.init()
-    if (assets.value.length > 0) {
+
+    billStore.init()
+
+}
+
+
+
+onMounted(() => {
+
+    initStores()
+
+    if (!isEditMode.value && !form.assetId && assets.value.length > 0) {
+
         form.assetId = assets.value[0].id
+
     }
+
     // 只有在非编辑模式下才自动选择第一个分类
+
     if (categories.value.length > 0 && !isEditMode.value) {
+
         selectCategory(categories.value[0])
+
     }
+
 })
 
 // 处理编辑模式
-onLoad((options) => {
-    if (options.id) {
-        // 编辑模式
-        isEditMode.value = true
-        editBillId.value = options.id
-        loadBillData(options.id)
-    } else if (options.type) {
-        // 新增模式，指定类型
-        currentTab.value = options.type
-    }
+onLoad((options) => {
+    initStores()
+    if (options.id) {
+        // 编辑模式
+        isEditMode.value = true
+        editBillId.value = options.id
+        loadBillData(options.id)
+    } else if (options.type) {
+        // 新增模式，指定类型
+        currentTab.value = options.type
+    }
 })
 
 // 加载账单数据
@@ -458,7 +479,7 @@ const loadBillData = (id) => {
     form.currency = bill.currency || 'CNY'
     form.targetCurrency = bill.targetCurrency || bill.currency || 'CNY'
     form.targetAmountStr = bill.targetAmount !== undefined ? Math.abs(Number(bill.targetAmount || 0)).toString() : ''
-    form.isIncludedInStats = bill.isIncludedInStats
+    form.isIncludedInStats = bill.isIncludedInStats !== false
     
     // 如果是转账，设置目标账户和手续费
     if (bill.type === 'transfer') {
@@ -908,7 +929,7 @@ const submit = async () => {
     &.active {
         color: #fff;
         background: var(--color-text); /* Black/Dark Grey */
-        box-shadow: var(--shadow-light), var(--shadow-dark);
+        box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
     }
 }
 
@@ -1021,9 +1042,7 @@ const submit = async () => {
 
     padding: 10px 16px;
 
-    padding-bottom: calc(10px + constant(safe-area-inset-bottom));
-
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding-bottom: 10px;
 
     flex-shrink: 0;
 
@@ -1037,10 +1056,15 @@ const submit = async () => {
 }
 
 .options-row {
-    display: inline-flex;
+
+    display: flex;
+
     align-items: center;
+
     flex-wrap: nowrap;
+
     min-width: 100%;
+
 }
 
 .option-picker {
@@ -1048,10 +1072,12 @@ const submit = async () => {
 }
 
 .option-tag {
-    width: max-content;
+
     height: 34px;
+
     box-sizing: border-box;
-    display: inline-flex;
+
+    display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
@@ -1224,7 +1250,7 @@ const submit = async () => {
 
     padding: 20px;
 
-    box-shadow: var(--shadow-light), var(--shadow-dark);
+    box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
 
     display: flex;
 
@@ -1304,26 +1330,43 @@ const submit = async () => {
 
     background: transparent;
 
-    outline: none;
+    
 
 }
 
-.fee-unit {
-    font-size: 14px;
-    color: var(--color-text-light);
-    margin-left: 5px;
-}
-
-.currency-selector {
-    min-width: 48px;
-    height: 28px;
-    line-height: 28px;
-    padding: 0 10px;
-    border-radius: 14px;
-    background: #fff;
-    color: var(--color-text);
-    text-align: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+.fee-unit {
+
+    font-size: 14px;
+
+    color: var(--color-text-light);
+
+    margin-left: 5px;
+
+}
+
+
+
+.currency-selector {
+
+    min-width: 48px;
+
+    height: 28px;
+
+    line-height: 28px;
+
+    padding: 0 10px;
+
+    border-radius: 14px;
+
+    background: #fff;
+
+    color: var(--color-text);
+
+    text-align: center;
+
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+
 }
 </style>
+
 

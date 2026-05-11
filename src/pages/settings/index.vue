@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <!-- 总资产卡片 -->
     <view class="total-assets-card neu-card">
@@ -36,10 +36,11 @@ onShow(() => {
 })
 
 // 计算总资产
-const totalAsset = computed(() => {
-  return assetStore.assets
-    .reduce((sum, asset) => sum + (asset.currentBalance || 0), 0)
-    .toFixed(2)
+const totalAsset = computed(() => {
+  return assetStore.assets
+    .filter(asset => asset.includeInTotal !== false)
+    .reduce((sum, asset) => sum + (asset.currentBalance || 0), 0)
+    .toFixed(2)
 })
 
 // 导航函数
@@ -81,12 +82,17 @@ const navigateTo = (page) => {
 }
 
 .menu-list {
+
   display: flex;
+
   flex-direction: column;
-  gap: 15px;
+
 }
 
 .menu-item {
+
+  margin-bottom: 15px;
+
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -106,3 +112,4 @@ const navigateTo = (page) => {
   color: #999;
 }
 </style>
+

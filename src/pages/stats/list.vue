@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <scroll-view scroll-y class="bill-scroll">
         <view class="bill-list">
@@ -238,7 +238,7 @@ const deleteBill = (id) => {
     height: 40px;
     border-radius: 50%;
     background: #FFF9F0;
-    box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
+    box-shadow: inset -6px -6px 16px #ffffff, inset 6px 6px 16px #a3b1c6;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -279,3 +279,4 @@ const deleteBill = (id) => {
 .expense { color: var(--color-text); }
 .income { color: var(--color-primary); }
 </style>
+

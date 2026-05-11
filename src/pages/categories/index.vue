@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <!-- Header with Tabs -->
     <view class="header-area">
@@ -407,7 +407,7 @@ const confirmDelete = () => {
     &.active {
         color: #fff;
         background: var(--color-text);
-        box-shadow: var(--shadow-light), var(--shadow-dark);
+        box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
     }
 }
 
@@ -563,8 +563,7 @@ const confirmDelete = () => {
 
 .add-main-btn {
   margin: 20rpx 40rpx;
-  margin-bottom: calc(40rpx + constant(safe-area-inset-bottom));
-  margin-bottom: calc(40rpx + env(safe-area-inset-bottom));
+  margin-bottom: 40rpx;
   flex-shrink: 0; /* Fixed at bottom */
   background: #E0E5EC;
   box-shadow: 6px 6px 12px #b8b9be, -6px -6px 12px #ffffff;
@@ -721,3 +720,4 @@ const confirmDelete = () => {
     }
 }
 </style>
+

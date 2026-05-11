@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <view class="content-card neu-card">
       <view class="icon-wrapper">
@@ -408,8 +408,11 @@ function saveXLSFile(fileName, content) {
 
 .date-inputs {
   display: flex;
-  gap: 15px;
   margin-bottom: 15px;
+}
+
+.date-input-wrapper:first-child {
+  margin-right: 15px;
 }
 
 .date-input-wrapper {
@@ -440,8 +443,8 @@ function saveXLSFile(fileName, content) {
 
 .quick-select {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
+  margin-right: -10px;
 }
 
 .quick-btn {
@@ -449,6 +452,7 @@ function saveXLSFile(fileName, content) {
   min-width: 60px;
   padding: 8px 12px;
   font-size: 12px;
+  margin-right: 10px;
   margin-bottom: 0;
 }
 
@@ -499,3 +503,4 @@ function saveXLSFile(fileName, content) {
   line-height: 1.5;
 }
 </style>
+
