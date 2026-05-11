@@ -99,11 +99,17 @@
         "iconPath": "static/tabbar/list.png",
         "selectedIconPath": "static/tabbar/list-active.png"
       },
-      {
-        "pagePath": "pages/stats/index",
-        "text": "统计",
-        "iconPath": "static/tabbar/chart.png",
-        "selectedIconPath": "static/tabbar/chart-active.png"
+      {
+        "pagePath": "pages/stats/index",
+        "text": "统计",
+        "iconPath": "static/tabbar/chart.png",
+        "selectedIconPath": "static/tabbar/chart-active.png"
+      },
+      {
+        "pagePath": "pages/settings/index",
+        "text": "设置",
+        "iconPath": "static/tabbar/wallet.png",
+        "selectedIconPath": "static/tabbar/wallet-active.png"
       }
     ]
   }
