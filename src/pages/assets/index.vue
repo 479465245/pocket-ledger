@@ -15,10 +15,12 @@
 .deprecated-page {
   min-height: 100vh;
   padding: 40rpx;
-  background: #FFF9F0;
+  background: var(--app-bg);
 }
 .card {
-  background: #fff;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   border-radius: 20rpx;
   padding: 40rpx;
 }

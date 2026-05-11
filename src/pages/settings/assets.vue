@@ -136,7 +136,8 @@ const getTypeName = (type) => {
   const map = {
     'cash': '现金',
     'digital': '电子钱包',
-    'bank': '银行卡'
+    'bank': '银行卡',
+    'credit': '信用账户'
   }
   return map[type] || type
 }
@@ -336,7 +337,7 @@ const onTouchEnd = (e) => {
 <style scoped>
 .container {
   padding: 20px;
-  background-color: #FFF9F0;
+  background: var(--app-bg);
   min-height: 100vh;
   position: relative;
 }
@@ -345,15 +346,18 @@ const onTouchEnd = (e) => {
   padding: 30px;
   margin-bottom: 20px;
   text-align: center;
-  background: #FFF9F0;
-  border-radius: 20px;
-  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 26px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .label {
   display: block;
   font-size: 16px;
-  color: #666;
+  color: var(--color-text-light);
   margin-bottom: 10px;
 }
 
@@ -361,7 +365,7 @@ const onTouchEnd = (e) => {
   display: block;
   font-size: 36px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text);
 }
 
 .asset-scroll {
@@ -400,9 +404,12 @@ const onTouchEnd = (e) => {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  background: #FFF9F0;
-  border-radius: 15px;
-  box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   position: relative;
   z-index: 1;
 }
@@ -446,12 +453,12 @@ const onTouchEnd = (e) => {
 .asset-name {
   font-size: 18px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text);
 }
 
 .asset-type {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-light);
   margin-top: 5px;
 }
 
@@ -468,7 +475,7 @@ const onTouchEnd = (e) => {
 .asset-balance {
   font-size: 16px;
   font-weight: bold;
-  color: #FF8D5D;
+  color: var(--color-primary);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -486,13 +493,16 @@ const onTouchEnd = (e) => {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: #FFF9F0;
-  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  color: #FF8D5D;
+  color: var(--color-primary);
   border: none;
   z-index: 100;
 }
@@ -515,9 +525,12 @@ const onTouchEnd = (e) => {
   width: 80%;
   max-width: 400px;
   padding: 30px;
-  background: #FFF9F0;
-  border-radius: 20px;
-  box-shadow: 10px 10px 30px rgba(0, 0, 0, 0.1), -10px -10px 30px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   position: relative;
   z-index: 1001;
   pointer-events: auto;
@@ -528,7 +541,7 @@ const onTouchEnd = (e) => {
   font-weight: bold;
   text-align: center;
   margin-bottom: 20px;
-  color: #333;
+  color: var(--color-text);
 }
 
 .input-wrap {
@@ -546,13 +559,13 @@ const onTouchEnd = (e) => {
   min-height: 52px;
   line-height: 52px;
   padding: 0 15px;
-  border: none;
+  border: 1px solid var(--glass-border);
   border-radius: 10px;
-  background: #FFF9F0;
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
   font-size: 16px;
   box-sizing: border-box;
-  color: #333;
+  color: var(--color-text);
   position: relative;
   z-index: 1003;
   pointer-events: auto;
@@ -614,17 +627,17 @@ const onTouchEnd = (e) => {
 .neu-btn {
   flex: 1;
   padding: 15px;
-  border: none;
-  border-radius: 10px;
-  background: #FFF9F0;
-  box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow-soft);
   font-size: 16px;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .neu-btn:active {
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow-inset-light), var(--shadow-inset-dark);
 }
 
 .cancel {
@@ -632,7 +645,7 @@ const onTouchEnd = (e) => {
 }
 
 .confirm {
-  color: #FF8D5D;
+  color: var(--color-primary);
   font-weight: bold;
 }
 </style>

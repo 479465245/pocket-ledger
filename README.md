@@ -86,7 +86,7 @@ pnpm build:h5
 - `pages/stats/index`：收入/支出统计。
 - `pages/stats/category`：分类统计详情。
 - `pages/stats/list`：统计明细列表。
-- `pages/settings/index`：设置入口和资产概览。
+- `pages/settings/index`：旧设置入口，不再作为底部 tabBar。
 - `pages/settings/assets`：资产管理。
 - `pages/settings/import`：数据导入。
 - `pages/settings/export`：数据导出。
