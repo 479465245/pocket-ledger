@@ -666,11 +666,21 @@ const formatFileSize = (bytes) => {
 
 <style scoped>
 .container {
+
   height: 100vh;
+
   box-sizing: border-box;
+
   padding: 20px;
+
   background: var(--color-bg);
+
+  display: block;
+
+  overflow-y: auto;
+
 }
+
 
 .header {
   margin-bottom: 18px;
@@ -837,11 +847,16 @@ const formatFileSize = (bytes) => {
 
 }
 
-.summary-item {
-  box-sizing: border-box;
-  width: 50%;
-  padding: 12px;
-  padding-right: 10px;
+.summary-item {
+
+  box-sizing: border-box;
+
+  width: 50%;
+
+  padding: 12px;
+
+  padding-right: 10px;
+
   margin-bottom: 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
@@ -940,9 +955,9 @@ const formatFileSize = (bytes) => {
   color: #c8892e;
 }
 
-.tips {
-  padding: 16px;
-  margin-bottom: 20px;
+.tips {
+  padding: 16px;
+  margin-bottom: calc(20px + env(safe-area-inset-bottom));
   border-radius: 16px;
   background: rgba(136, 177, 148, 0.14);
 }

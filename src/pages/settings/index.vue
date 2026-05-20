@@ -12,10 +12,14 @@
         <text class="menu-text">资产</text>
         <text class="arrow">›</text>
       </view>
-      <view class="menu-item neu-card" @click="navigateTo('import')">
-        <text class="menu-text">导入数据</text>
-        <text class="arrow">›</text>
-      </view>
+      <view class="menu-item neu-card" @click="navigateTo('import')">
+        <text class="menu-text">导入数据</text>
+        <text class="arrow">›</text>
+      </view>
+      <view class="menu-item neu-card" @click="navigateTo('cross-check')">
+        <text class="menu-text">交叉校验</text>
+        <text class="arrow">›</text>
+      </view>
       <view class="menu-item neu-card" @click="navigateTo('export')">
         <text class="menu-text">导出数据</text>
         <text class="arrow">›</text>
@@ -36,11 +40,16 @@ onShow(() => {
 })
 
 // 计算总资产
-const totalAsset = computed(() => {
-  return assetStore.assets
-    .filter(asset => asset.includeInTotal !== false)
-    .reduce((sum, asset) => sum + (asset.currentBalance || 0), 0)
-    .toFixed(2)
+const totalAsset = computed(() => {
+
+  return assetStore.assets
+
+    .filter(asset => asset.includeInTotal !== false)
+
+    .reduce((sum, asset) => sum + (asset.currentBalance || 0), 0)
+
+    .toFixed(2)
+
 })
 
 // 导航函数

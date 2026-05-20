@@ -1,5 +1,5 @@
 ﻿<template>
-  <view class="container">
+  <scroll-view scroll-y class="container">
     <view class="content-card neu-card">
       <view class="icon-wrapper">
         <text class="icon">📤</text>
@@ -67,7 +67,7 @@
         <text class="tip-item">4. 可在电脑上进行数据分析</text>
       </view>
     </view>
-  </view>
+  </scroll-view>
 </template>
 
 <script setup>
@@ -344,17 +344,26 @@ function saveXLSFile(fileName, content) {
 
 <style scoped>
 .container {
+
+  height: 100vh;
+
+  box-sizing: border-box;
+
   padding: 20px;
+
   background-color: #FFF9F0;
-  min-height: 100vh;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
+
+  display: block;
+
+  overflow-y: auto;
+
 }
 
-.content-card {
-  width: 100%;
-  padding: 30px 20px;
+
+.content-card {
+  width: 100%;
+  padding: 30px 20px;
+  margin-bottom: calc(20px + env(safe-area-inset-bottom));
   background: #FFF9F0;
   border-radius: 20px;
   box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px rgba(255, 255, 255, 0.7);

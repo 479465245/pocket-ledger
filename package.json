@@ -70,7 +70,8 @@
     "uuid": "^9.0.0",
     "vue": "3.4.21",
     "vue-i18n": "9.14.5",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@qiun/ucharts": "2.5.0-20230101"
   },
   "devDependencies": {
     "@dcloudio/types": "^3.4.31",
