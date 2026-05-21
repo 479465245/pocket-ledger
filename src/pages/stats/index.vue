@@ -22,8 +22,10 @@
                 <text class="divider">|</text>
                 <text :class="['tab', currentType === 'income' ? 'active' : '']" @click="currentType = 'income'">收入</text>
             </view>
-            <view class="total-row multi-total">
-                <text class="amount multi-amount">{{ totalAmount }}</text>
+            <view class="total-row multi-total">
+
+                <text class="amount multi-amount">{{ totalAmount }}</text>
+
             </view>
         </view>
     </view>
@@ -261,64 +263,196 @@ const pieGradient = computed(() => {
 })
 
 // Chart Labels
+
 const chartLabels = computed(() => {
+
     if (categoryStats.value.length === 0) return []
+
     
-    const labels = []
+
+    const rawLabels = []
+
     let currentPercent = 0
+
     
-    // 优化布局参数
-    const R = 65       // 饼图半径，稍微减小以适应移动端
-    const R_elbow = 85 // 转折点距离
-    const X_end = 95   // 水平延伸距离，确保在375px屏幕内
+
+    // 移动端空间有限：外置标签只展示主要分类，其余在下方列表完整展示
+
+    const R = 100
+    const R_elbow = 118
+    const X_end = 105
+    const LABEL_GAP = 8
+    const LABEL_WIDTH = 82
+
+    const MIN_PERCENT = 3
+
+    const MAX_LABELS = 8
+
+    const MIN_GAP = 44
+
+    const TOP_LIMIT = -132
+
+    const BOTTOM_LIMIT = 132
+
     
+
     categoryStats.value.forEach(item => {
+
         const p = item.percent
-        if (p > 3) { // 只显示大于3%的标签，避免过于拥挤
-            const midPercent = currentPercent + p / 2
-            const angle = midPercent / 100 * 2 * Math.PI
-            
-            const isRight = Math.sin(angle) >= 0
-            
-            // 计算标签位置
-            const x1 = R * Math.sin(angle)
-            const y1 = - R * Math.cos(angle)
-            
-            const x2 = R_elbow * Math.sin(angle)
-            const y2 = - R_elbow * Math.cos(angle)
-            
-            const x3 = isRight ? X_end : -X_end
-            const y3 = y2 
-            
-            // 创建SVG路径
-            const linePath = `M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3}`
-            
-            // 优化样式，确保标签在两侧且不与饼图重叠
-            const style = {
-                top: y3 + 'px',
-                left: x3 + 'px',
-                transform: isRight ? 'translate(8px, -50%)' : 'translate(-108%, -50%)',
-                textAlign: isRight ? 'left' : 'right',
-                alignItems: isRight ? 'flex-start' : 'flex-end',
-                zIndex: 10,
-                maxWidth: '80px' // 限制最大宽度，避免在小屏幕上溢出
-            }
-            
-            labels.push({
-                id: item.id,
-                name: item.name,
-                percent: p.toFixed(1) + '%',
-                amount: item.displayAmount,
-                color: item.color,
-                linePath,
-                style,
-                isRight
-            })
-        }
+
+        const midPercent = currentPercent + p / 2
+
+        const angle = midPercent / 100 * 2 * Math.PI
+
         currentPercent += p
+
+        
+
+        if (p <= MIN_PERCENT || rawLabels.length >= MAX_LABELS) return
+
+        
+
+        const isRight = Math.sin(angle) >= 0
+
+        const x1 = R * Math.sin(angle)
+
+        const y1 = -R * Math.cos(angle)
+
+        const x2 = R_elbow * Math.sin(angle)
+
+        const y2 = -R_elbow * Math.cos(angle)
+
+        const x3 = isRight ? X_end : -X_end
+
+        
+
+        rawLabels.push({
+
+            id: item.statKey || item.id,
+
+            name: item.name,
+
+            percent: p.toFixed(1) + '%',
+
+            amount: item.displayAmount,
+
+            color: item.color,
+
+            isRight,
+
+            x1,
+
+            y1,
+
+            x2,
+
+            y2,
+
+            x3,
+
+            y3: y2
+
+        })
+
     })
+
     
-    return labels
+
+    const resolveSide = (sideLabels) => {
+
+        const labels = [...sideLabels].sort((a, b) => a.y3 - b.y3)
+
+        
+
+        labels.forEach((label, index) => {
+
+            const minY = index === 0 ? TOP_LIMIT : labels[index - 1].y3 + MIN_GAP
+
+            label.y3 = Math.max(TOP_LIMIT, Math.min(BOTTOM_LIMIT, label.y3))
+
+            if (label.y3 < minY) label.y3 = minY
+
+        })
+
+        
+
+        const overflow = labels.length ? labels[labels.length - 1].y3 - BOTTOM_LIMIT : 0
+
+        if (overflow > 0) {
+
+            labels.forEach(label => {
+
+                label.y3 -= overflow
+
+            })
+
+        }
+
+        
+
+        labels.forEach((label, index) => {
+
+            const minY = index === 0 ? TOP_LIMIT : labels[index - 1].y3 + MIN_GAP
+
+            if (label.y3 < minY) label.y3 = minY
+
+        })
+
+        
+
+        return labels
+
+    }
+
+    
+
+    const adjusted = [
+
+        ...resolveSide(rawLabels.filter(label => !label.isRight)),
+
+        ...resolveSide(rawLabels.filter(label => label.isRight))
+
+    ]
+
+    
+
+    return adjusted.map(label => {
+        const labelEdgeX = label.isRight ? label.x3 + LABEL_GAP : label.x3 - LABEL_GAP
+        const linePath = `M ${label.x1} ${label.y1} L ${label.x2} ${label.y2} L ${labelEdgeX} ${label.y3}`
+        const style = {
+            top: label.y3 + 'px',
+            left: labelEdgeX + 'px',
+            transform: label.isRight ? 'translate(0, -50%)' : 'translate(-100%, -50%)',
+            textAlign: label.isRight ? 'left' : 'right',
+            alignItems: label.isRight ? 'flex-start' : 'flex-end',
+            zIndex: 10,
+            maxWidth: LABEL_WIDTH + 'px'
+        }
+
+        
+
+        return {
+
+            id: label.id,
+
+            name: label.name,
+
+            percent: label.percent,
+
+            amount: label.amount,
+
+            color: label.color,
+
+            linePath,
+
+            style,
+
+            isRight: label.isRight
+
+        }
+
+    })
+
 })
 
 // Navigation
@@ -505,7 +639,17 @@ const onItemClick = (item) => {
     transform: translate(-50%, -50%);
 }
 
-.chart-label {
+.lines-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 360px;
+    height: 320px;
+    transform: translate(-50%, -50%);
+    overflow: visible;
+}
+
+.chart-label {
     position: absolute;
     display: flex;
     flex-direction: column;

@@ -44,6 +44,7 @@
 
       <view class="section">
         <button class="primary-btn" @click="selectFile">{{ selectedFileName || '选择校验文件' }}</button>
+        <button class="primary-btn secondary-file-btn" @click="selectNetworkFile">选择网络文件</button>
         <text class="hint">文件仅用于本次交叉校验，不会直接写入账本。</text>
       </view>
 
@@ -70,6 +71,11 @@ import * as XLSX from 'xlsx'
 import { useAssetStore } from '@/store/asset'
 import { PROVIDER_OPTIONS, parseImportRows } from '@/utils/importParsers'
 import { createCrossCheckSession } from '@/utils/crossCheck'
+import {
+  chooseNetworkFileConfig,
+  downloadNetworkFile,
+  readFileAsArrayBuffer
+} from '@/utils/networkFile'
 
 const assetStore = useAssetStore()
 const today = new Date().toISOString().slice(0, 10)
@@ -127,29 +133,42 @@ const selectFile = () => {
   // #endif
 }
 
-const readFile = (file) => {
-  selectedFileName.value = file.name || '已选择文件'
-  const reader = new FileReader()
-  reader.onload = (event) => {
-    try {
-      const data = new Uint8Array(event.target.result)
-      const result = parseWorkbookData(data, selectedFileName.value)
-      parsedProvider.value = result.provider
-      externalRows.value = result.rows.filter(row => row.type && row.date && !Number.isNaN(new Date(String(row.date).replace(/-/g, '/')).getTime()))
-      parseMessages.value = [
-        ...result.errors.map(message => ({ type: 'error', message })),
-        ...result.warnings.map(message => ({ type: 'warning', message }))
-      ]
-      if (!externalRows.value.length && result.errors.length) {
-        uni.showToast({ title: result.errors[0], icon: 'none' })
-      }
-    } catch (error) {
-      console.error(error)
-      externalRows.value = []
-      parseMessages.value = [{ type: 'error', message: '文件解析失败，请确认文件格式是否正确' }]
+const selectNetworkFile = async () => {
+  try {
+    const config = await chooseNetworkFileConfig('download')
+    uni.showLoading({ title: '下载中...' })
+    const file = await downloadNetworkFile(config)
+    await readFile(file)
+    uni.showToast({ title: '网络文件已加载', icon: 'success' })
+  } catch (error) {
+    if (error.message !== '已取消选择') {
+      uni.showToast({ title: error.message || '网络文件下载失败', icon: 'none' })
     }
+  } finally {
+    uni.hideLoading()
   }
-  reader.readAsArrayBuffer(file)
+}
+
+const readFile = async (file) => {
+  selectedFileName.value = file.name || '已选择文件'
+  try {
+    const buffer = await readFileAsArrayBuffer(file)
+    const data = new Uint8Array(buffer)
+    const result = parseWorkbookData(data, selectedFileName.value)
+    parsedProvider.value = result.provider
+    externalRows.value = result.rows.filter(row => row.type && row.date && !Number.isNaN(new Date(String(row.date).replace(/-/g, '/')).getTime()))
+    parseMessages.value = [
+      ...result.errors.map(message => ({ type: 'error', message })),
+      ...result.warnings.map(message => ({ type: 'warning', message }))
+    ]
+    if (!externalRows.value.length && result.errors.length) {
+      uni.showToast({ title: result.errors[0], icon: 'none' })
+    }
+  } catch (error) {
+    console.error(error)
+    externalRows.value = []
+    parseMessages.value = [{ type: 'error', message: '文件解析失败，请确认文件格式是否正确' }]
+  }
 }
 
 const parseWorkbookData = (data, fileName = '') => {
@@ -216,6 +235,7 @@ const startCheck = () => {
 .source-tab { min-width: 74px; height: 38px; line-height: 38px; padding: 0 10px; border: 0; border-radius: 12px; background: #fff3e7; color: #333; font-size: 13px; }
 .source-tab.active { background: var(--color-primary, #FF8D5D); color: #fff; font-weight: 700; }
 .primary-btn, .start-btn { width: 100%; min-height: 46px; border: 0; border-radius: 14px; font-size: 15px; font-weight: 700; background: var(--color-primary, #FF8D5D); color: #fff; }
+.secondary-file-btn { margin-top: 10px; background: #fff3e7; color: #333; }
 .start-btn { background: var(--color-secondary, #4BA3FF); }
 .start-btn[disabled] { opacity: .55; }
 .message { padding: 10px; margin-bottom: 8px; border-radius: 10px; font-size: 13px; }

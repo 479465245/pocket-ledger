@@ -9,7 +9,7 @@ export const PROVIDER_GUIDES = {
   auto: '上传支付宝、微信导出的原始账单，系统会根据表头识别来源。',
   alipay: '上传支付宝导出的个人账单文件，保持原始表头和列顺序。',
   wechat: '上传微信支付导出的个人账单文件，保持原始表头和列顺序。',
-  generic: '上传按本应用模板整理的表格：日期、类型、资产、目标资产、一级分类、二级分类、金额、手续费、备注。'
+  generic: '上传按本应用模板整理的表格：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、备注。'
 }
 
 const PLATFORM_WALLET_ASSET_NAME = {
@@ -43,10 +43,21 @@ const HEADER_ALIASES = {
     date: ['日期', '交易时间', '时间'],
     type: ['类型', '账单类型', '收支类型'],
     asset: ['资产', '账户', '资产账户'],
-    targetAsset: ['目标资产', '转入资产', '目标账户'],
-    category1: ['一级分类', '分类', '父分类'],
-    category2: ['二级分类', '子分类'],
+
+    currency: ['币种', '货币', '资产币种'],
+
     amount: ['金额', '交易金额'],
+
+    targetAsset: ['目标资产', '转入资产', '目标账户'],
+
+    targetCurrency: ['目标币种', '转入币种', '目标货币'],
+
+    targetAmount: ['目标金额', '转入金额', '到账金额'],
+
+    category1: ['一级分类', '分类', '父分类'],
+
+    category2: ['二级分类', '子分类'],
+
     fee: ['手续费', '费用'],
     remark: ['备注', '说明', '商品说明']
   },
@@ -160,6 +171,11 @@ const detectProvider = (rows) => {
     .sort((a, b) => b.score - a.score)
 
   return candidates.find(candidate => candidate.valid) || null
+}
+
+const normalizeCurrencyCode = (value, fallback = 'CNY') => {
+  const text = normalizeText(value).toUpperCase()
+  return text || fallback
 }
 
 const parseAmount = (value) => {
@@ -325,30 +341,73 @@ const createRemark = (parts) => parts
   .join(' / ')
 
 const parseGenericRow = (row, headerMap, rowIndex) => {
+
   const type = parseGenericType(getCell(row, headerMap, 'type'))
+
   const amount = parseAmount(getCell(row, headerMap, 'amount'))
+
+  const currency = normalizeCurrencyCode(getCell(row, headerMap, 'currency'), 'CNY')
+
+  const rawTargetCurrency = getCell(row, headerMap, 'targetCurrency')
+
+  const rawTargetAmount = getCell(row, headerMap, 'targetAmount')
+
+  const targetCurrency = normalizeCurrencyCode(rawTargetCurrency, currency)
+
+  const parsedTargetAmount = parseAmount(rawTargetAmount)
+
+  const targetAmount = parsedTargetAmount ?? amount ?? 0
+
   const errors = []
 
+
+
   if (!type) errors.push('无法识别账单类型')
+
   if (amount === null) errors.push('无法识别金额')
 
+
+
   return {
+
     rowIndex,
+
     provider: 'generic',
+
     date: formatExcelDate(row[headerMap.date]),
+
     type,
+
     typeText: type ? ({ expense: '支出', income: '收入', transfer: '转账', refund: '退款' }[type]) : '',
+
     asset: getCell(row, headerMap, 'asset'),
+
+    currency,
+
     targetAsset: getCell(row, headerMap, 'targetAsset'),
+
+    targetCurrency,
+
+    targetAmount,
+
     category1: getCell(row, headerMap, 'category1'),
+
     category2: getCell(row, headerMap, 'category2'),
+
     amount: amount ?? 0,
+
     fee: parseAmount(getCell(row, headerMap, 'fee')) ?? 0,
+
     remark: getCell(row, headerMap, 'remark'),
+
     orderNo: '',
+
     isIncludedInStats: type ? !['transfer', 'refund'].includes(type) : false,
+
     parseErrors: errors
+
   }
+
 }
 
 const parsePlatformRow = (row, headerMap, rowIndex, provider) => {
@@ -383,7 +442,10 @@ const parsePlatformRow = (row, headerMap, rowIndex, provider) => {
     asset: assetInfo.asset,
     assetType: assetInfo.assetType,
     paymentMethod: assetInfo.paymentMethod,
-    targetAsset: '',
+    currency: 'CNY',
+    targetAsset: '',
+    targetCurrency: 'CNY',
+    targetAmount: amount ?? 0,
     category1: provider === 'alipay' ? category : '',
     category2: '',
     amount: amount ?? 0,

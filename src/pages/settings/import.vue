@@ -27,6 +27,10 @@
           {{ selectedFile ? '重新选择文件' : '选择账单文件' }}
         </button>
 
+        <button class="select-btn network-btn" @click="selectNetworkFile" :disabled="isImporting">
+          选择网络文件
+        </button>
+
         <view v-if="selectedFile" class="file-info">
           <text class="file-name">{{ selectedFile.name }}</text>
           <text class="file-size">{{ formatFileSize(selectedFile.size) }}</text>
@@ -35,7 +39,7 @@
         <view class="format-box">
           <text class="format-title">可上传格式</text>
           <text class="format-text">支付宝 / 微信：平台导出的 `.xls`、`.xlsx`、`.csv` 原始文件。</text>
-          <text class="format-text">通用模板：日期、类型、资产、目标资产、一级分类、二级分类、金额、手续费、备注。</text>
+          <text class="format-text">通用模板：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、备注。</text>
         </view>
       </view>
 
@@ -106,7 +110,11 @@
             <text class="header-cell">日期</text>
             <text class="header-cell">类型</text>
             <text class="header-cell">账户</text>
+            <text class="header-cell">币种</text>
             <text class="header-cell">金额</text>
+            <text class="header-cell">目标资产</text>
+            <text class="header-cell">目标币种</text>
+            <text class="header-cell">目标金额</text>
             <text class="header-cell">分类</text>
             <text class="header-cell wide">备注</text>
             <text class="header-cell">状态</text>
@@ -116,7 +124,11 @@
             <text class="cell">{{ row.date }}</text>
             <text class="cell">{{ row.typeText || '-' }}</text>
             <text class="cell">{{ row.asset }}</text>
+            <text class="cell">{{ row.currency || 'CNY' }}</text>
             <text class="cell">{{ formatAmount(row) }}</text>
+            <text class="cell">{{ row.targetAsset || '-' }}</text>
+            <text class="cell">{{ row.targetCurrency || row.currency || 'CNY' }}</text>
+            <text class="cell">{{ formatTargetAmount(row) }}</text>
             <text class="cell">{{ getCategoryText(row) }}</text>
             <text class="cell wide">{{ row.remark || '-' }}</text>
             <text :class="['cell', rowStatusClass(row)]">{{ rowStatusText(row) }}</text>
@@ -176,6 +188,17 @@ import {
   getProviderLabel,
   parseImportRows
 } from '@/utils/importParsers.js'
+import {
+
+  chooseNetworkFileConfig,
+
+  downloadNetworkFile,
+
+  readFileAsArrayBuffer
+
+} from '@/utils/networkFile.js'
+
+
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
@@ -258,43 +281,58 @@ const selectFile = () => {
   // #endif
 }
 
-const parseFile = (file) => {
+const selectNetworkFile = async () => {
+  if (isImporting.value) return
+  try {
+    const config = await chooseNetworkFileConfig('download')
+    uni.showLoading({ title: '下载中...' })
+    const file = await downloadNetworkFile(config)
+    selectedFile.value = file
+    await parseFile(file)
+    uni.showToast({ title: '网络文件已加载', icon: 'success' })
+  } catch (error) {
+    if (error.message !== '已取消选择') {
+      uni.showToast({ title: error.message || '网络文件下载失败', icon: 'none' })
+    }
+  } finally {
+    uni.hideLoading()
+  }
+}
+
+const parseFile = async (file) => {
   clearParsedData()
 
-  const reader = new FileReader()
-  reader.onload = (event) => {
-    try {
-      const data = new Uint8Array(event.target.result)
-      const result = parseWorkbookData(data, file.name)
-      parsedProvider.value = result.provider
-      parseSummary.value = {
-        detectedHeaders: result.detectedHeaders,
-        ignoredRows: result.ignoredRows
-      }
-      parseMessages.value = [
-        ...result.errors.map(message => ({ type: 'error', message })),
-        ...result.warnings.map(message => ({ type: 'warning', message }))
-      ]
-      importData.value = decorateRows(result.rows)
-      validateData()
+  try {
+    const buffer = await readFileAsArrayBuffer(file)
+    const data = new Uint8Array(buffer)
+    const result = parseWorkbookData(data, file.name || '网络文件.xls')
+    parsedProvider.value = result.provider
+    parseSummary.value = {
+      detectedHeaders: result.detectedHeaders,
+      ignoredRows: result.ignoredRows
+    }
+    parseMessages.value = [
+      ...result.errors.map(message => ({ type: 'error', message })),
+      ...result.warnings.map(message => ({ type: 'warning', message }))
+    ]
+    importData.value = decorateRows(result.rows)
+    validateData()
 
-      if (result.errors.length) {
-        uni.showToast({
-          title: result.errors[0],
-          icon: 'none',
-          duration: 3000
-        })
-      }
-    } catch (error) {
-      console.error('解析文件失败:', error)
-      parseMessages.value = [{ type: 'error', message: '文件解析失败，请确认文件格式是否正确' }]
+    if (result.errors.length) {
       uni.showToast({
-        title: '文件解析失败',
-        icon: 'none'
+        title: result.errors[0],
+        icon: 'none',
+        duration: 3000
       })
     }
+  } catch (error) {
+    console.error('解析文件失败:', error)
+    parseMessages.value = [{ type: 'error', message: '文件解析失败，请确认文件格式是否正确' }]
+    uni.showToast({
+      title: '文件解析失败',
+      icon: 'none'
+    })
   }
-  reader.readAsArrayBuffer(file)
 }
 
 const parseWorkbookData = (data, fileName = '') => {
@@ -545,6 +583,9 @@ const startImport = async () => {
           categoryId: category.categoryId,
           remark: item.remark,
           timestamp: parseTimestamp(item.date),
+          currency: item.currency || 'CNY',
+          targetAmount: item.type === 'transfer' ? Number(item.targetAmount ?? item.amount ?? 0) : undefined,
+          targetCurrency: item.type === 'transfer' ? (item.targetCurrency || item.currency || 'CNY') : (item.currency || 'CNY'),
           type: item.type,
           isIncludedInStats: item.isIncludedInStats,
           fee: item.type === 'transfer' ? Number(item.fee || 0) : 0,
@@ -630,8 +671,23 @@ const parseTimestamp = (dateText) => {
 }
 
 const formatAmount = (row) => {
+
   const sign = row.type === 'income' || row.type === 'refund' ? '+' : '-'
-  return `${sign}${Number(row.amount || 0).toFixed(2)}`
+
+  return `${sign}${Number(row.amount || 0).toFixed(2)} ${row.currency || 'CNY'}`
+
+}
+
+
+
+const formatTargetAmount = (row) => {
+
+  if (row.type !== 'transfer') return '-'
+
+  const amount = row.targetAmount ?? row.amount ?? 0
+
+  return `${Number(amount || 0).toFixed(2)} ${row.targetCurrency || row.currency || 'CNY'}`
+
 }
 
 const getCategoryText = (row) => {
@@ -955,8 +1011,10 @@ const formatFileSize = (bytes) => {
   color: #c8892e;
 }
 
-.tips {
-  padding: 16px;
+.tips {
+
+  padding: 16px;
+
   margin-bottom: calc(20px + env(safe-area-inset-bottom));
   border-radius: 16px;
   background: rgba(136, 177, 148, 0.14);

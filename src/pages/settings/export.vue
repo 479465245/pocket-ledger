@@ -50,12 +50,35 @@
       
       <!-- 导出按钮 -->
       <button 
+
         class="neu-btn primary-btn" 
+
         @click="handleExport"
+
         :disabled="isExporting"
+
       >
+
         <text v-if="isExporting">导出中...</text>
+
         <text v-else>导出账单</text>
+
+      </button>
+
+
+
+      <button 
+
+        class="neu-btn upload-btn" 
+
+        @click="handleUploadNetwork"
+
+        :disabled="isExporting"
+
+      >
+
+        上传到网络文件
+
       </button>
       
       <!-- 导出说明 -->
@@ -63,7 +86,7 @@
         <text class="tip-title">导出说明：</text>
         <text class="tip-item">1. 包含指定日期范围内的所有账单记录</text>
         <text class="tip-item">2. 导出格式为 Excel (.xls)</text>
-        <text class="tip-item">3. 包含列：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、分类、手续费、备注</text>
+        <text class="tip-item">3. 包含列：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、备注</text>
         <text class="tip-item">4. 可在电脑上进行数据分析</text>
       </view>
     </view>
@@ -76,6 +99,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useAssetStore } from '@/store/asset'
 import { useCategoryStore } from '@/store/category'
+import { chooseNetworkFileConfig, uploadNetworkFile } from '@/utils/networkFile'
 
 const billStore = useBillStore()
 const assetStore = useAssetStore()
@@ -140,105 +164,103 @@ function selectQuickRange(key) {
   endDate.value = getDateString(end)
 }
 
+const buildExportPayload = () => {
+  if (new Date(startDate.value) > new Date(endDate.value)) {
+    throw new Error('开始日期不能晚于结束日期')
+  }
+
+  const startTimestamp = new Date(startDate.value + ' 00:00:00').getTime()
+  const endTimestamp = new Date(endDate.value + ' 23:59:59').getTime()
+
+  const filteredBills = billStore.bills.filter(bill => bill.timestamp >= startTimestamp && bill.timestamp <= endTimestamp)
+
+  if (filteredBills.length === 0) {
+    throw new Error('指定日期范围内无数据')
+  }
+
+  const exportData = filteredBills.map(bill => {
+    const date = new Date(bill.timestamp)
+    const dateStr = getDateString(date)
+    const asset = assetStore.getAsset(bill.assetId)
+    const assetName = asset ? asset.name : '未知资产'
+
+    let targetAssetName = ''
+    if (bill.type === 'transfer' && bill.targetAssetId) {
+      const targetAsset = assetStore.getAsset(bill.targetAssetId)
+      targetAssetName = targetAsset ? targetAsset.name : '未知目标资产'
+    }
+
+    const parentCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
+    let categoryName = ''
+    if (bill.categoryId && bill.categoryId !== bill.parentCategoryId) {
+      categoryName = categoryStore.getCategoryName(bill.categoryId)
+    }
+
+    const typeMap = {
+      income: '收入',
+      expense: '支出',
+      transfer: '转账',
+      refund: '退款',
+      adjustment: '资产调整'
+    }
+    const typeText = typeMap[bill.type] || '支出'
+
+    return {
+      '日期': dateStr,
+      '类型': typeText,
+      '资产': assetName,
+      '币种': bill.currency || 'CNY',
+      '金额': bill.amount,
+      '目标资产': targetAssetName,
+      '目标币种': bill.type === 'transfer' ? (bill.targetCurrency || bill.currency || 'CNY') : '',
+      '目标金额': bill.type === 'transfer' ? (bill.targetAmount ?? Math.abs(Number(bill.amount || 0))) : '',
+      '一级分类': parentCategoryName,
+      '二级分类': categoryName,
+      '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
+      '备注': bill.remark || bill.note || ''
+    }
+  })
+
+  return {
+    fileName: `账单数据_${startDate.value}_${endDate.value}.xls`,
+    content: generateXLS(exportData),
+    count: exportData.length
+  }
+}
+
 const handleExport = async () => {
   if (isExporting.value) return
-  
-  // 验证日期范围
-  if (new Date(startDate.value) > new Date(endDate.value)) {
-    uni.showToast({
-      title: '开始日期不能晚于结束日期',
-      icon: 'none'
-    })
-    return
-  }
-  
   isExporting.value = true
-  
+
   try {
-    // 获取日期范围内的账单数据
-    const startTimestamp = new Date(startDate.value + ' 00:00:00').getTime()
-    const endTimestamp = new Date(endDate.value + ' 23:59:59').getTime()
-    
-    const filteredBills = billStore.bills.filter(bill => {
-      return bill.timestamp >= startTimestamp && bill.timestamp <= endTimestamp
-    })
-    
-    if (filteredBills.length === 0) {
-      uni.showToast({
-        title: '指定日期范围内无数据',
-        icon: 'none'
-      })
-      return
-    }
-    
-    // 格式化数据
-    const exportData = filteredBills.map(bill => {
-      const date = new Date(bill.timestamp)
-      const dateStr = getDateString(date)
-      const asset = assetStore.getAsset(bill.assetId)
-      const assetName = asset ? asset.name : '未知资产'
-      
-      // 获取目标资产名称（转账类型）
-      let targetAssetName = ''
-      if (bill.type === 'transfer' && bill.targetAssetId) {
-        const targetAsset = assetStore.getAsset(bill.targetAssetId)
-        targetAssetName = targetAsset ? targetAsset.name : '未知目标资产'
-      }
-      
-      // 获取分类名称
-      const parentCategoryName = categoryStore.getCategoryName(bill.parentCategoryId)
-      let categoryName = ''
-      
-      if (bill.categoryId && bill.categoryId !== bill.parentCategoryId) {
-        categoryName = categoryStore.getCategoryName(bill.categoryId)
-      }
-      
-      // 获取类型文本
-      const typeMap = {
-        'income': '收入',
-        'expense': '支出',
-        'transfer': '转账',
-        'refund': '退款',
-        'adjustment': '资产调整'
-      }
-      const typeText = typeMap[bill.type] || '支出'
-      
-      return {
-        '日期': dateStr,
-        '类型': typeText,
-        '资产': assetName,
-        '币种': bill.currency || 'CNY',
-        '金额': bill.amount,
-        '目标资产': targetAssetName,
-        '目标币种': bill.type === 'transfer' ? (bill.targetCurrency || bill.currency || 'CNY') : '',
-        '目标金额': bill.type === 'transfer' ? (bill.targetAmount ?? Math.abs(Number(bill.amount || 0))) : '',
-        '一级分类': parentCategoryName,
-        '分类': categoryName,
-        '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
-        '备注': bill.remark || bill.note || ''
-      }
-    })
-    
-    // 生成XLS内容（HTML表格格式）
-    const xlsContent = generateXLS(exportData)
-    
-    // 保存文件
-    const fileName = `账单数据_${startDate.value}_${endDate.value}.xls`
-    saveXLSFile(fileName, xlsContent)
-    
-    uni.showToast({
-      title: `导出成功，共${exportData.length}条记录`,
-      icon: 'success',
-      duration: 2000
-    })
-    
+    const payload = buildExportPayload()
+    saveXLSFile(payload.fileName, payload.content)
+    uni.showToast({ title: `导出成功，共${payload.count}条记录`, icon: 'success', duration: 2000 })
   } catch (error) {
     console.error('导出失败:', error)
-    uni.showToast({
-      title: '导出失败，请重试',
-      icon: 'none'
-    })
+    uni.showToast({ title: error.message || '导出失败，请重试', icon: 'none' })
   } finally {
+    isExporting.value = false
+  }
+}
+
+const handleUploadNetwork = async () => {
+  if (isExporting.value) return
+  isExporting.value = true
+
+  try {
+    const config = await chooseNetworkFileConfig('upload')
+    const payload = buildExportPayload()
+    uni.showLoading({ title: '上传中...' })
+    await uploadNetworkFile(config, payload.fileName, payload.content)
+    uni.showToast({ title: `上传成功，共${payload.count}条记录`, icon: 'success', duration: 2000 })
+  } catch (error) {
+    if (error.message !== '已取消选择') {
+      console.error('上传失败:', error)
+      uni.showToast({ title: error.message || '上传失败，请重试', icon: 'none' })
+    }
+  } finally {
+    uni.hideLoading()
     isExporting.value = false
   }
 }
@@ -360,9 +382,12 @@ function saveXLSFile(fileName, content) {
 }
 
 
-.content-card {
-  width: 100%;
-  padding: 30px 20px;
+.content-card {
+
+  width: 100%;
+
+  padding: 30px 20px;
+
   margin-bottom: calc(20px + env(safe-area-inset-bottom));
   background: #FFF9F0;
   border-radius: 20px;
@@ -486,9 +511,13 @@ function saveXLSFile(fileName, content) {
   opacity: 0.6;
 }
 
-.primary-btn {
-  color: #FF8D5D;
-}
+.primary-btn {
+  color: #FF8D5D;
+}
+
+.upload-btn {
+  color: #333;
+}
 
 .tips {
   width: 100%;

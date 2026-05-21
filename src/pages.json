@@ -56,37 +56,45 @@
         "navigationBarTextStyle": "black"
       }
     },
-    {
-      "path": "pages/settings/import",
-      "style": {
-        "navigationBarTitleText": "数据导入",
-        "navigationBarBackgroundColor": "#F7FAFF",
-        "navigationBarTextStyle": "black"
-      }
-    },
-    {
-      "path": "pages/settings/cross-check",
-      "style": {
-        "navigationBarTitleText": "交叉校验",
-        "navigationBarBackgroundColor": "#F7FAFF",
-        "navigationBarTextStyle": "black"
-      }
-    },
-    {
-      "path": "pages/cross-check/home",
-      "style": {
-        "navigationBarTitleText": "交叉校验操作主页",
-        "navigationBarBackgroundColor": "#F7FAFF",
-        "navigationBarTextStyle": "black"
-      }
-    },
-    {
-      "path": "pages/cross-check/list",
-      "style": {
-        "navigationBarTitleText": "交叉校验列表",
-        "navigationBarBackgroundColor": "#F7FAFF",
-        "navigationBarTextStyle": "black"
-      }
+    {
+      "path": "pages/settings/import",
+      "style": {
+        "navigationBarTitleText": "数据导入",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/settings/cross-check",
+      "style": {
+        "navigationBarTitleText": "交叉校验",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/settings/network-file",
+      "style": {
+        "navigationBarTitleText": "网络文件配置",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/cross-check/home",
+      "style": {
+        "navigationBarTitleText": "交叉校验操作主页",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/cross-check/list",
+      "style": {
+        "navigationBarTitleText": "交叉校验列表",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
     },
     {
       "path": "pages/settings/export",
@@ -124,27 +132,16 @@
         "selectedIconPath": "static/tabbar/list-active.png"
       },
       {
-
         "pagePath": "pages/stats/index",
-
         "text": "统计",
-
         "iconPath": "static/tabbar/chart.png",
-
         "selectedIconPath": "static/tabbar/chart-active.png"
-
       },
-
       {
-
         "pagePath": "pages/settings/index",
-
         "text": "设置",
-
         "iconPath": "static/tabbar/wallet.png",
-
         "selectedIconPath": "static/tabbar/wallet-active.png"
-
       }
     ]
   }

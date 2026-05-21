@@ -1,30 +1,74 @@
-﻿<template>
+<template>
   <view class="container">
-    <scroll-view scroll-y class="bill-scroll">
-        <view class="bill-list">
-            <view v-if="filteredBills.length === 0" class="empty-tip">暂无账单</view>
-            <view v-for="bill in filteredBills" :key="bill.id" class="neu-card bill-item" :class="getBillStateClass(bill)" @longpress="deleteBill(bill.id)">
-                <view class="bill-left">
-                    <view class="icon-box">
-                        <text class="category-icon">{{ bill.type === 'transfer' ? '⇄' : bill.type === 'refund' ? '↩' : bill.type === 'adjustment' ? '⚖' : '¥' }}</text>
-                    </view>
-                    <view class="bill-info">
-                        <view class="category-row">
-                            <text class="category-name">{{ getCategoryName(bill) }}</text>
-                            <text v-if="bill.type === 'refund'" class="state-badge refund">退款单</text>
-                            <text v-else-if="bill.isRefunded" class="state-badge refunded">已退款</text>
-                        </view>
-                        <text class="bill-date">{{ formatDate(bill.timestamp) }} | {{ getAssetName(bill.assetId) }}</text>
-                        <text class="bill-remark" v-if="bill.remark">{{ bill.remark }}</text>
-                    </view>
-                </view>
-                <view class="bill-right">
-                    <text :class="['bill-amount', getAmountClass(bill)]">
-                        {{ getDisplayAmount(bill) }}
-                    </text>
-                </view>
-            </view>
+    <view v-if="isAssetMode" class="filter-panel">
+      <view class="filter-summary" @click="showFilter = !showFilter">
+        <view>
+          <text class="filter-title">日期筛选</text>
+          <text class="filter-desc">{{ filterSummaryText }}</text>
         </view>
+        <text class="filter-toggle">{{ showFilter ? '收起' : '筛选' }}</text>
+      </view>
+
+      <view v-if="showFilter" class="filter-body">
+        <view class="date-inputs">
+          <view class="date-input-wrapper">
+            <text class="date-label">开始日期</text>
+            <picker mode="date" :value="startDate" @change="startDate = $event.detail.value">
+              <view class="date-picker">{{ startDate || '不限' }}</view>
+            </picker>
+          </view>
+          <view class="date-input-wrapper">
+            <text class="date-label">结束日期</text>
+            <picker mode="date" :value="endDate" @change="endDate = $event.detail.value">
+              <view class="date-picker">{{ endDate || '不限' }}</view>
+            </picker>
+          </view>
+        </view>
+        <view class="filter-actions">
+          <button class="filter-btn ghost" @click="clearDateFilter">清空</button>
+          <button class="filter-btn primary" @click="applyDateFilter">确定</button>
+        </view>
+      </view>
+    </view>
+
+    <scroll-view scroll-y class="bill-scroll">
+      <view class="bill-list">
+        <view v-if="filteredBills.length === 0" class="empty-state">
+          <view class="empty-illustration">🧾</view>
+          <text class="empty-title">暂无账单</text>
+          <text class="empty-desc">这个范围里还没有流水。</text>
+        </view>
+
+        <view v-for="group in groupedBills" :key="group.dateKey" class="day-group">
+          <view class="day-header">
+            <view>
+              <text class="day-title">{{ group.title }}</text>
+              <text class="day-subtitle">{{ group.bills.length }} 笔记录</text>
+            </view>
+            <text class="day-total">{{ group.totalText }}</text>
+          </view>
+
+          <view v-for="bill in group.bills" :key="bill.id" class="bill-item" :class="getBillStateClass(bill)" @longpress="deleteBill(bill.id)">
+            <view class="bill-left">
+              <view :class="['icon-box', getIconClass(bill)]">
+                <text class="category-icon">{{ getBillIcon(bill) }}</text>
+              </view>
+              <view class="bill-info">
+                <view class="category-row">
+                  <text class="category-name">{{ getCategoryName(bill) }}</text>
+                  <text v-if="bill.type === 'refund'" class="state-badge refund">退款</text>
+                  <text v-else-if="bill.isRefunded" class="state-badge refunded">已退</text>
+                </view>
+                <text class="bill-date">{{ getBillMetaText(bill) }}</text>
+                <text class="bill-remark" v-if="bill.remark">{{ bill.remark }}</text>
+              </view>
+            </view>
+            <view class="bill-right">
+              <text :class="['bill-amount', getAmountClass(bill)]">{{ getDisplayAmount(bill) }}</text>
+            </view>
+          </view>
+        </view>
+      </view>
     </scroll-view>
   </view>
 </template>
@@ -34,9 +78,7 @@ import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
-
 import { useAssetStore } from '@/store/asset'
-
 import { formatCurrencyAmount } from '@/utils/currency'
 
 const billStore = useBillStore()
@@ -44,124 +86,241 @@ const categoryStore = useCategoryStore()
 const assetStore = useAssetStore()
 
 const params = ref({})
+const showFilter = ref(false)
+const startDate = ref('')
+const endDate = ref('')
+const appliedStartDate = ref('')
+const appliedEndDate = ref('')
+
+const isAssetMode = computed(() => !!params.value.assetId)
+const filterSummaryText = computed(() => {
+  if (!appliedStartDate.value && !appliedEndDate.value) return '全部日期'
+  return `${appliedStartDate.value || '不限'} 至 ${appliedEndDate.value || '不限'}`
+})
 
 onLoad((options) => {
-    params.value = options
-    billStore.init()
-    categoryStore.init()
-    assetStore.init()
-    
-    // Set Title based on context
-    setTimeout(() => {
-        let title = '账单明细'
-        if (params.value.id) {
-            const name = categoryStore.getCategoryName(params.value.id)
-            if (params.value.id === 'credit-card-repayment') {
-                title = '信用卡还款明细'
-            } else if (name === 'Unknown') {
-                console.warn('Unknown category ID in title:', params.value.id)
-                title = '分类明细' // 使用通用标题
-            } else if (params.value.filterType === 'parent_other') {
-                title = `${name} (其他) 明细`
-            } else {
-                title = `${name}明细`
-            }
-        }
-        uni.setNavigationBarTitle({ title })
-    }, 100)
+  params.value = options
+  billStore.init()
+  categoryStore.init()
+  assetStore.init()
+
+  setTimeout(() => {
+    let title = '账单明细'
+    if (params.value.assetId) {
+      const assetName = params.value.assetName
+        ? decodeURIComponent(params.value.assetName)
+        : getAssetName(params.value.assetId)
+      title = `${assetName}账单`
+    } else if (params.value.id) {
+      const name = categoryStore.getCategoryName(params.value.id)
+      if (params.value.id === 'credit-card-repayment') {
+        title = '信用卡还款明细'
+      } else if (name === 'Unknown') {
+        title = '分类明细'
+      } else if (params.value.filterType === 'parent_other') {
+        title = `${name} (其他) 明细`
+      } else {
+        title = `${name}明细`
+      }
+    }
+    uni.setNavigationBarTitle({ title })
+  }, 100)
 })
 
 const filteredBills = computed(() => {
-    const { id, filterType, period, date, type } = params.value
-    
-    let start, end
-    if (period === 'month') {
-        const [y, m] = date.split('-').map(Number)
-        start = new Date(y, m - 1, 1).getTime()
-        end = new Date(y, m, 0, 23, 59, 59, 999).getTime()
-    } else {
-        const y = Number(date)
-        start = new Date(y, 0, 1).getTime()
-        end = new Date(y, 11, 31, 23, 59, 59, 999).getTime()
-    }
+  const { id, filterType, period, date, type, assetId } = params.value
+
+  if (assetId) {
+    const start = appliedStartDate.value ? new Date(`${appliedStartDate.value} 00:00:00`).getTime() : null
+    const end = appliedEndDate.value ? new Date(`${appliedEndDate.value} 23:59:59`).getTime() : null
 
     return billStore.bills.filter(b => {
-        // Time & Type Filter
-        if (b.timestamp < start || b.timestamp > end) return false
-        if (billStore.getStatType(b) !== type) return false
-        if (params.value.currency && (b.currency || 'CNY') !== params.value.currency) return false
-        if (b.isIncludedInStats === false) return false
-
-        // Category Filter
-        if (filterType === 'parent' && id === 'credit-card-repayment') {
-            return b.type === 'transfer'
-        } else if (filterType === 'parent') {
-            return b.parentCategoryId === id
-        } else if (filterType === 'sub') {
-            return b.categoryId === id
-        } else if (filterType === 'parent_other') {
-            return b.parentCategoryId === id && (!b.categoryId || b.categoryId === id)
-        }
-        
-        return false
+      if (!(b.assetId === assetId || (b.type === 'transfer' && b.targetAssetId === assetId))) return false
+      if (start !== null && b.timestamp < start) return false
+      if (end !== null && b.timestamp > end) return false
+      return true
     }).sort((a, b) => b.timestamp - a.timestamp)
+  }
+
+  let start, end
+  if (period === 'month') {
+    const [y, m] = date.split('-').map(Number)
+    start = new Date(y, m - 1, 1).getTime()
+    end = new Date(y, m, 0, 23, 59, 59, 999).getTime()
+  } else {
+    const y = Number(date)
+    start = new Date(y, 0, 1).getTime()
+    end = new Date(y, 11, 31, 23, 59, 59, 999).getTime()
+  }
+
+  return billStore.bills.filter(b => {
+    if (b.timestamp < start || b.timestamp > end) return false
+    if (billStore.getStatType(b) !== type) return false
+    if (params.value.currency && (b.currency || 'CNY') !== params.value.currency) return false
+    if (b.isIncludedInStats === false) return false
+
+    if (filterType === 'parent' && id === 'credit-card-repayment') {
+      return b.type === 'transfer'
+    } else if (filterType === 'parent') {
+      return b.parentCategoryId === id
+    } else if (filterType === 'sub') {
+      return b.categoryId === id
+    } else if (filterType === 'parent_other') {
+      return b.parentCategoryId === id && (!b.categoryId || b.categoryId === id)
+    }
+
+    return false
+  }).sort((a, b) => b.timestamp - a.timestamp)
 })
 
+const groupedBills = computed(() => {
+  const groups = []
+  const map = new Map()
+
+  filteredBills.value.forEach(bill => {
+    const dateKey = formatDateKey(bill.timestamp)
+    if (!map.has(dateKey)) {
+      const group = {
+        dateKey,
+        title: formatDayTitle(bill.timestamp),
+        bills: [],
+        total: 0,
+        currency: getAssetScopedAmount(bill).currency
+      }
+      map.set(dateKey, group)
+      groups.push(group)
+    }
+
+    const group = map.get(dateKey)
+    group.bills.push(bill)
+    group.total += getAssetScopedAmount(bill).amount
+  })
+
+  return groups.map(group => ({
+    ...group,
+    totalText: formatCurrencyAmount(group.total, group.currency || 'CNY')
+  }))
+})
+
+const clearDateFilter = () => {
+  startDate.value = ''
+  endDate.value = ''
+  appliedStartDate.value = ''
+  appliedEndDate.value = ''
+  showFilter.value = false
+}
+
+const applyDateFilter = () => {
+  if (startDate.value && endDate.value && new Date(startDate.value) > new Date(endDate.value)) {
+    uni.showToast({ title: '开始日期不能晚于结束日期', icon: 'none' })
+    return
+  }
+  appliedStartDate.value = startDate.value
+  appliedEndDate.value = endDate.value
+  showFilter.value = false
+}
+
 const getCategoryName = (bill) => {
-    if (bill.type === 'transfer') return '信用卡还款'
-    if (bill.type === 'adjustment') return '资产调整'
-    // 优先使用categoryId获取分类名称
-    if (bill.categoryId) {
-        const name = categoryStore.getCategoryName(bill.categoryId)
-        if (name !== 'Unknown') {
-            return name
-        }
-        console.warn('Unknown category:', bill.categoryId, 'for bill:', bill.id)
-    }
-    // 如果categoryId无效，回退到parentCategoryId
-    const parentName = categoryStore.getCategoryName(bill.parentCategoryId)
-    if (parentName === 'Unknown') {
-        console.warn('Unknown parentCategory:', bill.parentCategoryId, 'for bill:', bill.id)
-    }
-    return parentName
+  if (bill.type === 'transfer') return params.value.assetId ? '转账' : '信用卡还款'
+  if (bill.type === 'adjustment') return '资产调整'
+  if (bill.type === 'refund') return `退款 · ${getCategoryNameById(bill.categoryId || bill.parentCategoryId)}`
+  return getCategoryNameById(bill.categoryId || bill.parentCategoryId)
+}
+
+const getCategoryNameById = (id) => {
+  const name = categoryStore.getCategoryName(id)
+  return name === 'Unknown' ? '未分类' : name
 }
 
 const getAssetName = (id) => {
-    const asset = assetStore.getAsset(id)
-    return asset ? asset.name : '未知资产'
+  const asset = assetStore.getAsset(id)
+  return asset ? asset.name : '未知资产'
 }
 
-const formatDate = (ts) => {
-    return new Date(ts).toLocaleDateString() + ' ' + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+const formatDateKey = (ts) => {
+  const date = new Date(ts || Date.now())
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
-const getDisplayAmount = (bill) => {
-    if (bill.type === 'transfer') {
-        return formatCurrencyAmount(Math.abs(bill.amount || 0), bill.currency || 'CNY')
-    }
-    return formatCurrencyAmount(bill.amount || 0, bill.currency || 'CNY')
+const formatDayTitle = (ts) => {
+  const date = new Date(ts || Date.now())
+  const today = new Date()
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
+  const key = formatDateKey(ts)
+
+  if (key === formatDateKey(today.getTime())) return '今天'
+  if (key === formatDateKey(yesterday.getTime())) return '昨天'
+
+  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${weekdays[date.getDay()]}`
+}
+
+const formatDate = (ts) => new Date(ts).toLocaleDateString()
+
+const getBillMetaText = (bill) => {
+  if (bill.type === 'transfer') {
+    return `${getAssetName(bill.assetId)} → ${getAssetName(bill.targetAssetId)}`
+  }
+  return getAssetName(bill.assetId)
+}
+
+const getAssetScopedAmount = (bill) => {
+  const assetId = params.value.assetId
+  if (assetId && bill.type === 'transfer' && bill.targetAssetId === assetId) {
+    return {
+      amount: Number(bill.targetAmount ?? Math.abs(Number(bill.amount || 0))),
+      currency: bill.targetCurrency || bill.currency || 'CNY'
+    }
+  }
+
+  return {
+    amount: Number(bill.amount || 0),
+    currency: bill.currency || 'CNY'
+  }
+}
+
+const getDisplayAmount = (bill) => {
+  const scoped = getAssetScopedAmount(bill)
+  return formatCurrencyAmount(scoped.amount, scoped.currency)
 }
 
 const getAmountClass = (bill) => {
-    return Number(bill.amount) >= 0 ? 'income' : 'expense'
+  return getAssetScopedAmount(bill).amount >= 0 ? 'income' : 'expense'
+}
+
+const getBillIcon = (bill) => {
+  if (bill.type === 'transfer') return '⇄'
+  if (bill.type === 'refund') return '↩'
+  if (bill.type === 'adjustment') return '⚖️'
+  return getAssetScopedAmount(bill).amount >= 0 ? '入' : '支'
+}
+
+const getIconClass = (bill) => {
+  if (bill.type === 'transfer') return 'transfer-icon'
+  if (bill.type === 'refund') return 'refund-icon'
+  if (bill.type === 'adjustment') return 'adjustment-icon'
+  return getAssetScopedAmount(bill).amount >= 0 ? 'income-icon' : 'expense-icon'
 }
 
 const getBillStateClass = (bill) => {
-    if (bill.type === 'refund') return 'is-refund'
-    if (bill.isRefunded) return 'is-refunded'
-    return ''
+  if (bill.type === 'refund') return 'is-refund'
+  if (bill.isRefunded) return 'is-refunded'
+  return ''
 }
 
 const deleteBill = (id) => {
-    uni.showModal({
-        title: '删除账单',
-        content: '确定要删除这条账单吗？',
-        success: (res) => {
-            if (res.confirm) {
-                billStore.deleteBill(id)
-            }
-        }
-    })
+  uni.showModal({
+    title: '删除账单',
+    content: '确定要删除这条账单吗？',
+    success: (res) => {
+      if (res.confirm) {
+        billStore.deleteBill(id)
+      }
+    }
+  })
 }
 </script>
 
@@ -174,109 +333,268 @@ const deleteBill = (id) => {
   overflow: hidden;
 }
 
-.fixed-header {
-    flex-shrink: 0;
-    background: var(--color-bg);
-    padding-bottom: 10px;
-    z-index: 10;
+.filter-panel {
+  margin: 14px 16px 4px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 249, 240, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  box-shadow: 5px 5px 14px rgba(163, 177, 198, 0.22), -5px -5px 14px rgba(255, 255, 255, 0.78);
 }
 
-.nav-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 20px;
-    padding-top: 20px; 
-}
-
-.back-btn {
-    font-size: 24px;
-    color: var(--color-text);
-    width: 40px;
-}
-
-.page-title {
-    font-size: 18px;
-    font-weight: bold;
-    color: var(--color-text);
-}
-
-.placeholder {
-    width: 40px;
-}
-
-.bill-scroll {
-    flex: 1;
-    overflow-y: hidden;
-}
-
-.bill-list {
-    padding: 20px;
-}
-
-.empty-tip {
-    text-align: center;
-    color: var(--color-text-light);
-    margin-top: 50px;
-}
-
-.bill-item {
-  padding: 15px;
-  margin-bottom: 15px;
+.filter-summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
+.filter-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.filter-desc {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-light);
+}
+
+.filter-toggle {
+  padding: 7px 12px;
+  border-radius: 14px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.filter-body {
+  margin-top: 14px;
+}
+
+.date-inputs {
+  display: flex;
+  gap: 12px;
+}
+
+.date-input-wrapper {
+  flex: 1;
+}
+
+.date-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--color-text-light);
+}
+
+.date-picker {
+  padding: 11px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--color-text);
+  font-size: 13px;
+  text-align: center;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.filter-btn {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.filter-btn.ghost {
+  background: #fff3e7;
+  color: var(--color-text);
+}
+
+.filter-btn.primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.bill-scroll {
+  flex: 1;
+  overflow-y: hidden;
+}
+
+.bill-list {
+  padding: 16px 16px 60px;
+}
+
+.empty-state {
+  margin-top: 46px;
+  padding: 28px 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.42);
+  text-align: center;
+  box-shadow: inset 3px 3px 10px rgba(163, 177, 198, 0.22), inset -3px -3px 10px rgba(255, 255, 255, 0.75);
+}
+
+.empty-illustration {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.empty-title {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 6px;
+}
+
+.empty-desc {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-light);
+}
+
+.day-group {
+  margin-bottom: 18px;
+}
+
+.day-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 4px 4px 10px;
+}
+
+.day-title {
+  display: block;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.day-subtitle,
+.day-total {
+  font-size: 12px;
+  color: var(--color-text-light);
+}
+
+.bill-item {
+  min-height: 70px;
+  padding: 14px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 249, 240, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 20px;
+  box-shadow: 5px 5px 14px rgba(163, 177, 198, 0.26), -5px -5px 14px rgba(255, 255, 255, 0.78);
+}
+
+.bill-item.is-refunded { opacity: 0.72; }
+
 .bill-left {
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
 }
 
 .icon-box {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #FFF9F0;
-    box-shadow: inset -6px -6px 16px #ffffff, inset 6px 6px 16px #a3b1c6;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 15px;
-    color: var(--color-primary);
-    font-weight: bold;
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-weight: bold;
+  flex-shrink: 0;
+  box-shadow: inset -3px -3px 8px rgba(255, 255, 255, 0.9), inset 3px 3px 8px rgba(163, 177, 198, 0.2);
+}
+
+.icon-box.expense-icon { background: rgba(255, 141, 93, 0.14); color: var(--color-primary); }
+.icon-box.income-icon { background: rgba(136, 177, 148, 0.18); color: #5b9469; }
+.icon-box.transfer-icon { background: rgba(75, 163, 255, 0.16); color: #4BA3FF; }
+.icon-box.refund-icon { background: rgba(255, 149, 0, 0.16); color: #ff9500; }
+.icon-box.adjustment-icon { background: rgba(138, 138, 138, 0.14); color: #666; }
+
+.category-icon {
+  font-size: 20px;
+  line-height: 1;
 }
 
 .bill-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  flex: 1;
 }
+
+.category-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .category-name {
-  font-size: 16px;
-  font-weight: bold;
+  font-size: 15px;
+  font-weight: 800;
   color: var(--color-text);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.bill-date {
+
+.bill-date,
+.bill-remark {
   font-size: 12px;
   color: var(--color-text-light);
   margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.bill-remark {
-    font-size: 12px;
-    color: var(--color-text-light);
-    margin-top: 2px;
-    font-style: italic;
-}
-.bill-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-}
-.bill-amount {
-  font-size: 18px;
-  font-weight: bold;
-}
-.expense { color: var(--color-text); }
-.income { color: var(--color-primary); }
-</style>
 
+.bill-remark {
+  font-size: 11px;
+  color: rgba(74, 74, 74, 0.62);
+}
+
+.bill-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 44%;
+  margin-left: 8px;
+}
+
+.bill-amount {
+  font-size: 16px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.expense { color: var(--color-text); }
+.income { color: #5b9469; }
+
+.state-badge {
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.state-badge.refund { background: #ff9500; }
+.state-badge.refunded { background: #999; }
+</style>

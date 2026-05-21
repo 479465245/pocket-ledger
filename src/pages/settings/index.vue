@@ -20,6 +20,10 @@
         <text class="menu-text">交叉校验</text>
         <text class="arrow">›</text>
       </view>
+      <view class="menu-item neu-card" @click="navigateTo('network-file')">
+        <text class="menu-text">网络文件配置</text>
+        <text class="arrow">›</text>
+      </view>
       <view class="menu-item neu-card" @click="navigateTo('export')">
         <text class="menu-text">导出数据</text>
         <text class="arrow">›</text>
