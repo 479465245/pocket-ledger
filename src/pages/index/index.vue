@@ -149,6 +149,17 @@
             @input="onAssetNameInput"
           />
         </view>
+        <view class="input-wrap type-wrap">
+          <text class="type-label">资产类型</text>
+          <view class="type-options">
+            <view
+              v-for="option in assetTypeOptions"
+              :key="option.value"
+              :class="['type-option', assetForm.type === option.value ? 'active' : '']"
+              @click.stop="selectAssetType(option.value)"
+            >{{ option.label }}</view>
+          </view>
+        </view>
         <view class="input-wrap" @click.stop="focusAssetBalanceInput">
           <input
             class="neu-input"
@@ -214,13 +225,21 @@ const assetIsMoving = ref(false)
 const showAssetModal = ref(false)
 const isEditAssetMode = ref(false)
 const editingAssetId = ref('')
-const assetForm = reactive({ name: '', balance: '' })
+const assetForm = reactive({ name: '', balance: '', type: 'digital' })
 const assetNameInputFocus = ref(false)
 const assetBalanceInputFocus = ref(false)
 
 const summaryStartX = ref(0)
 const summaryStartY = ref(0)
 const summaryMoving = ref(false)
+
+const assetTypeOptions = [
+  { value: 'cash', label: '现金' },
+  { value: 'digital', label: '电子钱包' },
+  { value: 'bank', label: '银行卡' },
+  { value: 'credit', label: '信用账户' },
+  { value: 'other', label: '其他' }
+]
 
 const switchView = (view) => {
   currentView.value = view
@@ -355,39 +374,59 @@ const getAssetIcon = (type) => {
   const map = {
     cash: '💵',
     digital: '📱',
-    bank: '💳'
+    bank: '💳',
+    credit: '💳',
+    other: '📦'
   }
-  return map[type] || '💼'
+  return map[type] || '📦'
 }
 
 const getTypeName = (type) => {
+
   const map = {
+
     cash: '现金',
+
     digital: '电子钱包',
-    bank: '银行卡'
+
+    bank: '银行卡',
+
+    credit: '信用账户',
+
+    other: '其他'
+
   }
+
   return map[type] || type
+
 }
 
 const goAddBill = () => {
   uni.navigateTo({ url: '/pages/bill/add' })
 }
 
-const openAssetBills = (asset) => {
-  if (!asset?.id) return
-  if (activeAssetId.value === asset.id) {
-    activeAssetId.value = null
-    return
-  }
-
-  const assetName = encodeURIComponent(asset.name || '')
-  uni.navigateTo({
-    url: `/pages/stats/list?assetId=${asset.id}&assetName=${assetName}`
-  })
-}
-
-const goAssetManage = () => {
-  uni.navigateTo({ url: '/pages/settings/assets' })
+const openAssetBills = (asset) => {
+
+  if (!asset?.id) return
+
+  if (activeAssetId.value === asset.id) {
+
+    activeAssetId.value = null
+
+    return
+
+  }
+
+
+
+  const assetName = encodeURIComponent(asset.name || '')
+
+  uni.navigateTo({
+
+    url: `/pages/stats/list?assetId=${asset.id}&assetName=${assetName}`
+
+  })
+
 }
 
 const onTouchStart = (e) => {
@@ -674,12 +713,17 @@ const onAssetIncludeInTotalChange = (e) => {
   assetForm.includeInTotal = e.detail.value
 }
 
+const selectAssetType = (type) => {
+  assetForm.type = type || 'digital'
+}
+
 const openAddAsset = () => {
   resetAssetInputFocus()
   isEditAssetMode.value = false
   editingAssetId.value = ''
   assetForm.name = ''
   assetForm.balance = ''
+  assetForm.type = 'digital'
   assetForm.includeInTotal = true
   activeAssetId.value = null
   showAssetModal.value = true
@@ -695,6 +739,7 @@ const openEditAsset = (asset) => {
   setTimeout(() => {
     assetForm.name = asset.name || ''
     assetForm.balance = Number(asset.currentBalance || 0).toFixed(2)
+    assetForm.type = asset.type || 'digital'
     assetForm.includeInTotal = asset.includeInTotal !== false
   }, 0)
 }
@@ -706,6 +751,7 @@ const closeAssetModal = () => {
   editingAssetId.value = ''
   assetForm.name = ''
   assetForm.balance = ''
+  assetForm.type = 'digital'
   assetForm.includeInTotal = true
 }
 
@@ -727,7 +773,7 @@ const confirmSaveAsset = async () => {
     if (!isEditAssetMode.value) {
       const asset = assetStore.addAsset({
         name,
-        type: 'digital',
+        type: assetForm.type || 'digital',
         initialBalance: 0,
         includeInTotal: assetForm.includeInTotal
       })
@@ -763,7 +809,7 @@ const confirmSaveAsset = async () => {
     const oldBalance = Number(asset.currentBalance || 0)
     const delta = Number((balance - oldBalance).toFixed(2))
 
-    assetStore.updateAsset(asset.id, { name, includeInTotal: assetForm.includeInTotal })
+    assetStore.updateAsset(asset.id, { name, type: assetForm.type || 'digital', includeInTotal: assetForm.includeInTotal })
 
     if (delta !== 0) {
       await billStore.addBill({
@@ -840,17 +886,31 @@ const onAssetTouchEnd = (e) => {
 
 <style lang="scss" scoped>
 .container {
-  height: 100vh;
+
+  height: 100%;
+
+  min-height: 0;
+
   background-color: var(--color-bg);
+
   display: flex;
+
   flex-direction: column;
+
   overflow: hidden;
+
 }
 
 .fixed-header {
+
   padding: 20px;
+
   padding-bottom: 0;
+
   flex-shrink: 0;
+
+  overflow: hidden;
+
 }
 
 .segment-wrap {
@@ -929,9 +989,11 @@ const onAssetTouchEnd = (e) => {
   margin-bottom: 10px;
 }
 
-.bill-scroll {
-  flex: 1;
-  overflow-y: hidden;
+.bill-scroll {
+  flex: 1;
+  min-height: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .bill-list,
@@ -1389,6 +1451,51 @@ const onAssetTouchEnd = (e) => {
   position: relative;
   z-index: 1003;
   pointer-events: auto;
+}
+
+.type-wrap {
+  height: auto;
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: #FFF9F0;
+  border-radius: 10px;
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.1), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+}
+
+.type-label {
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.type-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.type-option {
+  flex: 1;
+  min-width: 72px;
+  height: 34px;
+  line-height: 34px;
+  text-align: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--color-text-light);
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.type-option.active {
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(255, 141, 93, 0.24);
 }
 
 .switch-wrap {

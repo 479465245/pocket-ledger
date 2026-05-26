@@ -8,10 +8,6 @@
 
     <!-- 功能菜单 -->
     <view class="menu-list">
-      <view class="menu-item neu-card" @click="navigateTo('assets')">
-        <text class="menu-text">资产</text>
-        <text class="arrow">›</text>
-      </view>
       <view class="menu-item neu-card" @click="navigateTo('import')">
         <text class="menu-text">导入数据</text>
         <text class="arrow">›</text>

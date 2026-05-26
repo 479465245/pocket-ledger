@@ -1,13 +1,6 @@
 ﻿<template>
   <view class="container">
     <view class="fixed-header">
-      <!-- Back & Title -->
-      <view class="header-bar">
-        <text class="back-btn" @click="goBack">‹</text>
-        <text class="title">{{ parentCategory?.name || '分类统计' }}</text>
-        <text class="placeholder"></text>
-      </view>
-
       <!-- Total & Type Switch -->
       <view class="summary-card neu-card">
         <view class="type-tabs">
@@ -16,7 +9,6 @@
           <text :class="['tab', currentType === 'income' ? 'active' : '']" @click="currentType = 'income'">收入</text>
         </view>
         <view class="total-row">
-          <text class="currency">¥</text>
           <text class="amount">{{ totalAmount }}</text>
         </view>
       </view>
@@ -89,29 +81,56 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { formatCurrencyAmount } from '@/utils/currency'
 
-const props = defineProps({
-  parentId: String,
-  period: String,
-  date: String,
-  type: String,
-  currency: String
+const routeParams = ref({
+  parentId: '',
+  period: 'month',
+  date: new Date().toISOString().slice(0, 7),
+  type: 'expense',
+  currency: ''
 })
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
 
-const currentType = ref(props.type || 'expense')
-const periodType = ref(props.period || 'month')
-const pickerValue = ref(props.date || new Date().toISOString().slice(0, 7))
+const currentType = ref('expense')
+const periodType = ref('month')
+const pickerValue = ref(new Date().toISOString().slice(0, 7))
 
-const parentCategory = computed(() => 
-  categoryStore.categories.find(c => c.id === props.parentId)
+const parentCategory = computed(() =>
+  categoryStore.categories.find(c => c.id === routeParams.value.parentId)
 )
+
+const pageTitle = computed(() => parentCategory.value?.name || '分类详情')
+
+const updateNavigationTitle = () => {
+  uni.setNavigationBarTitle({ title: pageTitle.value })
+}
+
+onLoad((options = {}) => {
+  routeParams.value = {
+    parentId: options.parentId || '',
+    period: options.period || 'month',
+    date: options.date || new Date().toISOString().slice(0, 7),
+    type: options.type || 'expense',
+    currency: options.currency || ''
+  }
+
+  currentType.value = routeParams.value.type
+  periodType.value = routeParams.value.period
+  pickerValue.value = routeParams.value.date
+
+  billStore.init()
+  categoryStore.init()
+  updateNavigationTitle()
+})
+
+watch(pageTitle, updateNavigationTitle)
 
 const PALETTE = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9', '#F8C471', '#82E0AA']
 
@@ -129,7 +148,7 @@ const totalAmount = computed(() => {
 
 const formatAmountMap = (amountMap = {}) => {
   const entries = Object.entries(amountMap).filter(([, amount]) => Number(amount || 0) !== 0)
-  if (entries.length === 0) return formatCurrencyAmount(0, props.currency || 'CNY')
+  if (entries.length === 0) return formatCurrencyAmount(0, routeParams.value.currency || 'CNY')
   return entries.map(([currency, amount]) => formatCurrencyAmount(amount, currency)).join(' / ')
 }
 
@@ -151,19 +170,19 @@ const categoryStats = computed(() => {
     return match &&
       billStore.getStatType(bill) === currentType.value &&
       bill.isIncludedInStats !== false &&
-      bill.parentCategoryId === props.parentId &&
-      (!props.currency || billCurrency === props.currency)
+      bill.parentCategoryId === routeParams.value.parentId &&
+      (!routeParams.value.currency || billCurrency === routeParams.value.currency)
   })
   
   const total = bills.reduce((sum, bill) => sum + billStore.getStatAmount(bill), 0)
   if (total === 0) return []
   
-  const parent = categoryStore.categories.find(c => c.id === props.parentId)
+  const parent = categoryStore.categories.find(c => c.id === routeParams.value.parentId)
   
   bills.forEach(bill => {
     const currency = bill.currency || 'CNY'
     let key, name, icon, isOther = false
-    const subId = (bill.categoryId && bill.categoryId !== props.parentId) ? bill.categoryId : null
+    const subId = (bill.categoryId && bill.categoryId !== routeParams.value.parentId) ? bill.categoryId : null
     
     if (subId) {
         key = `${subId}__${currency}`
@@ -227,77 +246,205 @@ const pieGradient = computed(() => {
 })
 
 const chartLabels = computed(() => {
-  if (categoryStats.value.length === 0) return []
-  
-  const labels = []
-  let currentPercent = 0
-  
-  // 优化布局参数
-  const R = 65       // 饼图半径，稍微减小以适应移动端
-  const R_elbow = 85 // 转折点距离
-  const X_end = 95   // 水平延伸距离，确保在375px屏幕内
-  
-  categoryStats.value.forEach(item => {
-    const p = item.percent
-    if (p > 3) { // 只显示大于3%的标签，避免过于拥挤
-      const midPercent = currentPercent + p / 2
-      const angle = midPercent / 100 * 2 * Math.PI
-      
-      const isRight = Math.sin(angle) >= 0
-      
-      // 计算标签位置
-      const x1 = R * Math.sin(angle)
-      const y1 = - R * Math.cos(angle)
-      
-      const x2 = R_elbow * Math.sin(angle)
-      const y2 = - R_elbow * Math.cos(angle)
-      
-      const x3 = isRight ? X_end : -X_end
-      const y3 = y2 
-      
-      // 创建SVG路径
-      const linePath = `M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3}`
-      
-      // 优化样式，确保标签在两侧且不与饼图重叠
-      const style = {
-        top: y3 + 'px',
-        left: x3 + 'px',
-        transform: isRight ? 'translate(8px, -50%)' : 'translate(-108%, -50%)',
-        textAlign: isRight ? 'left' : 'right',
-        alignItems: isRight ? 'flex-start' : 'flex-end',
-        zIndex: 10,
-        maxWidth: '80px' // 限制最大宽度，避免在小屏幕上溢出
-      }
-      
-      labels.push({
-        id: item.id,
-        name: item.name,
-        percent: p.toFixed(1) + '%',
-        amount: item.displayAmount,
-        color: item.color,
-        linePath,
-        style,
-        isRight
-      })
+
+    if (categoryStats.value.length === 0) return []
+
+    
+
+    const rawLabels = []
+
+    let currentPercent = 0
+
+    
+
+    // 移动端空间有限：外置标签只展示主要分类，其余在下方列表完整展示
+
+    const R = 100
+    const R_elbow = 118
+    const X_end = 105
+    const LABEL_GAP = 8
+    const LABEL_WIDTH = 82
+
+    const MIN_PERCENT = 3
+
+    const MAX_LABELS = 8
+
+    const MIN_GAP = 44
+
+    const TOP_LIMIT = -132
+
+    const BOTTOM_LIMIT = 132
+
+    
+
+    categoryStats.value.forEach(item => {
+
+        const p = item.percent
+
+        const midPercent = currentPercent + p / 2
+
+        const angle = midPercent / 100 * 2 * Math.PI
+
+        currentPercent += p
+
+        
+
+        if (p <= MIN_PERCENT || rawLabels.length >= MAX_LABELS) return
+
+        
+
+        const isRight = Math.sin(angle) >= 0
+
+        const x1 = R * Math.sin(angle)
+
+        const y1 = -R * Math.cos(angle)
+
+        const x2 = R_elbow * Math.sin(angle)
+
+        const y2 = -R_elbow * Math.cos(angle)
+
+        const x3 = isRight ? X_end : -X_end
+
+        
+
+        rawLabels.push({
+
+            id: item.statKey || item.id,
+
+            name: item.name,
+
+            percent: p.toFixed(1) + '%',
+
+            amount: item.displayAmount,
+
+            color: item.color,
+
+            isRight,
+
+            x1,
+
+            y1,
+
+            x2,
+
+            y2,
+
+            x3,
+
+            y3: y2
+
+        })
+
+    })
+
+    
+
+    const resolveSide = (sideLabels) => {
+
+        const labels = [...sideLabels].sort((a, b) => a.y3 - b.y3)
+
+        
+
+        labels.forEach((label, index) => {
+
+            const minY = index === 0 ? TOP_LIMIT : labels[index - 1].y3 + MIN_GAP
+
+            label.y3 = Math.max(TOP_LIMIT, Math.min(BOTTOM_LIMIT, label.y3))
+
+            if (label.y3 < minY) label.y3 = minY
+
+        })
+
+        
+
+        const overflow = labels.length ? labels[labels.length - 1].y3 - BOTTOM_LIMIT : 0
+
+        if (overflow > 0) {
+
+            labels.forEach(label => {
+
+                label.y3 -= overflow
+
+            })
+
+        }
+
+        
+
+        labels.forEach((label, index) => {
+
+            const minY = index === 0 ? TOP_LIMIT : labels[index - 1].y3 + MIN_GAP
+
+            if (label.y3 < minY) label.y3 = minY
+
+        })
+
+        
+
+        return labels
+
     }
-    currentPercent += p
-  })
-  
-  return labels
+
+    
+
+    const adjusted = [
+
+        ...resolveSide(rawLabels.filter(label => !label.isRight)),
+
+        ...resolveSide(rawLabels.filter(label => label.isRight))
+
+    ]
+
+    
+
+    return adjusted.map(label => {
+        const labelEdgeX = label.isRight ? label.x3 + LABEL_GAP : label.x3 - LABEL_GAP
+        const linePath = `M ${label.x1} ${label.y1} L ${label.x2} ${label.y2} L ${labelEdgeX} ${label.y3}`
+        const style = {
+            top: label.y3 + 'px',
+            left: labelEdgeX + 'px',
+            transform: label.isRight ? 'translate(0, -50%)' : 'translate(-100%, -50%)',
+            textAlign: label.isRight ? 'left' : 'right',
+            alignItems: label.isRight ? 'flex-start' : 'flex-end',
+            zIndex: 10,
+            maxWidth: LABEL_WIDTH + 'px'
+        }
+
+        
+
+        return {
+
+            id: label.id,
+
+            name: label.name,
+
+            percent: label.percent,
+
+            amount: label.amount,
+
+            color: label.color,
+
+            linePath,
+
+            style,
+
+            isRight: label.isRight
+
+        }
+
+    })
+
 })
 
 const onItemClick = (item) => {
   // Go to Bill List (Filter by Category)
   const filterType = item.isOther ? 'parent_other' : 'sub'
-  const targetId = item.isOther ? props.parentId : item.id
+  const targetId = item.isOther ? routeParams.value.parentId : item.id
   uni.navigateTo({
-    url: `/pages/stats/list?id=${targetId}&filterType=${filterType}&period=${periodType.value}&date=${pickerValue.value}&type=${currentType.value}&currency=${item.currency || props.currency || ''}`
+    url: `/pages/stats/list?id=${targetId}&filterType=${filterType}&period=${periodType.value}&date=${pickerValue.value}&type=${currentType.value}&currency=${item.currency || routeParams.value.currency || ''}`
   })
 }
 
-const goBack = () => {
-  uni.navigateBack()
-}
 </script>
 
 <style lang="scss" scoped>
@@ -314,31 +461,6 @@ const goBack = () => {
     background: var(--color-bg);
     padding-bottom: 10px;
     z-index: 10;
-}
-
-.header-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 20px;
-    
-    .back-btn {
-        font-size: 24px;
-        color: var(--color-text);
-        padding: 5px;
-    }
-    
-    .title {
-        font-size: 18px;
-        font-weight: bold;
-        color: var(--color-text);
-        flex: 1;
-        text-align: center;
-    }
-    
-    .placeholder {
-        width: 30px;
-    }
 }
 
 .summary-card {
@@ -373,13 +495,9 @@ const goBack = () => {
 
 .total-row {
     display: flex;
-    align-items: baseline;
-    
-    .currency {
-        font-size: 18px;
-        color: var(--color-text-light);
-        margin-right: 4px;
-    }
+    align-items: center;
+    justify-content: center;
+    text-align: center;
     
     .amount {
         font-size: 32px;
@@ -451,6 +569,16 @@ const goBack = () => {
     height: 0;
     pointer-events: none;
     transform: translate(-50%, -50%);
+}
+
+.lines-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 360px;
+    height: 320px;
+    transform: translate(-50%, -50%);
+    overflow: visible;
 }
 
 .chart-label {
