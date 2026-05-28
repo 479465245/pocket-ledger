@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <scroll-view scroll-y class="container">
     <view class="header">
       <text class="title">{{ config.title }}</text>
@@ -15,6 +15,7 @@
         <text class="tag">外部流水</text>
         <text class="main-line">{{ formatAmount(item.external.amount) }} ｜ {{ formatDate(item.external.timestamp) }}</text>
         <text class="sub-line">资产：{{ item.external.assetName || session.assetName }}</text>
+        <text class="sub-line">是否计入统计：{{ item.external.isIncludedInStats === false ? '否' : '是' }}</text>
         <text class="sub-line">备注：{{ item.external.remark || '-' }}</text>
         <button class="primary-btn" @click="addMissing(item.external)">新增到账本</button>
       </template>
@@ -23,6 +24,7 @@
         <text class="tag">本地账单</text>
         <text class="main-line">{{ formatAmount(item.local.amount) }} ｜ {{ formatDate(item.local.timestamp) }}</text>
         <text class="sub-line">资产：{{ item.local.assetName }}</text>
+        <text class="sub-line">是否计入统计：{{ item.local.isIncludedInStats === false ? '否' : '是' }}</text>
         <text class="sub-line">备注：{{ item.local.remark || '-' }}</text>
         <view class="actions">
           <button class="secondary-btn" @click="editBill(item.local.id)">修改</button>
@@ -37,6 +39,8 @@
           <text>本地资产：{{ item.local.assetName }}</text>
           <text>外部资产：{{ item.external.assetName || session.assetName }}</text>
         </view>
+        <text class="sub-line">本地是否计入统计：{{ item.local.isIncludedInStats === false ? '否' : '是' }}</text>
+        <text class="sub-line">外部是否计入统计：{{ item.external.isIncludedInStats === false ? '否' : '是' }}</text>
         <text class="sub-line">本地备注：{{ item.local.remark || '-' }}</text>
         <text class="sub-line">外部备注：{{ item.external.remark || '-' }}</text>
         <view class="actions">
@@ -48,9 +52,11 @@
       <template v-else>
         <text class="tag warning">疑似重复</text>
         <text class="main-line">外部：{{ formatAmount(item.external.amount) }} ｜ {{ formatDate(item.external.timestamp) }}</text>
+        <text class="sub-line">是否计入统计：{{ item.external.isIncludedInStats === false ? '否' : '是' }}</text>
         <text class="sub-line">{{ item.external.remark || '-' }}</text>
         <view v-for="local in item.locals" :key="local.id" class="duplicate-local">
           <text class="main-line small">本地：{{ formatAmount(local.amount) }} ｜ {{ local.assetName }}</text>
+          <text class="sub-line">是否计入统计：{{ local.isIncludedInStats === false ? '否' : '是' }}</text>
           <text class="sub-line">{{ local.remark || '-' }}</text>
           <view class="actions">
             <button class="secondary-btn" @click="editBill(local.id)">修改</button>
@@ -159,7 +165,7 @@ const addMissing = async (external) => {
       type: finalType,
       timestamp: external.timestamp,
       remark: external.remark || `交叉校验新增：${external.orderNo || ''}`,
-      isIncludedInStats: external.type !== 'refund',
+      isIncludedInStats: external.isIncludedInStats !== false,
       importProvider: external.provider,
       externalOrderNo: external.orderNo,
       externalUniqueKey: [external.provider, external.date, external.amount, external.remark, external.orderNo].filter(Boolean).join('|')

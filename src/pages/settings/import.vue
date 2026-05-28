@@ -39,7 +39,7 @@
         <view class="format-box">
           <text class="format-title">可上传格式</text>
           <text class="format-text">支付宝 / 微信：平台导出的 `.xls`、`.xlsx`、`.csv` 原始文件。</text>
-          <text class="format-text">通用模板：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、备注。</text>
+          <text class="format-text">通用模板：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、是否计入统计、备注。</text>
         </view>
       </view>
 
@@ -103,7 +103,9 @@
       </view>
 
       <view v-if="importData.length > 0" class="section preview-section">
-        <text class="section-title">数据预览（前 8 条）</text>
+        <text class="section-title">问题行预览{{ problemRows.length ? `（${problemRows.length} 条）` : '' }}</text>
+        <text v-if="!problemRows.length" class="empty-text">没有需要处理的问题行</text>
+        <template v-else>
         <scroll-view scroll-x class="preview-table">
           <view class="table-header">
             <text class="header-cell small">行号</text>
@@ -116,6 +118,7 @@
             <text class="header-cell">目标币种</text>
             <text class="header-cell">目标金额</text>
             <text class="header-cell">分类</text>
+            <text class="header-cell">计入统计</text>
             <text class="header-cell wide">备注</text>
             <text class="header-cell">状态</text>
           </view>
@@ -130,10 +133,23 @@
             <text class="cell">{{ row.targetCurrency || row.currency || 'CNY' }}</text>
             <text class="cell">{{ formatTargetAmount(row) }}</text>
             <text class="cell">{{ getCategoryText(row) }}</text>
+            <text class="cell">{{ row.isIncludedInStats === false ? '否' : '是' }}</text>
             <text class="cell wide">{{ row.remark || '-' }}</text>
             <text :class="['cell', rowStatusClass(row)]">{{ rowStatusText(row) }}</text>
           </view>
         </scroll-view>
+        </template>
+      </view>
+
+      <view v-if="progressState.visible" class="section progress-section">
+        <view class="progress-header">
+          <text class="progress-title">{{ progressState.title }}</text>
+          <text class="progress-percent">{{ progressPercent }}%</text>
+        </view>
+        <view class="progress-track">
+          <view class="progress-bar" :style="{ width: progressPercent + '%' }"></view>
+        </view>
+        <text class="progress-text">{{ progressState.message }}</text>
       </view>
 
       <view v-if="validationResults.length > 0" class="section validation-section">
@@ -147,6 +163,17 @@
       </view>
 
       <view class="actions">
+        <view v-if="isImporting && progressState.visible" class="import-inline-progress">
+          <view class="progress-header">
+            <text class="progress-title">{{ progressState.title }}</text>
+            <text class="progress-percent">{{ progressPercent }}%</text>
+          </view>
+          <view class="progress-track">
+            <view class="progress-bar" :style="{ width: progressPercent + '%' }"></view>
+          </view>
+          <text class="progress-text">{{ progressState.message }}</text>
+        </view>
+
         <button
           class="import-btn"
           @click="startImport"
@@ -169,18 +196,18 @@
     <view class="tips">
       <text class="tip-text">提示</text>
       <text class="tip-item">1. 支付宝和微信文件请直接上传原始导出结果，不需要删除说明行。</text>
-      <text class="tip-item">2. 重复记录会默认跳过，不覆盖你已经编辑过的本地账单。</text>
+      <text class="tip-item">2. 可在通用模板中填写“是否计入统计”，支持“是/否”。</text>
       <text class="tip-item">3. 充值、提现、转账等余额变动默认不参与消费统计。</text>
     </view>
   </scroll-view>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import * as XLSX from 'xlsx'
 import { useBillStore } from '@/store/bill.js'
-import { useCategoryStore } from '@/store/category.js'
+import { useCategoryStore, ASSET_ADJUSTMENT_CATEGORY_ID } from '@/store/category.js'
 import { useAssetStore } from '@/store/asset.js'
 import {
   PROVIDER_OPTIONS,
@@ -215,11 +242,41 @@ const parseMessages = ref([])
 const parseSummary = ref(null)
 const defaultExpenseCategoryId = ref('')
 const defaultIncomeCategoryId = ref('')
+const progressState = reactive({ visible: false, title: '', message: '', current: 0, total: 0 })
+const progressPercent = computed(() => {
+  if (!progressState.visible) return 0
+  if (!progressState.total) return progressState.current ? 100 : 0
+  return Math.min(100, Math.round((progressState.current / progressState.total) * 100))
+})
+const setProgress = ({ title = progressState.title, message = '', current = 0, total = 0 }) => {
+  progressState.visible = true
+  progressState.title = title
+  progressState.message = message
+  progressState.current = current
+  progressState.total = total
+}
+const finishProgress = (message) => setProgress({ title: progressState.title || '处理进度', message, current: 1, total: 1 })
+const resetProgress = () => {
+  progressState.visible = false
+  progressState.title = ''
+  progressState.message = ''
+  progressState.current = 0
+  progressState.total = 0
+}
+const showImportLoading = (current, total) => {
+  uni.showLoading({
+    title: '导入中 ' + current + '/' + total,
+    mask: true
+  })
+}
 
 const providerGuide = computed(() => PROVIDER_GUIDES[selectedProvider.value])
 const parsedProviderLabel = computed(() => parsedProvider.value ? getProviderLabel(parsedProvider.value) : '-')
-const previewRows = computed(() => importData.value.slice(0, 8))
-const importableData = computed(() => importData.value.filter(row => !row.isDuplicate && row.validationErrors.length === 0))
+const problemRows = computed(() => importData.value.filter(row => {
+  return row.validationErrors.length > 0 || row.validationWarnings.length > 0
+}))
+const previewRows = computed(() => problemRows.value.slice(0, 8))
+const importableData = computed(() => importData.value.filter(row => row.validationErrors.length === 0))
 
 const expenseCategoryOptions = computed(() => buildCategoryOptions('expense'))
 const incomeCategoryOptions = computed(() => buildCategoryOptions('income'))
@@ -301,9 +358,11 @@ const selectNetworkFile = async () => {
 
 const parseFile = async (file) => {
   clearParsedData()
+  setProgress({ title: '文件解析进度', message: '正在读取文件...', current: 1, total: 4 })
 
   try {
     const buffer = await readFileAsArrayBuffer(file)
+    setProgress({ title: '文件解析进度', message: '正在识别表格内容...', current: 2, total: 4 })
     const data = new Uint8Array(buffer)
     const result = parseWorkbookData(data, file.name || '网络文件.xls')
     parsedProvider.value = result.provider
@@ -315,8 +374,10 @@ const parseFile = async (file) => {
       ...result.errors.map(message => ({ type: 'error', message })),
       ...result.warnings.map(message => ({ type: 'warning', message }))
     ]
+    setProgress({ title: '文件解析进度', message: '正在校验数据...', current: 3, total: 4 })
     importData.value = decorateRows(result.rows)
     validateData()
+    finishProgress('解析完成：共 ' + result.rows.length + ' 条，可导入 ' + importableData.value.length + ' 条')
 
     if (result.errors.length) {
       uni.showToast({
@@ -328,6 +389,12 @@ const parseFile = async (file) => {
   } catch (error) {
     console.error('解析文件失败:', error)
     parseMessages.value = [{ type: 'error', message: '文件解析失败，请确认文件格式是否正确' }]
+    finishProgress('文件解析失败，请确认文件格式是否正确')
+
+    const finalMessage = '导入完成：成功 ' + successCount + ' 条，跳过 ' + skippedCount + ' 条，失败 ' + errorCount + ' 条'
+    resetImport()
+    finishProgress(finalMessage)
+
     uni.showToast({
       title: '文件解析失败',
       icon: 'none'
@@ -377,6 +444,7 @@ const parseWorkbookData = (data, fileName = '') => {
 }
 
 const clearParsedData = () => {
+  resetProgress()
   parsedProvider.value = ''
   importData.value = []
   validationResults.value = []
@@ -391,24 +459,14 @@ const resetImport = () => {
   clearParsedData()
 }
 
-const decorateRows = (rows) => {
-  const keyCounts = new Map()
-
-  return rows.map(row => {
-    const externalUniqueKey = createExternalUniqueKey(row)
-    const count = keyCounts.get(externalUniqueKey) || 0
-    keyCounts.set(externalUniqueKey, count + 1)
-
-    return {
-      ...row,
-      externalUniqueKey,
-      isDuplicate: count > 0 || hasExistingDuplicate(externalUniqueKey),
-      duplicateReason: count > 0 ? '文件内重复' : '已导入',
-      validationErrors: [],
-      validationWarnings: []
-    }
-  })
-}
+const decorateRows = (rows) => rows.map(row => ({
+  ...row,
+  externalUniqueKey: createExternalUniqueKey(row),
+  isDuplicate: false,
+  duplicateReason: '',
+  validationErrors: [],
+  validationWarnings: []
+}))
 
 const createExternalUniqueKey = (row) => [
   row.provider,
@@ -419,9 +477,6 @@ const createExternalUniqueKey = (row) => [
   row.orderNo
 ].filter(part => part !== undefined && part !== null && String(part).trim() !== '').join('|')
 
-const hasExistingDuplicate = (externalUniqueKey) => {
-  return billStore.bills.some(bill => bill.externalUniqueKey === externalUniqueKey)
-}
 
 const buildCategoryOptions = (type) => {
   const options = []
@@ -522,16 +577,22 @@ const validateData = () => {
       }
     }
 
-    if (Number(row.amount) <= 0) {
+    if (row.type === 'adjustment') {
+
+      if (Number(row.amount) === 0 || Number.isNaN(Number(row.amount))) {
+
+        errors.push('资产调整金额不能为0')
+
+      }
+
+    } else if (Number(row.amount) <= 0) {
+
       errors.push('金额必须大于0')
+
     }
 
     if (!rowHasCategory(row)) {
       errors.push(`请选择未分类${row.type === 'income' ? '收入' : '支出'}的默认分类`)
-    }
-
-    if (row.isDuplicate) {
-      warnings.push(`重复记录，导入时将跳过：${row.duplicateReason}`)
     }
 
     row.validationErrors = errors
@@ -558,22 +619,32 @@ const startImport = async () => {
   }
 
   isImporting.value = true
+  setProgress({ title: '导入进度', message: '准备导入 ' + importableData.value.length + ' 条记录...', current: 0, total: importableData.value.length })
+  showImportLoading(0, importableData.value.length)
 
   try {
     let successCount = 0
     let errorCount = 0
     const skippedCount = importData.value.length - importableData.value.length
 
-    for (const item of importableData.value) {
+    for (const [index, item] of importableData.value.entries()) {
+      setProgress({ title: '导入进度', message: '正在导入第 ' + (index + 1) + ' / ' + importableData.value.length + ' 条', current: index, total: importableData.value.length })
+      if (index === 0 || index % 10 === 0) showImportLoading(index, importableData.value.length)
       try {
         const assetId = ensureAsset(item.asset, item.provider)
         const targetAssetId = item.type === 'transfer' && item.targetAsset
           ? ensureAsset(item.targetAsset, item.provider)
           : null
         const category = ensureCategory(item)
-        const normalizedAmount = item.type === 'income' || item.type === 'refund'
-          ? Math.abs(Number(item.amount))
-          : -Math.abs(Number(item.amount))
+        const normalizedAmount = item.type === 'adjustment'
+
+          ? Number(item.amount)
+
+          : (item.type === 'income' || item.type === 'refund'
+
+            ? Math.abs(Number(item.amount))
+
+            : -Math.abs(Number(item.amount)))
 
         const billData = {
           amount: normalizedAmount,
@@ -583,8 +654,10 @@ const startImport = async () => {
           categoryId: category.categoryId,
           remark: item.remark,
           timestamp: parseTimestamp(item.date),
-          currency: item.currency || 'CNY',
-          targetAmount: item.type === 'transfer' ? Number(item.targetAmount ?? item.amount ?? 0) : undefined,
+          currency: item.currency || 'CNY',
+
+          targetAmount: item.type === 'transfer' ? Number(item.targetAmount ?? item.amount ?? 0) : undefined,
+
           targetCurrency: item.type === 'transfer' ? (item.targetCurrency || item.currency || 'CNY') : (item.currency || 'CNY'),
           type: item.type,
           isIncludedInStats: item.isIncludedInStats,
@@ -596,11 +669,17 @@ const startImport = async () => {
 
         await billStore.addBill(billData)
         successCount += 1
+        setProgress({ title: '导入进度', message: '已导入 ' + (index + 1) + ' / ' + importableData.value.length + ' 条', current: index + 1, total: importableData.value.length })
+        if ((index + 1) % 10 === 0 || index + 1 === importableData.value.length) showImportLoading(index + 1, importableData.value.length)
       } catch (error) {
         console.error('导入失败:', error)
         errorCount += 1
       }
     }
+
+    const finalMessage = '导入完成：成功 ' + successCount + ' 条，跳过 ' + skippedCount + ' 条，失败 ' + errorCount + ' 条'
+    resetImport()
+    finishProgress(finalMessage)
 
     uni.showToast({
       title: `成功${successCount}条，跳过${skippedCount}条，失败${errorCount}条`,
@@ -608,7 +687,6 @@ const startImport = async () => {
       duration: 3000
     })
 
-    resetImport()
   } catch (error) {
     console.error('导入过程出错:', error)
     uni.showToast({
@@ -616,6 +694,7 @@ const startImport = async () => {
       icon: 'none'
     })
   } finally {
+    uni.hideLoading()
     isImporting.value = false
   }
 }
@@ -633,6 +712,10 @@ const ensureAsset = (name, provider) => {
 }
 
 const ensureCategory = (item) => {
+  if (item.type === 'adjustment') {
+    return { parentCategoryId: ASSET_ADJUSTMENT_CATEGORY_ID, categoryId: ASSET_ADJUSTMENT_CATEGORY_ID }
+  }
+
   if (!['income', 'expense', 'refund'].includes(item.type)) {
     return { parentCategoryId: null, categoryId: null }
   }
@@ -672,9 +755,15 @@ const parseTimestamp = (dateText) => {
 
 const formatAmount = (row) => {
 
-  const sign = row.type === 'income' || row.type === 'refund' ? '+' : '-'
+  const sign = row.type === 'adjustment'
+    ? (Number(row.amount || 0) >= 0 ? '+' : '')
+    : (row.type === 'income' || row.type === 'refund' ? '+' : '-')
 
-  return `${sign}${Number(row.amount || 0).toFixed(2)} ${row.currency || 'CNY'}`
+  const displayAmount = row.type === 'adjustment'
+    ? Number(row.amount || 0)
+    : Math.abs(Number(row.amount || 0))
+
+  return `${sign}${displayAmount.toFixed(2)} ${row.currency || 'CNY'}`
 
 }
 
@@ -877,7 +966,8 @@ const formatFileSize = (bytes) => {
 .file-size,
 .format-text,
 .detected-text,
-.more-text {
+.more-text,
+.empty-text {
   color: var(--color-text-light);
   font-size: 12px;
   line-height: 18px;
@@ -949,7 +1039,7 @@ const formatFileSize = (bytes) => {
 .table-header,
 .table-row {
   display: flex;
-  min-width: 840px;
+  min-width: 950px;
 }
 
 .table-header {
@@ -1010,6 +1100,15 @@ const formatFileSize = (bytes) => {
 .validation-text.warning {
   color: #c8892e;
 }
+
+.progress-section { padding: 14px; border-radius: 14px; background: rgba(255,255,255,.68); }
+.import-inline-progress { box-sizing: border-box; width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 14px; background: rgba(255,255,255,.78); }
+.progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.progress-title { color: #333; font-size: 14px; font-weight: 800; }
+.progress-percent { color: var(--color-primary, #FF8D5D); font-size: 13px; font-weight: 800; }
+.progress-track { height: 8px; border-radius: 999px; overflow: hidden; background: rgba(0,0,0,.08); }
+.progress-bar { height: 100%; border-radius: 999px; background: var(--color-primary, #FF8D5D); transition: width .25s ease; }
+.progress-text { display: block; margin-top: 8px; color: #777; font-size: 12px; }
 
 .tips {
 

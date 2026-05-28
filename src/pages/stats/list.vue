@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="container">
     <view v-if="isAssetMode" class="filter-panel">
       <view class="filter-summary" @click="showFilter = !showFilter">
@@ -7,6 +7,17 @@
           <text class="filter-desc">{{ filterSummaryText }}</text>
         </view>
         <text class="filter-toggle">{{ showFilter ? '收起' : '筛选' }}</text>
+      </view>
+
+      <view class="asset-total-row">
+        <view class="asset-total-item expense">
+          <text class="asset-total-label">支出总计</text>
+          <text class="asset-total-value">{{ assetTotalSummary.expenseText }}</text>
+        </view>
+        <view class="asset-total-item income">
+          <text class="asset-total-label">收入总计</text>
+          <text class="asset-total-value">{{ assetTotalSummary.incomeText }}</text>
+        </view>
       </view>
 
       <view v-if="showFilter" class="filter-body">
@@ -48,23 +59,38 @@
             <text class="day-total">{{ group.totalText }}</text>
           </view>
 
-          <view v-for="bill in group.bills" :key="bill.id" class="bill-item" :class="getBillStateClass(bill)" @longpress="deleteBill(bill.id)">
-            <view class="bill-left">
-              <view :class="['icon-box', getIconClass(bill)]">
-                <text class="category-icon">{{ getBillIcon(bill) }}</text>
-              </view>
-              <view class="bill-info">
-                <view class="category-row">
-                  <text class="category-name">{{ getCategoryName(bill) }}</text>
-                  <text v-if="bill.type === 'refund'" class="state-badge refund">退款</text>
-                  <text v-else-if="bill.isRefunded" class="state-badge refunded">已退</text>
+          <view v-for="bill in group.bills" :key="bill.id" class="bill-item-wrapper">
+            <view
+              class="bill-item-container"
+              :class="{ 'show-actions': activeBillId === bill.id }"
+              :data-bill-id="bill.id"
+              @touchstart="onTouchStart"
+              @touchmove="onTouchMove"
+              @touchend="onTouchEnd"
+            >
+              <view class="bill-item" :class="getBillStateClass(bill)">
+                <view class="bill-left">
+                  <view :class="['icon-box', getIconClass(bill)]">
+                    <text class="category-icon">{{ getBillIcon(bill) }}</text>
+                  </view>
+                  <view class="bill-info">
+                    <view class="category-row">
+                      <text class="category-name">{{ getCategoryName(bill) }}</text>
+                      <text v-if="bill.type === 'refund'" class="state-badge refund">退款</text>
+                      <text v-else-if="bill.isRefunded" class="state-badge refunded">已退</text>
+                    </view>
+                    <text class="bill-date">{{ getBillMetaText(bill) }}</text>
+                    <text class="bill-remark" v-if="bill.remark">{{ bill.remark }}</text>
+                  </view>
                 </view>
-                <text class="bill-date">{{ getBillMetaText(bill) }}</text>
-                <text class="bill-remark" v-if="bill.remark">{{ bill.remark }}</text>
+                <view class="bill-right">
+                  <text :class="['bill-amount', getAmountClass(bill)]">{{ getDisplayAmount(bill) }}</text>
+                </view>
               </view>
-            </view>
-            <view class="bill-right">
-              <text :class="['bill-amount', getAmountClass(bill)]">{{ getDisplayAmount(bill) }}</text>
+              <view class="action-buttons">
+                <button class="action-btn edit-btn" @click.stop="editBill(bill.id)">修改</button>
+                <button class="action-btn delete-btn" @click.stop="deleteBill(bill.id)">删除</button>
+              </view>
             </view>
           </view>
         </view>
@@ -75,7 +101,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
@@ -91,6 +117,10 @@ const startDate = ref('')
 const endDate = ref('')
 const appliedStartDate = ref('')
 const appliedEndDate = ref('')
+const activeBillId = ref(null)
+const touchStartX = ref(0)
+const touchStartY = ref(0)
+const isMoving = ref(false)
 
 const isAssetMode = computed(() => !!params.value.assetId)
 const filterSummaryText = computed(() => {
@@ -100,9 +130,7 @@ const filterSummaryText = computed(() => {
 
 onLoad((options) => {
   params.value = options
-  billStore.init()
-  categoryStore.init()
-  assetStore.init()
+  initStores()
 
   setTimeout(() => {
     let title = '账单明细'
@@ -126,6 +154,16 @@ onLoad((options) => {
     uni.setNavigationBarTitle({ title })
   }, 100)
 })
+
+onShow(() => {
+  initStores()
+})
+
+const initStores = () => {
+  billStore.init()
+  categoryStore.init()
+  assetStore.init()
+}
 
 const filteredBills = computed(() => {
   const { id, filterType, period, date, type, assetId } = params.value
@@ -171,6 +209,33 @@ const filteredBills = computed(() => {
 
     return false
   }).sort((a, b) => b.timestamp - a.timestamp)
+})
+
+const assetTotalSummary = computed(() => {
+  const incomeMap = {}
+  const expenseMap = {}
+
+  filteredBills.value.forEach(bill => {
+    const scoped = getAssetScopedAmount(bill)
+    const currency = scoped.currency || 'CNY'
+    const amount = Number(scoped.amount || 0)
+    if (amount > 0) {
+      incomeMap[currency] = (incomeMap[currency] || 0) + amount
+    } else if (amount < 0) {
+      expenseMap[currency] = (expenseMap[currency] || 0) + Math.abs(amount)
+    }
+  })
+
+  const formatMap = (map) => {
+    const entries = Object.entries(map)
+    if (!entries.length) return formatCurrencyAmount(0, 'CNY')
+    return entries.map(([currency, amount]) => formatCurrencyAmount(amount, currency)).join(' / ')
+  }
+
+  return {
+    incomeText: formatMap(incomeMap),
+    expenseText: formatMap(expenseMap)
+  }
 })
 
 const groupedBills = computed(() => {
@@ -220,6 +285,32 @@ const applyDateFilter = () => {
   showFilter.value = false
 }
 
+const onTouchStart = (e) => {
+  touchStartX.value = e.touches[0].clientX
+  touchStartY.value = e.touches[0].clientY
+  isMoving.value = false
+}
+
+const onTouchMove = (e) => {
+  const deltaX = e.touches[0].clientX - touchStartX.value
+  const deltaY = e.touches[0].clientY - touchStartY.value
+  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+    isMoving.value = true
+  }
+}
+
+const onTouchEnd = (e) => {
+  if (!isMoving.value) return
+  const deltaX = e.changedTouches[0].clientX - touchStartX.value
+  const billId = e.currentTarget.dataset.billId
+  if (deltaX < -50) {
+    activeBillId.value = billId
+  } else if (deltaX > 50) {
+    activeBillId.value = null
+  }
+  isMoving.value = false
+}
+
 const getCategoryName = (bill) => {
   if (bill.type === 'transfer') return params.value.assetId ? '转账' : '信用卡还款'
   if (bill.type === 'adjustment') return '资产调整'
@@ -255,7 +346,9 @@ const formatDayTitle = (ts) => {
   if (key === formatDateKey(yesterday.getTime())) return '昨天'
 
   const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  return `${date.getMonth() + 1}月${date.getDate()}日 ${weekdays[date.getDay()]}`
+  const dateText = `${date.getMonth() + 1}月${date.getDate()}日`
+  const yearText = date.getFullYear() !== today.getFullYear() ? ` ${date.getFullYear()}年` : ''
+  return `${dateText}${yearText} ${weekdays[date.getDay()]}`
 }
 
 const formatDate = (ts) => new Date(ts).toLocaleDateString()
@@ -311,14 +404,25 @@ const getBillStateClass = (bill) => {
   return ''
 }
 
+const editBill = (id) => {
+  const bill = billStore.getBill(id)
+  if (!bill) {
+    uni.showToast({ title: '账单不存在', icon: 'none' })
+    return
+  }
+  activeBillId.value = null
+  uni.navigateTo({ url: '/pages/bill/add?id=' + id + '&type=' + bill.type })
+}
+
 const deleteBill = (id) => {
   uni.showModal({
     title: '删除账单',
     content: '确定要删除这条账单吗？',
-    success: (res) => {
-      if (res.confirm) {
-        billStore.deleteBill(id)
-      }
+    success: async (res) => {
+      if (!res.confirm) return
+      await billStore.deleteBill(id)
+      activeBillId.value = null
+      uni.showToast({ title: '已删除', icon: 'success' })
     }
   })
 }
@@ -369,6 +473,47 @@ const deleteBill = (id) => {
   color: #fff;
   font-size: 13px;
   font-weight: 700;
+}
+
+.asset-total-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.asset-total-item {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  min-width: 0;
+}
+
+.asset-total-label,
+.asset-total-value {
+  display: block;
+}
+
+.asset-total-label {
+  margin-bottom: 4px;
+  color: var(--color-text-light);
+  font-size: 11px;
+}
+
+.asset-total-value {
+  font-size: 14px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-total-item.expense .asset-total-value {
+  color: var(--color-primary);
+}
+
+.asset-total-item.income .asset-total-value {
+  color: #5b9469;
 }
 
 .filter-body {
@@ -485,13 +630,31 @@ const deleteBill = (id) => {
   color: var(--color-text-light);
 }
 
+.bill-item-wrapper {
+  position: relative;
+  margin-bottom: 10px;
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.bill-item-container {
+  position: relative;
+  transition: transform 0.3s ease;
+}
+
+.bill-item-container.show-actions {
+  transform: translateX(-180rpx);
+}
+
 .bill-item {
   min-height: 70px;
-  padding: 14px;
-  margin-bottom: 10px;
+  padding: 14px 14px;
+  margin-bottom: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
+  z-index: 1;
   background: rgba(255, 249, 240, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.62);
   border-radius: 20px;
@@ -499,6 +662,10 @@ const deleteBill = (id) => {
 }
 
 .bill-item.is-refunded { opacity: 0.72; }
+
+.bill-item.is-refund {
+  background: rgba(255, 245, 234, 0.94);
+}
 
 .bill-left {
   display: flex;
@@ -582,6 +749,33 @@ const deleteBill = (id) => {
   font-weight: 900;
   text-align: right;
 }
+
+.action-buttons {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  bottom: 0;
+  width: 180rpx;
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.action-btn {
+  flex: 1;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  font-size: 26rpx;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.edit-btn { background-color: #007aff; }
+.delete-btn { background-color: #ff3b30; }
 
 .expense { color: var(--color-text); }
 .income { color: #5b9469; }

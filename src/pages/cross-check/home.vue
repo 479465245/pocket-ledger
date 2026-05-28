@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <scroll-view scroll-y class="container">
     <view class="header">
       <text class="title">交叉校验操作主页</text>
@@ -32,6 +32,8 @@
           <text>外部流水 {{ report.summary.externalCount }} 条</text>
           <text>本地账单 {{ report.summary.localCount }} 条</text>
           <text>已匹配 {{ report.summary.matchedCount }} 条</text>
+          <text>外部计入统计 {{ report.summary.externalStatsCount || 0 }} 条</text>
+          <text>本地计入统计 {{ report.summary.localStatsCount || 0 }} 条</text>
         </view>
 
         <view class="problem-list">

@@ -1,4 +1,4 @@
-import { generateId } from '@/utils/uuid'
+﻿import { generateId } from '@/utils/uuid'
 
 export const CROSS_CHECK_SESSION_KEY = 'account_book_cross_check_session'
 
@@ -78,6 +78,7 @@ export const createCrossCheckSession = ({ assetId, assetName, startDate, endDate
         paymentMethod: row.paymentMethod || '',
         counterparty: row.counterparty || '',
         remark: row.remark || '',
+        isIncludedInStats: row.isIncludedInStats !== false,
         orderNo: row.orderNo || '',
         raw: row
       }
@@ -112,7 +113,8 @@ const makeLocalItem = (bill, assetId, assets) => {
     direction: getDirection(amount),
     assetId,
     assetName,
-    remark: bill.remark || ''
+    remark: bill.remark || '',
+    isIncludedInStats: bill.isIncludedInStats !== false
   }
 }
 
@@ -195,6 +197,8 @@ export const calculateCrossCheckReport = ({ session, bills = [], assets = [] }) 
 
   const localRangeTotal = roundMoney(localItems.reduce((sum, item) => sum + item.amount, 0))
   const externalRangeTotal = roundMoney(externalRows.reduce((sum, item) => sum + Number(item.amount || 0), 0))
+  const localStatsCount = localItems.filter(item => item.isIncludedInStats !== false).length
+  const externalStatsCount = externalRows.filter(item => item.isIncludedInStats !== false).length
 
   return {
     summary: {
@@ -204,7 +208,9 @@ export const calculateCrossCheckReport = ({ session, bills = [], assets = [] }) 
       missingCount: missingItems.length,
       extraCount: extraItems.length,
       assetMismatchCount: assetMismatchItems.length,
-      duplicateCount: duplicateItems.length
+      duplicateCount: duplicateItems.length,
+      localStatsCount,
+      externalStatsCount
     },
     localRangeTotal,
     externalRangeTotal,

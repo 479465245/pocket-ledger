@@ -89,6 +89,14 @@
       }
     },
     {
+      "path": "pages/settings/backup",
+      "style": {
+        "navigationBarTitleText": "备份还原",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/settings/export",
       "style": {
         "navigationBarTitleText": "数据导出",

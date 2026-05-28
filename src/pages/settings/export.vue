@@ -80,6 +80,17 @@
         上传到网络文件
 
       </button>
+
+      <view v-if="exportProgress.visible" class="progress-section">
+        <view class="progress-header">
+          <text class="progress-title">{{ exportProgress.title }}</text>
+          <text class="progress-percent">{{ exportProgressPercent }}%</text>
+        </view>
+        <view class="progress-track">
+          <view class="progress-bar" :style="{ width: exportProgressPercent + '%' }"></view>
+        </view>
+        <text class="progress-text">{{ exportProgress.message }}</text>
+      </view>
       
       <!-- 导出说明 -->
       <view class="tips">
@@ -94,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useAssetStore } from '@/store/asset'
@@ -108,6 +119,19 @@ const categoryStore = useCategoryStore()
 const isExporting = ref(false)
 const startDate = ref(getDateString(new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000))) // 30天前
 const endDate = ref(getDateString(new Date()))
+const exportProgress = reactive({ visible: false, title: '', message: '', current: 0, total: 0 })
+const exportProgressPercent = computed(() => {
+  if (!exportProgress.visible) return 0
+  if (!exportProgress.total) return exportProgress.current ? 100 : 0
+  return Math.min(100, Math.round((exportProgress.current / exportProgress.total) * 100))
+})
+const setExportProgress = ({ title = exportProgress.title, message = '', current = 0, total = 0 }) => {
+  exportProgress.visible = true
+  exportProgress.title = title
+  exportProgress.message = message
+  exportProgress.current = current
+  exportProgress.total = total
+}
 
 const quickOptions = [
   { key: '7days', label: '近7天' },
@@ -217,6 +241,7 @@ const buildExportPayload = () => {
       '一级分类': parentCategoryName,
       '二级分类': categoryName,
       '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
+      '是否计入统计': bill.isIncludedInStats === false ? '否' : '是',
       '备注': bill.remark || bill.note || ''
     }
   })
@@ -231,10 +256,13 @@ const buildExportPayload = () => {
 const handleExport = async () => {
   if (isExporting.value) return
   isExporting.value = true
+  setExportProgress({ title: '导出进度', message: '正在筛选账单...', current: 1, total: 4 })
 
   try {
     const payload = buildExportPayload()
+    setExportProgress({ title: '导出进度', message: '正在生成文件...', current: 3, total: 4 })
     saveXLSFile(payload.fileName, payload.content)
+    setExportProgress({ title: '导出进度', message: '导出完成：共 ' + payload.count + ' 条记录', current: 4, total: 4 })
     uni.showToast({ title: `导出成功，共${payload.count}条记录`, icon: 'success', duration: 2000 })
   } catch (error) {
     console.error('导出失败:', error)
@@ -247,12 +275,16 @@ const handleExport = async () => {
 const handleUploadNetwork = async () => {
   if (isExporting.value) return
   isExporting.value = true
+  setExportProgress({ title: '上传进度', message: '请选择上传位置...', current: 1, total: 5 })
 
   try {
     const config = await chooseNetworkFileConfig('upload')
+    setExportProgress({ title: '上传进度', message: '正在准备导出文件...', current: 2, total: 5 })
     const payload = buildExportPayload()
+    setExportProgress({ title: '上传进度', message: '正在上传文件...', current: 4, total: 5 })
     uni.showLoading({ title: '上传中...' })
     await uploadNetworkFile(config, payload.fileName, payload.content)
+    setExportProgress({ title: '上传进度', message: '上传完成：共 ' + payload.count + ' 条记录', current: 5, total: 5 })
     uni.showToast({ title: `上传成功，共${payload.count}条记录`, icon: 'success', duration: 2000 })
   } catch (error) {
     if (error.message !== '已取消选择') {
@@ -511,13 +543,21 @@ function saveXLSFile(fileName, content) {
   opacity: 0.6;
 }
 
-.primary-btn {
-  color: #FF8D5D;
-}
-
-.upload-btn {
-  color: #333;
-}
+.primary-btn {
+  color: #FF8D5D;
+}
+
+.upload-btn {
+  color: #333;
+}
+
+.progress-section { width: 100%; box-sizing: border-box; padding: 14px; margin-top: 14px; border-radius: 14px; background: rgba(255,255,255,.68); }
+.progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.progress-title { color: #333; font-size: 14px; font-weight: 800; }
+.progress-percent { color: var(--color-primary, #FF8D5D); font-size: 13px; font-weight: 800; }
+.progress-track { height: 8px; border-radius: 999px; overflow: hidden; background: rgba(0,0,0,.08); }
+.progress-bar { height: 100%; border-radius: 999px; background: var(--color-primary, #FF8D5D); transition: width .25s ease; }
+.progress-text { display: block; margin-top: 8px; color: #777; font-size: 12px; }
 
 .tips {
   width: 100%;

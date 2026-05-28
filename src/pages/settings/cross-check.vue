@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <scroll-view scroll-y class="container">
     <view class="header">
       <text class="title">交叉校验</text>
@@ -48,6 +48,17 @@
         <text class="hint">文件仅用于本次交叉校验，不会直接写入账本。</text>
       </view>
 
+      <view v-if="progressState.visible" class="section progress-section">
+        <view class="progress-header">
+          <text class="progress-title">{{ progressState.title }}</text>
+          <text class="progress-percent">{{ progressPercent }}%</text>
+        </view>
+        <view class="progress-track">
+          <view class="progress-bar" :style="{ width: progressPercent + '%' }"></view>
+        </view>
+        <text class="progress-text">{{ progressState.message }}</text>
+      </view>
+
       <view v-if="parseMessages.length" class="section">
         <view v-for="(message, index) in parseMessages" :key="index" :class="['message', message.type]">
           {{ message.message }}
@@ -65,7 +76,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import * as XLSX from 'xlsx'
 import { useAssetStore } from '@/store/asset'
@@ -88,6 +99,19 @@ const parsedProvider = ref('')
 const selectedFileName = ref('')
 const externalRows = ref([])
 const parseMessages = ref([])
+const progressState = reactive({ visible: false, title: '', message: '', current: 0, total: 0 })
+const progressPercent = computed(() => {
+  if (!progressState.visible) return 0
+  if (!progressState.total) return progressState.current ? 100 : 0
+  return Math.min(100, Math.round((progressState.current / progressState.total) * 100))
+})
+const setProgress = ({ title = progressState.title, message = '', current = 0, total = 0 }) => {
+  progressState.visible = true
+  progressState.title = title
+  progressState.message = message
+  progressState.current = current
+  progressState.total = total
+}
 
 const providerOptions = PROVIDER_OPTIONS
 const assetLabels = computed(() => assetStore.assets.map(asset => asset.name))
@@ -109,6 +133,7 @@ const onAssetChange = (event) => {
 
 const selectFile = () => {
   parseMessages.value = []
+  setProgress({ title: '校验文件进度', message: '请选择校验文件...', current: 0, total: 4 })
   // #ifdef H5
   const input = document.createElement('input')
   input.type = 'file'
@@ -135,7 +160,9 @@ const selectFile = () => {
 
 const selectNetworkFile = async () => {
   try {
+    setProgress({ title: '校验文件进度', message: '请选择网络文件...', current: 1, total: 5 })
     const config = await chooseNetworkFileConfig('download')
+    setProgress({ title: '校验文件进度', message: '正在下载网络文件...', current: 2, total: 5 })
     uni.showLoading({ title: '下载中...' })
     const file = await downloadNetworkFile(config)
     await readFile(file)
@@ -151,16 +178,20 @@ const selectNetworkFile = async () => {
 
 const readFile = async (file) => {
   selectedFileName.value = file.name || '已选择文件'
+  setProgress({ title: '校验文件进度', message: '正在读取文件...', current: 1, total: 4 })
   try {
     const buffer = await readFileAsArrayBuffer(file)
+    setProgress({ title: '校验文件进度', message: '正在解析流水...', current: 2, total: 4 })
     const data = new Uint8Array(buffer)
     const result = parseWorkbookData(data, selectedFileName.value)
     parsedProvider.value = result.provider
     externalRows.value = result.rows.filter(row => row.type && row.date && !Number.isNaN(new Date(String(row.date).replace(/-/g, '/')).getTime()))
+    setProgress({ title: '校验文件进度', message: '正在过滤有效流水...', current: 3, total: 4 })
     parseMessages.value = [
       ...result.errors.map(message => ({ type: 'error', message })),
       ...result.warnings.map(message => ({ type: 'warning', message }))
     ]
+    setProgress({ title: '校验文件进度', message: '解析完成：有效流水 ' + externalRows.value.length + ' 条', current: 4, total: 4 })
     if (!externalRows.value.length && result.errors.length) {
       uni.showToast({ title: result.errors[0], icon: 'none' })
     }
@@ -207,6 +238,8 @@ const startCheck = () => {
     return
   }
 
+  setProgress({ title: '开始校验进度', message: '正在创建校验会话...', current: 1, total: 2 })
+
   createCrossCheckSession({
     assetId: selectedAssetId.value,
     assetName: selectedAssetName.value,
@@ -216,6 +249,7 @@ const startCheck = () => {
     rows: externalRows.value
   })
 
+  setProgress({ title: '开始校验进度', message: '校验数据准备完成，正在进入结果页...', current: 2, total: 2 })
   uni.redirectTo({ url: '/pages/cross-check/home' })
 }
 </script>
@@ -242,5 +276,12 @@ const startCheck = () => {
 .message.error { background: #ffecec; color: #d64545; }
 .message.warning { background: #fff4dc; color: #a66a00; }
 .summary { padding: 12px; border-radius: 12px; background: rgba(255,255,255,.68); }
+.progress-section { padding: 14px; border-radius: 14px; background: rgba(255,255,255,.68); }
+.progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.progress-title { color: #333; font-size: 14px; font-weight: 800; }
+.progress-percent { color: var(--color-primary, #FF8D5D); font-size: 13px; font-weight: 800; }
+.progress-track { height: 8px; border-radius: 999px; overflow: hidden; background: rgba(0,0,0,.08); }
+.progress-bar { height: 100%; border-radius: 999px; background: var(--color-primary, #FF8D5D); transition: width .25s ease; }
+.progress-text { display: block; margin-top: 8px; color: #777; font-size: 12px; }
 .summary-title { display: block; margin-bottom: 4px; font-size: 16px; font-weight: 700; color: #333; }
 </style>

@@ -1,4 +1,4 @@
-export const PROVIDER_OPTIONS = [
+﻿export const PROVIDER_OPTIONS = [
   { value: 'auto', label: '自动识别' },
   { value: 'alipay', label: '支付宝' },
   { value: 'wechat', label: '微信' },
@@ -9,7 +9,7 @@ export const PROVIDER_GUIDES = {
   auto: '上传支付宝、微信导出的原始账单，系统会根据表头识别来源。',
   alipay: '上传支付宝导出的个人账单文件，保持原始表头和列顺序。',
   wechat: '上传微信支付导出的个人账单文件，保持原始表头和列顺序。',
-  generic: '上传按本应用模板整理的表格：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、备注。'
+  generic: '上传按本应用模板整理的表格：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、是否计入统计、备注。'
 }
 
 const PLATFORM_WALLET_ASSET_NAME = {
@@ -59,6 +59,7 @@ const HEADER_ALIASES = {
     category2: ['二级分类', '子分类'],
 
     fee: ['手续费', '费用'],
+    isIncludedInStats: ['是否计入统计', '计入统计', '参与统计', '是否参与统计', '是否计入收支', '计入收支', '是否计入统计金额'],
     remark: ['备注', '说明', '商品说明']
   },
   alipay: {
@@ -178,14 +179,29 @@ const normalizeCurrencyCode = (value, fallback = 'CNY') => {
   return text || fallback
 }
 
-const parseAmount = (value) => {
+const parseSignedAmount = (value) => {
   const text = normalizeText(value)
     .replace(/,/g, '')
     .replace(/[￥¥元]/g, '')
     .replace(/[()（）]/g, '')
   const match = text.match(/[-+]?\d+(?:\.\d+)?/)
   if (!match) return null
-  return Math.abs(Number(match[0]))
+  return Number(match[0])
+}
+
+const parseAmount = (value) => {
+  const signed = parseSignedAmount(value)
+  return signed === null ? null : Math.abs(signed)
+}
+
+const parseBooleanValue = (value, fallback) => {
+  const text = normalizeText(value).toLowerCase()
+  if (!text) return fallback
+  if (['是', 'true', 'yes', 'y', '1', '计入', '参与'].includes(text)) return true
+  if (['否', 'false', 'no', 'n', '0', '不计入', '不参与'].includes(text)) return false
+  if (text.includes('不计') || text.includes('不参与') || text.includes('否')) return false
+  if (text.includes('计入') || text.includes('参与') || text.includes('是')) return true
+  return fallback
 }
 
 const formatExcelDate = (value) => {
@@ -206,7 +222,8 @@ const parseGenericType = (value) => {
   if (['支出', 'expense'].includes(text)) return 'expense'
   if (['收入', 'income'].includes(text)) return 'income'
   if (['转账', 'transfer'].includes(text)) return 'transfer'
-  if (['退款', 'refund'].includes(text)) return 'refund'
+  if (['资产调整', 'adjustment'].includes(text)) return 'adjustment'
+
   return null
 }
 
@@ -344,7 +361,9 @@ const parseGenericRow = (row, headerMap, rowIndex) => {
 
   const type = parseGenericType(getCell(row, headerMap, 'type'))
 
-  const amount = parseAmount(getCell(row, headerMap, 'amount'))
+  const amount = type === 'adjustment'
+    ? parseSignedAmount(getCell(row, headerMap, 'amount'))
+    : parseAmount(getCell(row, headerMap, 'amount'))
 
   const currency = normalizeCurrencyCode(getCell(row, headerMap, 'currency'), 'CNY')
 
@@ -357,6 +376,10 @@ const parseGenericRow = (row, headerMap, rowIndex) => {
   const parsedTargetAmount = parseAmount(rawTargetAmount)
 
   const targetAmount = parsedTargetAmount ?? amount ?? 0
+
+  const defaultIncludedInStats = type ? !['transfer', 'refund', 'adjustment'].includes(type) : false
+
+  const isIncludedInStats = parseBooleanValue(getCell(row, headerMap, 'isIncludedInStats'), defaultIncludedInStats)
 
   const errors = []
 
@@ -378,7 +401,7 @@ const parseGenericRow = (row, headerMap, rowIndex) => {
 
     type,
 
-    typeText: type ? ({ expense: '支出', income: '收入', transfer: '转账', refund: '退款' }[type]) : '',
+    typeText: type ? ({ expense: '支出', income: '收入', transfer: '转账', refund: '退款', adjustment: '资产调整' }[type]) : '',
 
     asset: getCell(row, headerMap, 'asset'),
 
@@ -402,7 +425,7 @@ const parseGenericRow = (row, headerMap, rowIndex) => {
 
     orderNo: '',
 
-    isIncludedInStats: type ? !['transfer', 'refund'].includes(type) : false,
+    isIncludedInStats,
 
     parseErrors: errors
 
@@ -442,10 +465,14 @@ const parsePlatformRow = (row, headerMap, rowIndex, provider) => {
     asset: assetInfo.asset,
     assetType: assetInfo.assetType,
     paymentMethod: assetInfo.paymentMethod,
-    currency: 'CNY',
-    targetAsset: '',
-    targetCurrency: 'CNY',
-    targetAmount: amount ?? 0,
+    currency: 'CNY',
+
+    targetAsset: '',
+
+    targetCurrency: 'CNY',
+
+    targetAmount: amount ?? 0,
+
     category1: provider === 'alipay' ? category : '',
     category2: '',
     amount: amount ?? 0,

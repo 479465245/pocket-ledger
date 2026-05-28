@@ -549,8 +549,10 @@ const formatDayTitle = (ts) => {
   if (key === formatDateKey(today.getTime())) return '今天'
   if (key === formatDateKey(yesterday.getTime())) return '昨天'
 
-  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  return `${date.getMonth() + 1}月${date.getDate()}日 ${weekdays[date.getDay()]}`
+  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const dateText = `${date.getMonth() + 1}月${date.getDate()}日`
+  const yearText = date.getFullYear() !== today.getFullYear() ? ` ${date.getFullYear()}年` : ''
+  return `${dateText}${yearText} ${weekdays[date.getDay()]}`
 }
 
 const formatMoney = (amount, currency = 'CNY') => {
@@ -989,11 +991,16 @@ const onAssetTouchEnd = (e) => {
   margin-bottom: 10px;
 }
 
-.bill-scroll {
-  flex: 1;
-  min-height: 0;
-  height: 0;
-  overflow: hidden;
+.bill-scroll {
+
+  flex: 1;
+
+  min-height: 0;
+
+  height: 0;
+
+  overflow: hidden;
+
 }
 
 .bill-list,

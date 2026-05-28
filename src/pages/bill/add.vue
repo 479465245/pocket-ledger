@@ -13,50 +13,49 @@
     </view>
 
     <!-- Category Grid -->
-    <scroll-view scroll-y class="category-area" v-if="currentTab !== 'transfer'" :scroll-top="scrollTop" scroll-with-animation>
-        <view class="grid-container">
-            <view 
-                v-for="cat in categories" 
-                :key="cat.id" 
-                class="grid-item"
-                @click="selectCategory(cat)"
-            >
-                <view :class="['icon-wrapper', selectedCategoryId === cat.id ? 'selected' : '']">
-                    <text class="icon-text">{{ cat.icon || cat.name[0] }}</text>
-                    <view v-if="cat.children && cat.children.length > 0" class="plus-badge">+</view>
+    <scroll-view scroll-y class="category-area" v-if="currentTab !== 'transfer'" :show-scrollbar="false">
+        <swiper class="category-swiper" :indicator-dots="categoryPages.length > 1" indicator-color="rgba(74,74,74,.18)" indicator-active-color="#88B194">
+            <swiper-item v-for="(page, pageIndex) in categoryPages" :key="pageIndex" class="category-swiper-item">
+                <view class="category-page">
+                    <view 
+                        v-for="cat in page" 
+                        :key="cat.id" 
+                        class="grid-item"
+                        @click="cat.isSetting ? goManageCategories() : selectCategory(cat)"
+                    >
+                        <view :class="['icon-wrapper', cat.isSetting ? 'setting' : '', selectedCategoryId === cat.id ? 'selected' : '']">
+                            <text class="icon-text">{{ cat.isSetting ? '⚙️' : (cat.icon || cat.name[0]) }}</text>
+                            <view v-if="!cat.isSetting && cat.children && cat.children.length > 0" class="plus-badge">+</view>
+                        </view>
+                        <text :class="['cat-name', selectedCategoryId === cat.id ? 'selected-text' : '']">{{ cat.name }}</text>
+                    </view>
                 </view>
-                <text :class="['cat-name', selectedCategoryId === cat.id ? 'selected-text' : '']">{{ cat.name }}</text>
-            </view>
-            <view class="grid-item" @click="goManageCategories">
-                 <view class="icon-wrapper setting">
-                    <text class="icon-text">⚙️</text>
-                 </view>
-                 <text class="cat-name">设置</text>
-            </view>
-        </view>
+            </swiper-item>
+        </swiper>
 
         <!-- Sub Categories Expansion -->
         <view v-if="subCategories.length > 0" class="sub-category-panel">
             <view class="sub-divider">
                 <text class="divider-text">选择子分类</text>
             </view>
-            <view class="grid-container">
-                <view 
-                    v-for="sub in subCategories" 
-                    :key="sub.id" 
-                    class="grid-item"
-                    @click="selectSubCategory(sub)"
-                >
-                    <view :class="['icon-wrapper', form.categoryId === sub.id ? 'selected' : '']">
-                        <text class="icon-text">{{ sub.icon || sub.name[0] }}</text>
+            <swiper class="category-swiper sub-swiper" :indicator-dots="subCategoryPages.length > 1" indicator-color="rgba(74,74,74,.18)" indicator-active-color="#88B194">
+                <swiper-item v-for="(page, pageIndex) in subCategoryPages" :key="pageIndex" class="category-swiper-item">
+                    <view class="category-page">
+                        <view 
+                            v-for="sub in page" 
+                            :key="sub.id" 
+                            class="grid-item"
+                            @click="selectSubCategory(sub)"
+                        >
+                            <view :class="['icon-wrapper', form.categoryId === sub.id ? 'selected' : '']">
+                                <text class="icon-text">{{ sub.icon || sub.name[0] }}</text>
+                            </view>
+                            <text :class="['cat-name', form.categoryId === sub.id ? 'selected-text' : '']">{{ sub.name }}</text>
+                        </view>
                     </view>
-                    <text :class="['cat-name', form.categoryId === sub.id ? 'selected-text' : '']">{{ sub.name }}</text>
-                </view>
-            </view>
+                </swiper-item>
+            </swiper>
         </view>
-        
-        <!-- Spacer for scrolling -->
-        <view style="height: 50px;"></view>
     </scroll-view>
 
     <!-- Transfer Area -->
@@ -344,6 +343,21 @@ const categories = computed(() => {
     return categoryStore.categories.filter(c => c.type === currentTab.value && !c.hidden)
 })
 const assets = computed(() => assetStore.assets)
+const CATEGORY_PAGE_SIZE = 15
+const chunkItems = (items, size = CATEGORY_PAGE_SIZE) => {
+    const pages = []
+    for (let index = 0; index < items.length; index += size) {
+        pages.push(items.slice(index, index + size))
+    }
+    return pages.length ? pages : [[]]
+}
+
+const categoryPages = computed(() => {
+    const settingItem = { id: '__setting__', name: '设置', icon: '⚙️', isSetting: true }
+    return chunkItems([...categories.value, settingItem])
+})
+
+const subCategoryPages = computed(() => chunkItems(subCategories.value))
 
 const subCategories = computed(() => {
     if (!selectedParentId.value) return []
@@ -440,17 +454,17 @@ onMounted(() => {
 })
 
 // 处理编辑模式
-onLoad((options) => {
-    initStores()
-    if (options.id) {
-        // 编辑模式
-        isEditMode.value = true
-        editBillId.value = options.id
-        loadBillData(options.id)
-    } else if (options.type) {
-        // 新增模式，指定类型
-        currentTab.value = options.type
-    }
+onLoad((options) => {
+    initStores()
+    if (options.id) {
+        // 编辑模式
+        isEditMode.value = true
+        editBillId.value = options.id
+        loadBillData(options.id)
+    } else if (options.type) {
+        // 新增模式，指定类型
+        currentTab.value = options.type
+    }
 })
 
 // 加载账单数据
@@ -900,7 +914,7 @@ const submit = async () => {
 .container {
   display: flex;
   flex-direction: column;
-  height: 100%; /* Match page height */
+  height: 100vh; /* Match page height */
   /* height: calc(100vh - var(--window-top)); */ /* Try this for H5 if navbar issue persists */
   background-color: var(--color-bg);
   overflow: hidden;
@@ -936,36 +950,62 @@ const submit = async () => {
 /* Category Grid */
 .category-area {
     flex: 1;
-    height: 0; /* Important for flex child scroll-view */
-    padding: 20px 10px;
+    height: 0;
+    box-sizing: border-box;
+    padding: 4px 10px 300px;
+    overflow-y: auto;
+}
+
+.category-swiper {
+    width: 100%;
+    height: 188px;
+}
+
+.category-swiper.sub-swiper {
+    height: 180px;
+}
+
+.category-swiper-item {
+    width: 100%;
+    height: 100%;
+}
+
+.category-page {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    white-space: normal;
 }
 
 .grid-container {
     display: flex;
     flex-wrap: wrap;
     align-content: flex-start;
-    padding-bottom: 20px;
+    padding-bottom: 0;
 }
 
 .grid-item {
-    width: 20%; /* 5 items per row */
+    width: 20%;
+    height: 58px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 0;
 }
 
 .icon-wrapper {
     position: relative; /* Ensure badge is positioned relative to this */
-    width: 50px;
-    height: 50px;
-    border-radius: 18px;
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
     background: #f0f4f8; /* Slightly different bg for icon */
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 8px;
-    font-size: 24px;
+    margin-bottom: 5px;
+    font-size: 18px;
     color: var(--color-text-light);
     transition: all 0.2s;
     
@@ -998,15 +1038,15 @@ const submit = async () => {
 }
 
 .sub-category-panel {
-    margin-top: 10px;
-    padding-top: 10px;
+    margin-top: 2px;
+    padding-top: 4px;
     border-top: 1px dashed #e0e5ec;
     animation: fadeIn 0.3s ease;
 }
 
 .sub-divider {
     text-align: center;
-    margin-bottom: 15px;
+    margin-bottom: 4px;
     
     .divider-text {
         font-size: 12px;
@@ -1022,8 +1062,13 @@ const submit = async () => {
 }
 
 .cat-name {
-    font-size: 12px;
+    font-size: 10px;
+    line-height: 17px;
     color: var(--color-text-light);
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     
     &.selected-text {
         color: var(--color-text);
@@ -1034,6 +1079,18 @@ const submit = async () => {
 /* Bottom Panel */
 .bottom-panel {
 
+    position: fixed;
+
+    left: 0;
+
+    right: 0;
+
+    bottom: 0;
+
+    z-index: 30;
+
+    box-sizing: border-box;
+
     background: #f8fcf8; /* Light Mint/Cream */
 
     border-radius: 24px 24px 0 0;
@@ -1042,9 +1099,7 @@ const submit = async () => {
 
     padding: 10px 16px;
 
-    padding-bottom: 10px;
-
-    flex-shrink: 0;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
 
 }
 
@@ -1206,19 +1261,28 @@ const submit = async () => {
 }
 .picker-modal {
     width: 80%;
+    max-height: 72vh;
     padding: 20px;
     background: #fff;
     border-radius: 16px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
 }
 .picker-title {
     text-align: center;
     font-weight: bold;
     margin-bottom: 15px;
 }
+.asset-list {
+    max-height: 58vh;
+    overflow-y: auto;
+}
 .asset-option {
     padding: 15px;
     border-bottom: 1px solid #f5f5f5;
     text-align: center;
+    flex-shrink: 0;
 }
 
 /* Transfer Area */
@@ -1233,6 +1297,8 @@ const submit = async () => {
     align-items: flex-start;
 
     padding: 20px;
+
+    padding-bottom: 320px;
 
     overflow-y: auto;
 
