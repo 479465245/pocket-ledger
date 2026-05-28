@@ -51,7 +51,8 @@
               :style="label.style"
             >
               <text class="lbl-name">{{ label.name }}</text>
-              <text class="lbl-detail">{{ label.percent }} {{ label.amount }}</text>
+              <text class="lbl-amount">{{ label.amount }}</text>
+              <text class="lbl-percent">{{ label.percent }}</text>
             </view>
           </view>
         </view>
@@ -71,7 +72,7 @@
             </view>
             <view class="item-right">
               <text class="item-amount">{{ item.displayAmount }}</text>
-              <text class="chevron">></text>
+              <text class="chevron">›</text>
             </view>
           </view>
         </view>
@@ -83,6 +84,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { decodeHtmlEntities } from '@/utils/text'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { formatCurrencyAmount } from '@/utils/currency'
@@ -106,7 +108,7 @@ const parentCategory = computed(() =>
   categoryStore.categories.find(c => c.id === routeParams.value.parentId)
 )
 
-const pageTitle = computed(() => parentCategory.value?.name || '分类详情')
+const pageTitle = computed(() => decodeHtmlEntities(parentCategory.value?.name || '分类详情'))
 
 const updateNavigationTitle = () => {
   uni.setNavigationBarTitle({ title: pageTitle.value })
@@ -188,7 +190,7 @@ const categoryStats = computed(() => {
         key = `${subId}__${currency}`
         const subCat = parent?.children?.find(c => c.id === subId)
         if (subCat) {
-            name = subCat.name
+            name = decodeHtmlEntities(subCat.name)
             icon = subCat.icon
         } else {
             name = '未知子类'
@@ -196,7 +198,7 @@ const categoryStats = computed(() => {
         }
     } else {
         key = `other__${currency}`
-        name = parent ? parent.name : '其他'
+        name = parent ? decodeHtmlEntities(parent.name) : '其他'
         icon = parent ? parent.icon : '📦'
         isOther = true
     }
@@ -311,7 +313,7 @@ const chartLabels = computed(() => {
 
             id: item.statKey || item.id,
 
-            name: item.name,
+            name: decodeHtmlEntities(item.name),
 
             percent: p.toFixed(1) + '%',
 
@@ -416,7 +418,7 @@ const chartLabels = computed(() => {
 
             id: label.id,
 
-            name: label.name,
+            name: decodeHtmlEntities(label.name),
 
             percent: label.percent,
 
@@ -449,7 +451,7 @@ const onItemClick = (item) => {
 
 <style lang="scss" scoped>
 .container {
-  height: 100%;
+  height: 100vh;
   background-color: var(--color-bg);
   display: flex;
   flex-direction: column;
@@ -604,11 +606,21 @@ const onItemClick = (item) => {
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .lbl-detail {
+    .lbl-amount {
         font-size: 10px;
         color: var(--color-text-light);
         line-height: 1.2;
         opacity: 0.9;
+        max-width: 70px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .lbl-percent {
+        font-size: 10px;
+        color: var(--color-primary);
+        line-height: 1.2;
+        font-weight: 600;
+        opacity: 0.95;
     }
 }
 
@@ -720,7 +732,8 @@ const onItemClick = (item) => {
             font-size: 10px;
             max-width: 60px;
         }
-        .lbl-detail {
+        .lbl-amount,
+        .lbl-percent {
             font-size: 9px;
         }
     }

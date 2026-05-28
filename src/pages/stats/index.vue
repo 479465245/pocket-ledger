@@ -42,14 +42,14 @@
                         <text class="value">{{ totalAmount }}</text>
                     </view>
                 </view>
-                
+
                 <!-- Labels Overlay -->
                 <view class="chart-labels">
                     <!-- SVG for Leader Lines -->
                     <svg class="lines-svg" viewBox="-180 -160 360 320" style="width: 360px; height: 320px;">
-                        <path 
-                            v-for="label in chartLabels" 
-                            :key="'line-'+label.id" 
+                        <path
+                            v-for="label in chartLabels"
+                            :key="'line-'+label.id"
                             :d="label.linePath"
                             fill="none"
                             :stroke="label.color"
@@ -60,14 +60,15 @@
                     </svg>
 
                     <!-- Text Labels -->
-                    <view 
-                        v-for="label in chartLabels" 
-                        :key="label.id" 
+                    <view
+                        v-for="label in chartLabels"
+                        :key="label.id"
                         class="chart-label neu-card-small"
                         :style="label.style"
                     >
                         <text class="lbl-name">{{ label.name }}</text>
-                        <text class="lbl-detail">{{ label.percent }} {{ label.amount }}</text>
+                        <text class="lbl-amount">{{ label.amount }}</text>
+                        <text class="lbl-percent">{{ label.percent }}</text>
                     </view>
                 </view>
             </view>
@@ -87,12 +88,12 @@
                     </view>
                     <view class="item-right">
                         <text class="item-amount">{{ item.displayAmount }}</text>
-                        <text class="chevron">></text>
+                        <text class="chevron">›</text>
                     </view>
                     <!-- Progress Bar (Optional, below) -->
                     <view class="progress-line" :style="{ width: item.percent + '%', background: item.color }"></view>
                 </view>
-                
+
                 <view v-if="categoryStats.length === 0" class="empty-tip">
                     <text>本周期无数据</text>
                 </view>
@@ -107,6 +108,7 @@ import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
+import { decodeHtmlEntities } from '@/utils/text'
 import { formatCurrencyAmount } from '@/utils/currency'
 
 const billStore = useBillStore()
@@ -118,7 +120,7 @@ const currentDate = ref(new Date())
 
 // Colors for chart
 const PALETTE = [
-    '#FF8D5D', '#FFB380', '#FFD1A3', '#FFAB91', '#FFCCBC', 
+    '#FF8D5D', '#FFB380', '#FFD1A3', '#FFAB91', '#FFCCBC',
     '#BCAAA4', '#A1887F', '#8D6E63', '#6D4C41', '#5D4037'
 ]
 // Alternate colorful palette if preferred
@@ -171,9 +173,9 @@ const onDateChange = (e) => {
 const filteredBills = computed(() => {
     const y = currentDate.value.getFullYear()
     const m = currentDate.value.getMonth()
-    
+
     let start, end
-    
+
     if (periodType.value === 'month') {
         start = new Date(y, m, 1).getTime()
         end = new Date(y, m + 1, 0, 23, 59, 59, 999).getTime()
@@ -181,10 +183,10 @@ const filteredBills = computed(() => {
         start = new Date(y, 0, 1).getTime()
         end = new Date(y, 11, 31, 23, 59, 59, 999).getTime()
     }
-    
-    return billStore.bills.filter(b => 
-        b.timestamp >= start && 
-        b.timestamp <= end && 
+
+    return billStore.bills.filter(b =>
+        b.timestamp >= start &&
+        b.timestamp <= end &&
         billStore.getStatType(b) === currentType.value &&
         b.isIncludedInStats !== false
     )
@@ -210,7 +212,7 @@ const totalAmount = computed(() => formatAmountMap(totalAmountMap.value))
 const categoryStats = computed(() => {
     const map = {}
     const totalForPercent = filteredBills.value.reduce((acc, bill) => acc + billStore.getStatAmount(bill), 0) || 1
-    
+
     filteredBills.value.forEach(bill => {
         const currency = bill.currency || 'CNY'
         const pid = bill.parentCategoryId || (bill.type === 'transfer' ? 'credit-card-repayment' : 'unknown')
@@ -221,7 +223,7 @@ const categoryStats = computed(() => {
                 statKey: key,
                 id: pid,
                 currency,
-                name: cat ? cat.name : (pid === 'credit-card-repayment' ? '信用卡还款' : '未知分类'),
+                name: decodeHtmlEntities(cat ? cat.name : (pid === 'credit-card-repayment' ? '信用卡还款' : '未知分类')),
                 icon: cat ? cat.icon : (pid === 'credit-card-repayment' ? '💳' : '❓'),
                 amount: 0,
                 amountMap: {},
@@ -232,9 +234,9 @@ const categoryStats = computed(() => {
         map[key].amount += amount
         map[key].amountMap[currency] = (map[key].amountMap[currency] || 0) + amount
     })
-    
+
     const sorted = Object.values(map).sort((a, b) => b.amount - a.amount)
-    
+
     return sorted.map((item, index) => ({
         ...item,
         percent: (item.amount / totalForPercent) * 100,
@@ -246,17 +248,17 @@ const categoryStats = computed(() => {
 // Pie Chart Gradient
 const pieGradient = computed(() => {
     if (categoryStats.value.length === 0) return 'none'
-    
+
     let gradient = 'conic-gradient('
     let currentPercent = 0
-    
+
     categoryStats.value.forEach((item, index) => {
         const start = currentPercent
         const end = currentPercent + item.percent
         gradient += `${item.color} ${start}% ${end}%, `
         currentPercent = end
     })
-    
+
     // Remove last comma and close
     gradient = gradient.slice(0, -2) + ')'
     return gradient
@@ -268,13 +270,13 @@ const chartLabels = computed(() => {
 
     if (categoryStats.value.length === 0) return []
 
-    
+
 
     const rawLabels = []
 
     let currentPercent = 0
 
-    
+
 
     // 移动端空间有限：外置标签只展示主要分类，其余在下方列表完整展示
 
@@ -294,7 +296,7 @@ const chartLabels = computed(() => {
 
     const BOTTOM_LIMIT = 132
 
-    
+
 
     categoryStats.value.forEach(item => {
 
@@ -306,11 +308,11 @@ const chartLabels = computed(() => {
 
         currentPercent += p
 
-        
+
 
         if (p <= MIN_PERCENT || rawLabels.length >= MAX_LABELS) return
 
-        
+
 
         const isRight = Math.sin(angle) >= 0
 
@@ -324,13 +326,13 @@ const chartLabels = computed(() => {
 
         const x3 = isRight ? X_end : -X_end
 
-        
+
 
         rawLabels.push({
 
             id: item.statKey || item.id,
 
-            name: item.name,
+            name: decodeHtmlEntities(item.name),
 
             percent: p.toFixed(1) + '%',
 
@@ -356,13 +358,13 @@ const chartLabels = computed(() => {
 
     })
 
-    
+
 
     const resolveSide = (sideLabels) => {
 
         const labels = [...sideLabels].sort((a, b) => a.y3 - b.y3)
 
-        
+
 
         labels.forEach((label, index) => {
 
@@ -374,7 +376,7 @@ const chartLabels = computed(() => {
 
         })
 
-        
+
 
         const overflow = labels.length ? labels[labels.length - 1].y3 - BOTTOM_LIMIT : 0
 
@@ -388,7 +390,7 @@ const chartLabels = computed(() => {
 
         }
 
-        
+
 
         labels.forEach((label, index) => {
 
@@ -398,13 +400,13 @@ const chartLabels = computed(() => {
 
         })
 
-        
+
 
         return labels
 
     }
 
-    
+
 
     const adjusted = [
 
@@ -414,7 +416,7 @@ const chartLabels = computed(() => {
 
     ]
 
-    
+
 
     return adjusted.map(label => {
         const labelEdgeX = label.isRight ? label.x3 + LABEL_GAP : label.x3 - LABEL_GAP
@@ -429,13 +431,13 @@ const chartLabels = computed(() => {
             maxWidth: LABEL_WIDTH + 'px'
         }
 
-        
+
 
         return {
 
             id: label.id,
 
-            name: label.name,
+            name: decodeHtmlEntities(label.name),
 
             percent: label.percent,
 
@@ -498,14 +500,14 @@ const onItemClick = (item) => {
     display: flex;
     padding: 4px;
     border-radius: 12px;
-    
+
     .period-btn {
         padding: 6px 16px;
         font-size: 14px;
         color: var(--color-text-light);
         border-radius: 8px;
         transition: all 0.2s;
-        
+
         &.active {
             background: var(--color-bg);
             color: var(--color-primary);
@@ -524,7 +526,7 @@ const onItemClick = (item) => {
     color: var(--color-text);
     background: var(--color-bg);
     box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
-    
+
     .arrow {
         margin-left: 6px;
         font-size: 10px;
@@ -544,18 +546,18 @@ const onItemClick = (item) => {
     display: flex;
     align-items: center;
     margin-bottom: 10px;
-    
+
     .tab {
         font-size: 16px;
         color: var(--color-text-light);
         padding: 0 10px;
-        
+
         &.active {
             color: var(--color-text);
             font-weight: bold;
         }
     }
-    
+
     .divider {
         color: var(--color-text-light);
         opacity: 0.3;
@@ -606,7 +608,7 @@ const onItemClick = (item) => {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6; 
+    box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -616,7 +618,7 @@ const onItemClick = (item) => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    
+
     .label {
         font-size: 12px;
         color: var(--color-text-light);
@@ -639,17 +641,28 @@ const onItemClick = (item) => {
     transform: translate(-50%, -50%);
 }
 
-.lines-svg {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 360px;
-    height: 320px;
-    transform: translate(-50%, -50%);
-    overflow: visible;
-}
-
-.chart-label {
+.lines-svg {
+
+    position: absolute;
+
+    top: 0;
+
+    left: 0;
+
+    width: 360px;
+
+    height: 320px;
+
+    transform: translate(-50%, -50%);
+
+    overflow: visible;
+
+}
+
+
+
+.chart-label {
+
     position: absolute;
     display: flex;
     flex-direction: column;
@@ -662,7 +675,7 @@ const onItemClick = (item) => {
     white-space: nowrap;
     backdrop-filter: blur(2px);
     border: 1px solid rgba(255,255,255,0.3);
-    
+
     .lbl-name {
         font-size: 11px;
         color: var(--color-text);
@@ -672,11 +685,21 @@ const onItemClick = (item) => {
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .lbl-detail {
+    .lbl-amount {
         font-size: 10px;
         color: var(--color-text-light);
         line-height: 1.2;
         opacity: 0.9;
+        max-width: 70px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .lbl-percent {
+        font-size: 10px;
+        color: var(--color-primary);
+        line-height: 1.2;
+        font-weight: 600;
+        opacity: 0.95;
     }
 }
 
@@ -772,12 +795,12 @@ const onItemClick = (item) => {
     .chart-container {
         height: 300px;
     }
-    
+
     .pie-chart {
         width: 180px;
         height: 180px;
     }
-    
+
     .pie-hole {
         width: 100px;
         height: 100px;
@@ -788,23 +811,24 @@ const onItemClick = (item) => {
     .chart-container {
         height: 280px;
     }
-    
+
     .pie-chart {
         width: 160px;
         height: 160px;
     }
-    
+
     .pie-hole {
         width: 90px;
         height: 90px;
     }
-    
+
     .chart-label {
         .lbl-name {
             font-size: 10px;
             max-width: 60px;
         }
-        .lbl-detail {
+        .lbl-amount,
+        .lbl-percent {
             font-size: 9px;
         }
     }

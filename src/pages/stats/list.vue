@@ -80,7 +80,7 @@
                       <text v-else-if="bill.isRefunded" class="state-badge refunded">已退</text>
                     </view>
                     <text class="bill-date">{{ getBillMetaText(bill) }}</text>
-                    <text class="bill-remark" v-if="bill.remark">{{ bill.remark }}</text>
+                    <text class="bill-remark" v-if="bill.remark">{{ decodeDisplayText(bill.remark) }}</text>
                   </view>
                 </view>
                 <view class="bill-right">
@@ -106,6 +106,7 @@ import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
 import { formatCurrencyAmount } from '@/utils/currency'
+import { decodeHtmlEntities } from '@/utils/text'
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
@@ -138,17 +139,17 @@ onLoad((options) => {
       const assetName = params.value.assetName
         ? decodeURIComponent(params.value.assetName)
         : getAssetName(params.value.assetId)
-      title = `${assetName}账单`
+      title = `${decodeDisplayText(assetName)}账单`
     } else if (params.value.id) {
       const name = categoryStore.getCategoryName(params.value.id)
       if (params.value.id === 'credit-card-repayment') {
         title = '信用卡还款明细'
-      } else if (name === 'Unknown') {
+      } else if (decodeDisplayText(name) === 'Unknown') {
         title = '分类明细'
       } else if (params.value.filterType === 'parent_other') {
-        title = `${name} (其他) 明细`
+        title = `${decodeDisplayText(name)} (其他) 明细`
       } else {
-        title = `${name}明细`
+        title = `${decodeDisplayText(name)}明细`
       }
     }
     uni.setNavigationBarTitle({ title })
@@ -311,6 +312,8 @@ const onTouchEnd = (e) => {
   isMoving.value = false
 }
 
+const decodeDisplayText = (value) => decodeHtmlEntities(value)
+
 const getCategoryName = (bill) => {
   if (bill.type === 'transfer') return params.value.assetId ? '转账' : '信用卡还款'
   if (bill.type === 'adjustment') return '资产调整'
@@ -320,12 +323,12 @@ const getCategoryName = (bill) => {
 
 const getCategoryNameById = (id) => {
   const name = categoryStore.getCategoryName(id)
-  return name === 'Unknown' ? '未分类' : name
+  return name === 'Unknown' ? '未分类' : decodeDisplayText(name)
 }
 
 const getAssetName = (id) => {
   const asset = assetStore.getAsset(id)
-  return asset ? asset.name : '未知资产'
+  return asset ? decodeDisplayText(asset.name) : '未知资产'
 }
 
 const formatDateKey = (ts) => {
@@ -430,7 +433,7 @@ const deleteBill = (id) => {
 
 <style lang="scss" scoped>
 .container {
-  height: 100%;
+  height: 100vh;
   background-color: var(--color-bg);
   display: flex;
   flex-direction: column;

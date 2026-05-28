@@ -82,6 +82,8 @@ import * as XLSX from 'xlsx'
 import { useAssetStore } from '@/store/asset'
 import { PROVIDER_OPTIONS, parseImportRows } from '@/utils/importParsers'
 import { createCrossCheckSession } from '@/utils/crossCheck'
+import { decodeText } from '@/utils/text.js'
+import { chooseLocalFile } from '@/utils/filePicker.js'
 import {
   chooseNetworkFileConfig,
   downloadNetworkFile,
@@ -131,31 +133,21 @@ const onAssetChange = (event) => {
   selectedAssetId.value = asset?.id || ''
 }
 
-const selectFile = () => {
+const selectFile = async () => {
   parseMessages.value = []
   setProgress({ title: '校验文件进度', message: '请选择校验文件...', current: 0, total: 4 })
-  // #ifdef H5
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.xls,.xlsx,.csv'
-  input.onchange = (event) => {
-    const file = event.target.files[0]
-    if (file) readFile(file)
-  }
-  input.click()
-  // #endif
 
-  // #ifndef H5
-  uni.chooseFile({
-    count: 1,
-    type: 'all',
-    extension: ['xls', 'xlsx', 'csv'],
-    success: (res) => {
-      if (res.tempFiles?.length) readFile(res.tempFiles[0])
-    },
-    fail: () => uni.showToast({ title: '文件选择失败', icon: 'none' })
-  })
-  // #endif
+  try {
+    const file = await chooseLocalFile({
+      extensions: ['xls', 'xlsx', 'csv'],
+      mimeType: '*/*'
+    })
+    await readFile(file)
+  } catch (error) {
+    if (error.message !== '已取消选择') {
+      uni.showToast({ title: error.message || '文件选择失败', icon: 'none' })
+    }
+  }
 }
 
 const selectNetworkFile = async () => {
@@ -210,8 +202,8 @@ const parseWorkbookData = (data, fileName = '') => {
 
   if (/\.csv$/i.test(fileName)) {
     attempts.push(
-      () => XLSX.read(new TextDecoder('utf-8').decode(data), { type: 'string', raw: false }),
-      () => XLSX.read(new TextDecoder('gbk').decode(data), { type: 'string', raw: false })
+      () => XLSX.read(decodeText(data, 'utf-8'), { type: 'string', raw: false }),
+      () => XLSX.read(decodeText(data, 'gbk'), { type: 'string', raw: false })
     )
   }
 
@@ -255,7 +247,7 @@ const startCheck = () => {
 </script>
 
 <style scoped>
-.container { min-height: 100vh; padding: 20px; box-sizing: border-box; background: var(--color-bg, #FFF9F0); }
+.container { height: 100vh; overflow-y: auto; padding: 20px; box-sizing: border-box; background: var(--color-bg, #FFF9F0); }
 .header { margin-bottom: 18px; }
 .title { display: block; font-size: 24px; font-weight: 700; color: var(--color-text, #333); margin-bottom: 8px; }
 .subtitle, .hint { display: block; font-size: 13px; line-height: 20px; color: var(--color-text-light, #777); }

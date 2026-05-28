@@ -215,6 +215,8 @@ import {
   getProviderLabel,
   parseImportRows
 } from '@/utils/importParsers.js'
+import { chooseLocalFile } from '@/utils/filePicker.js'
+import { decodeText } from '@/utils/text.js'
 import {
 
   chooseNetworkFileConfig,
@@ -302,40 +304,24 @@ const selectProvider = (provider) => {
   }
 }
 
-const selectFile = () => {
-  // #ifdef H5
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.xls,.xlsx,.csv'
-  input.onchange = (event) => {
-    const file = event.target.files[0]
-    if (file) {
-      selectedFile.value = file
-      parseFile(file)
-    }
-  }
-  input.click()
-  // #endif
+const selectFile = async () => {
+  if (isImporting.value) return
 
-  // #ifndef H5
-  uni.chooseFile({
-    count: 1,
-    type: 'all',
-    extension: ['xls', 'xlsx', 'csv'],
-    success: (res) => {
-      if (res.tempFiles && res.tempFiles.length > 0) {
-        selectedFile.value = res.tempFiles[0]
-        parseFile(res.tempFiles[0])
-      }
-    },
-    fail: () => {
+  try {
+    const file = await chooseLocalFile({
+      extensions: ['xls', 'xlsx', 'csv'],
+      mimeType: '*/*'
+    })
+    selectedFile.value = file
+    await parseFile(file)
+  } catch (error) {
+    if (error.message !== '已取消选择') {
       uni.showToast({
-        title: '文件选择失败',
+        title: error.message || '文件选择失败',
         icon: 'none'
       })
     }
-  })
-  // #endif
+  }
 }
 
 const selectNetworkFile = async () => {
@@ -388,12 +374,8 @@ const parseFile = async (file) => {
     }
   } catch (error) {
     console.error('解析文件失败:', error)
-    parseMessages.value = [{ type: 'error', message: '文件解析失败，请确认文件格式是否正确' }]
-    finishProgress('文件解析失败，请确认文件格式是否正确')
-
-    const finalMessage = '导入完成：成功 ' + successCount + ' 条，跳过 ' + skippedCount + ' 条，失败 ' + errorCount + ' 条'
-    resetImport()
-    finishProgress(finalMessage)
+    parseMessages.value = [{ type: 'error', message: error.message || '文件解析失败，请确认文件格式是否正确' }]
+    finishProgress(error.message || '文件解析失败，请确认文件格式是否正确')
 
     uni.showToast({
       title: '文件解析失败',
@@ -410,8 +392,8 @@ const parseWorkbookData = (data, fileName = '') => {
 
   if (/\.csv$/i.test(fileName)) {
     attempts.push(
-      () => XLSX.read(new TextDecoder('utf-8').decode(data), { type: 'string', raw: false }),
-      () => XLSX.read(new TextDecoder('gbk').decode(data), { type: 'string', raw: false })
+      () => XLSX.read(decodeText(data, 'utf-8'), { type: 'string', raw: false }),
+      () => XLSX.read(decodeText(data, 'gbk'), { type: 'string', raw: false })
     )
   }
 

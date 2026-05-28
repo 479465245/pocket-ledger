@@ -111,6 +111,7 @@ import { useBillStore } from '@/store/bill'
 import { useAssetStore } from '@/store/asset'
 import { useCategoryStore } from '@/store/category'
 import { chooseNetworkFileConfig, uploadNetworkFile } from '@/utils/networkFile'
+import { saveLocalFile } from '@/utils/fileSaver.js'
 
 const billStore = useBillStore()
 const assetStore = useAssetStore()
@@ -261,7 +262,12 @@ const handleExport = async () => {
   try {
     const payload = buildExportPayload()
     setExportProgress({ title: '导出进度', message: '正在生成文件...', current: 3, total: 4 })
-    saveXLSFile(payload.fileName, payload.content)
+    await saveLocalFile({
+      fileName: payload.fileName,
+      content: payload.content,
+      mimeType: 'application/vnd.ms-excel;charset=utf-8',
+      openType: 'xls'
+    })
     setExportProgress({ title: '导出进度', message: '导出完成：共 ' + payload.count + ' 条记录', current: 4, total: 4 })
     uni.showToast({ title: `导出成功，共${payload.count}条记录`, icon: 'success', duration: 2000 })
   } catch (error) {
@@ -337,63 +343,6 @@ function generateXLS(data) {
   return html
 }
 
-function saveXLSFile(fileName, content) {
-  // #ifdef H5
-  // 在H5环境下创建下载
-  const blob = new Blob([content], { type: 'application/vnd.ms-excel;charset=utf-8' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = fileName
-  link.style.display = 'none'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  // #endif
-  
-  // #ifndef H5
-  // 在其他平台下提示用户
-  // 在App端，可以使用uni.saveFile或分享功能，这里简化处理，提示用户
-  // 实际项目中可能需要使用 native.js 或 uni.share 等
-  const filePath = `${uni.env.USER_DATA_PATH}/${fileName}`
-  const fs = uni.getFileSystemManager()
-  
-  try {
-    fs.writeFile({
-      filePath: filePath,
-      data: content,
-      encoding: 'utf8',
-      success: () => {
-        uni.showModal({
-          title: '导出完成',
-          content: `文件已保存到：${filePath}\n您可以使用文件管理器查看或分享`,
-          confirmText: '复制路径',
-          success: (res) => {
-            if (res.confirm) {
-              uni.setClipboardData({
-                data: filePath
-              })
-            }
-          }
-        })
-      },
-      fail: (err) => {
-        console.error('保存文件失败', err)
-        uni.showToast({
-          title: '保存文件失败',
-          icon: 'none'
-        })
-      }
-    })
-  } catch (e) {
-    console.error('文件系统操作失败', e)
-    uni.showModal({
-      title: '导出完成',
-      content: `数据已准备完成，文件名：${fileName}\n请在H5平台使用导出功能以获得最佳体验。`,
-      showCancel: false
-    })
-  }
-  // #endif
-}
 </script>
 
 <style scoped>

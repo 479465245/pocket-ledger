@@ -1,6 +1,18 @@
 const STORAGE_KEY = 'network_file_configs'
 
-const isH5 = () => typeof window !== 'undefined' && typeof document !== 'undefined'
+const isH5 = () => typeof window !== 'undefined' && typeof document !== 'undefined' && typeof plus === 'undefined' && typeof wx === 'undefined'
+
+const getUserDataPath = () => {
+  if (typeof uni !== 'undefined' && uni.env?.USER_DATA_PATH) return uni.env.USER_DATA_PATH
+  if (typeof wx !== 'undefined' && wx.env?.USER_DATA_PATH) return wx.env.USER_DATA_PATH
+  return ''
+}
+
+const getFileSystemManager = () => {
+  if (typeof uni !== 'undefined' && typeof uni.getFileSystemManager === 'function') return uni.getFileSystemManager()
+  if (typeof wx !== 'undefined' && typeof wx.getFileSystemManager === 'function') return wx.getFileSystemManager()
+  return null
+}
 
 const safeParse = (value, fallback = []) => {
   try {
@@ -129,8 +141,12 @@ export const readFileAsArrayBuffer = (file) => {
     })
   }
 
+  const fs = getFileSystemManager()
+  if (!fs) {
+    return Promise.reject(new Error('当前平台不支持读取本地文件'))
+  }
+
   return new Promise((resolve, reject) => {
-    const fs = uni.getFileSystemManager()
     fs.readFile({
       filePath: file.path || file.tempFilePath,
       success: (res) => resolve(res.data),
@@ -157,8 +173,14 @@ export const uploadNetworkFile = async (config, fileName, content) => {
     return response
   }
 
-  const filePath = `${uni.env.USER_DATA_PATH}/${fileName}`
-  const fs = uni.getFileSystemManager()
+  const userDataPath = getUserDataPath()
+  const fs = getFileSystemManager()
+  const canUpload = typeof uni !== 'undefined' && typeof uni.uploadFile === 'function'
+  if (!userDataPath || !fs || !canUpload) {
+    throw new Error('当前平台不支持上传本地生成文件')
+  }
+
+  const filePath = `${userDataPath}/${fileName}`
   await new Promise((resolve, reject) => {
     fs.writeFile({
       filePath,

@@ -63,6 +63,9 @@ import { useBillStore } from '@/store/bill'
 import { useAssetStore } from '@/store/asset'
 import { useCategoryStore } from '@/store/category'
 import { readFileAsArrayBuffer } from '@/utils/networkFile'
+import { chooseLocalFile } from '@/utils/filePicker.js'
+import { saveLocalFile } from '@/utils/fileSaver.js'
+import { decodeUtf8 } from '@/utils/text.js'
 
 const BACKUP_VERSION = 1
 
@@ -135,32 +138,20 @@ const exportBackup = async () => {
   }
 }
 
-const selectBackupFile = () => {
+const selectBackupFile = async () => {
   if (isBusy.value) return
 
-  // #ifdef H5
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.json,application/json'
-  input.onchange = (event) => {
-    const file = event.target.files?.[0]
-    if (file) restoreFromFile(file)
+  try {
+    const file = await chooseLocalFile({
+      extensions: ['json'],
+      mimeType: 'application/json'
+    })
+    await restoreFromFile(file)
+  } catch (error) {
+    if (error.message !== '已取消选择') {
+      uni.showToast({ title: error.message || '文件选择失败', icon: 'none' })
+    }
   }
-  input.click()
-  // #endif
-
-  // #ifndef H5
-  uni.chooseFile({
-    count: 1,
-    type: 'all',
-    extension: ['json'],
-    success: (res) => {
-      const file = res.tempFiles?.[0]
-      if (file) restoreFromFile(file)
-    },
-    fail: () => uni.showToast({ title: '文件选择失败', icon: 'none' })
-  })
-  // #endif
 }
 
 const restoreFromFile = async (file) => {
@@ -236,10 +227,7 @@ const validateBackup = (backup) => {
   if (!Array.isArray(backup.data.categories)) throw new Error('备份缺少分类数据')
 }
 
-const decodeBuffer = (buffer) => {
-  if (typeof buffer === 'string') return buffer
-  return new TextDecoder('utf-8').decode(buffer)
-}
+const decodeBuffer = (buffer) => decodeUtf8(buffer)
 
 const formatDateTime = (date) => {
   const y = date.getFullYear()
@@ -252,47 +240,17 @@ const formatDateTime = (date) => {
 }
 
 const saveBackupFile = (fileName, content) => {
-  // #ifdef H5
-  const blob = new Blob([content], { type: 'application/json;charset=utf-8' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = fileName
-  link.style.display = 'none'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(link.href)
-  return Promise.resolve()
-  // #endif
-
-  // #ifndef H5
-  return new Promise((resolve, reject) => {
-    const filePath = `${uni.env.USER_DATA_PATH}/${fileName}`
-    const fs = uni.getFileSystemManager()
-    fs.writeFile({
-      filePath,
-      data: content,
-      encoding: 'utf8',
-      success: () => {
-        uni.showModal({
-          title: '备份完成',
-          content: `文件已保存到：${filePath}`,
-          confirmText: '复制路径',
-          success: (res) => {
-            if (res.confirm) uni.setClipboardData({ data: filePath })
-          }
-        })
-        resolve()
-      },
-      fail: () => reject(new Error('保存备份文件失败'))
-    })
+  return saveLocalFile({
+    fileName,
+    content,
+    mimeType: 'application/json;charset=utf-8',
+    openType: 'json'
   })
-  // #endif
 }
 </script>
 
 <style scoped>
-.container { min-height: 100vh; padding: 20px; box-sizing: border-box; background: var(--color-bg, #FFF9F0); }
+.container { height: 100vh; overflow-y: auto; padding: 20px; box-sizing: border-box; background: var(--color-bg, #FFF9F0); }
 .header { margin-bottom: 18px; }
 .title { display: block; margin-bottom: 8px; color: var(--color-text, #333); font-size: 24px; font-weight: 800; }
 .subtitle, .card-desc, .tip-item { display: block; color: var(--color-text-light, #777); font-size: 13px; line-height: 20px; }

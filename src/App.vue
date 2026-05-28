@@ -43,13 +43,31 @@ page {
 }
 
 page {
+
   background-color: var(--app-bg);
+
   color: var(--color-text);
+
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Segoe UI, Arial, Roboto, 'PingFang SC', 'miui', 'Hiragino Sans GB', 'Microsoft Yahei', sans-serif;
-  min-height: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+
+  min-height: 100vh;
+
+  overflow: auto;
+
+  display: block;
+
+  box-sizing: border-box;
+
+}
+
+
+
+scroll-view {
+
+  box-sizing: border-box;
+
+  min-height: 0;
+
 }
 
 /* Cross-end control reset: keep H5/App button and form controls visually/clickably consistent */
