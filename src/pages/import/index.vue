@@ -8,6 +8,9 @@
 </template>
 
 <script setup>
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '导入数据 - 记账本', path: '/pages/index/index' })
 // 废弃页面：保留仅用于提示维护者，未在 pages.json 注册。
 </script>
 

@@ -198,6 +198,9 @@ import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
 import { ASSET_ADJUSTMENT_CATEGORY_ID } from '@/store/category'
 import { formatCurrencyAmount } from '@/utils/currency'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '记账本 - 轻松记录每一笔', path: '/pages/index/index' })
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()

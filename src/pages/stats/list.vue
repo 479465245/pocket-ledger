@@ -107,6 +107,9 @@ import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
 import { formatCurrencyAmount } from '@/utils/currency'
 import { decodeHtmlEntities } from '@/utils/text'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '账单明细 - 记账本', path: '/pages/index/index' })
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()

@@ -89,6 +89,9 @@ import {
   downloadNetworkFile,
   readFileAsArrayBuffer
 } from '@/utils/networkFile'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '交叉校验配置 - 记账本', path: '/pages/settings/index' })
 
 const assetStore = useAssetStore()
 const today = new Date().toISOString().slice(0, 10)

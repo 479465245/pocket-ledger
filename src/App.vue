@@ -1,12 +1,15 @@
 <script setup>
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
+import { enableWxShareMenu } from '@/utils/share'
 
 onLaunch(() => {
   console.log('App Launch')
+  enableWxShareMenu()
 })
 
 onShow(() => {
   console.log('App Show')
+  enableWxShareMenu()
 })
 
 onHide(() => {

@@ -80,6 +80,9 @@ import {
   getProblemConfig,
   loadCrossCheckSession
 } from '@/utils/crossCheck'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '交叉校验列表 - 记账本', path: '/pages/cross-check/home' })
 
 const assetStore = useAssetStore()
 const billStore = useBillStore()

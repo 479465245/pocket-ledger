@@ -107,6 +107,9 @@ import {
   upsertNetworkFileConfig,
   deleteNetworkFileConfig
 } from '@/utils/networkFile'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '网络文件配置 - 记账本', path: '/pages/settings/index' })
 
 const configs = ref([])
 const showConfigModal = ref(false)

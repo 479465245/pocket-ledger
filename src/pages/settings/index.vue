@@ -36,6 +36,9 @@
 import { computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAssetStore } from '@/store/asset'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '记账本设置', path: '/pages/settings/index' })
 
 const assetStore = useAssetStore()
 

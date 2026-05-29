@@ -45,21 +45,17 @@
 
                 <!-- Labels Overlay -->
                 <view class="chart-labels">
-                    <!-- SVG for Leader Lines -->
-                    <svg class="lines-svg" viewBox="-180 -160 360 320" style="width: 360px; height: 320px;">
-                        <path
-                            v-for="label in chartLabels"
-                            :key="'line-'+label.id"
-                            :d="label.linePath"
-                            fill="none"
-                            :stroke="label.color"
-                            stroke-width="1.5"
-                            stroke-dasharray="4,3"
-                            opacity="0.7"
-                        />
-                    </svg>
+                    <!-- Leader Lines: use view instead of svg for WeChat Mini Program -->
+                    <block v-for="label in chartLabels" :key="'lines-' + label.id">
+                        <view
+                            v-for="(line, lineIndex) in label.lineStyles"
+                            :key="lineIndex"
+                            class="leader-line"
+                            :style="line"
+                        ></view>
+                    </block>
 
-                    <!-- Text Labels -->
+<!-- Text Labels -->
                     <view
                         v-for="label in chartLabels"
                         :key="label.id"
@@ -110,6 +106,9 @@ import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { decodeHtmlEntities } from '@/utils/text'
 import { formatCurrencyAmount } from '@/utils/currency'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '账单统计 - 记账本', path: '/pages/stats/index' })
 
 const billStore = useBillStore()
 const categoryStore = useCategoryStore()
@@ -420,14 +419,35 @@ const chartLabels = computed(() => {
 
     return adjusted.map(label => {
         const labelEdgeX = label.isRight ? label.x3 + LABEL_GAP : label.x3 - LABEL_GAP
-        const linePath = `M ${label.x1} ${label.y1} L ${label.x2} ${label.y2} L ${labelEdgeX} ${label.y3}`
+        const buildLineStyle = (fromX, fromY, toX, toY) => {
+            const dx = toX - fromX
+            const dy = toY - fromY
+            const length = Math.sqrt(dx * dx + dy * dy)
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI
+            return {
+                position: 'absolute',
+                left: fromX + 'px',
+                top: fromY + 'px',
+                width: length + 'px',
+                height: '2px',
+                backgroundColor: label.color,
+                opacity: 0.8,
+                transform: 'rotate(' + angle + 'deg)',
+                transformOrigin: '0 50%',
+                zIndex: 2
+            }
+        }
+        const lineStyles = [
+            buildLineStyle(label.x1, label.y1, label.x2, label.y2),
+            buildLineStyle(label.x2, label.y2, labelEdgeX, label.y3)
+        ]
         const style = {
             top: label.y3 + 'px',
             left: labelEdgeX + 'px',
             transform: label.isRight ? 'translate(0, -50%)' : 'translate(-100%, -50%)',
             textAlign: label.isRight ? 'left' : 'right',
             alignItems: label.isRight ? 'flex-start' : 'flex-end',
-            zIndex: 10,
+            zIndex: 6,
             maxWidth: LABEL_WIDTH + 'px'
         }
 
@@ -444,8 +464,7 @@ const chartLabels = computed(() => {
             amount: label.amount,
 
             color: label.color,
-
-            linePath,
+            lineStyles,
 
             style,
 
@@ -637,26 +656,17 @@ const onItemClick = (item) => {
     left: 50%;
     width: 0;
     height: 0;
-    pointer-events: none; /* Let clicks pass through to chart/hole if needed */
+    pointer-events: none;
     transform: translate(-50%, -50%);
+    overflow: visible;
+    z-index: 5;
 }
 
-.lines-svg {
-
+.leader-line {
     position: absolute;
-
-    top: 0;
-
-    left: 0;
-
-    width: 360px;
-
-    height: 320px;
-
-    transform: translate(-50%, -50%);
-
-    overflow: visible;
-
+    display: block;
+    border-radius: 2px;
+    pointer-events: none;
 }
 
 

@@ -226,6 +226,9 @@ import {
   readFileAsArrayBuffer
 
 } from '@/utils/networkFile.js'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '数据导入 - 记账本', path: '/pages/settings/index' })
 
 
 

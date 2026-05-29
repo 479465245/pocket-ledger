@@ -112,6 +112,9 @@ import { useAssetStore } from '@/store/asset'
 import { useCategoryStore } from '@/store/category'
 import { chooseNetworkFileConfig, uploadNetworkFile } from '@/utils/networkFile'
 import { saveLocalFile } from '@/utils/fileSaver.js'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '数据导出 - 记账本', path: '/pages/settings/index' })
 
 const billStore = useBillStore()
 const assetStore = useAssetStore()

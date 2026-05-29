@@ -289,6 +289,9 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '记一笔 - 记账本', path: '/pages/index/index' })
 
 import { useBillStore } from '@/store/bill'
 

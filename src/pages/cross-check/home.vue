@@ -77,6 +77,9 @@ import { onShow } from '@dcloudio/uni-app'
 import { useAssetStore } from '@/store/asset'
 import { useBillStore } from '@/store/bill'
 import { calculateCrossCheckReport, loadCrossCheckSession } from '@/utils/crossCheck'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '账单交叉校验 - 记账本', path: '/pages/cross-check/home' })
 
 const assetStore = useAssetStore()
 const billStore = useBillStore()

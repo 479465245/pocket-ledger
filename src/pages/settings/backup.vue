@@ -66,6 +66,9 @@ import { readFileAsArrayBuffer } from '@/utils/networkFile'
 import { chooseLocalFile } from '@/utils/filePicker.js'
 import { saveLocalFile } from '@/utils/fileSaver.js'
 import { decodeUtf8 } from '@/utils/text.js'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '备份还原 - 记账本', path: '/pages/settings/index' })
 
 const BACKUP_VERSION = 1
 

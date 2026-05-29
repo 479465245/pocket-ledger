@@ -170,6 +170,9 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useCategoryStore } from '@/store/category'
 import { useBillStore } from '@/store/bill'
+import { usePageShare } from '@/utils/share'
+
+usePageShare({ title: '分类管理 - 记账本', path: '/pages/categories/index' })
 
 const categoryStore = useCategoryStore()
 const billStore = useBillStore()
