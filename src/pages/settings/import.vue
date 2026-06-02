@@ -227,6 +227,7 @@ import {
 
 } from '@/utils/networkFile.js'
 import { usePageShare } from '@/utils/share'
+import { parseTimestamp } from '@/utils/crossCheck'
 
 usePageShare({ title: '数据导入 - 记账本', path: '/pages/settings/index' })
 
@@ -731,11 +732,6 @@ const ensureCategory = (item) => {
     })
 
   return { parentCategoryId: parent.id, categoryId: child.id }
-}
-
-const parseTimestamp = (dateText) => {
-  const normalized = String(dateText).replace(/-/g, '/')
-  return new Date(normalized).getTime()
 }
 
 const formatAmount = (row) => {

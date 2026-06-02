@@ -183,22 +183,23 @@ const addMissing = async (external) => {
 </script>
 
 <style scoped>
-.container { min-height: 100vh; padding: 20px; box-sizing: border-box; background: var(--color-bg, #FFF9F0); }
-.header { margin-bottom: 18px; }
-.title { display: block; margin-bottom: 6px; font-size: 24px; font-weight: 800; color: #333; }
+.container { min-height: 100vh; padding: 20px; box-sizing: border-box; background: linear-gradient(180deg, #FFF9F0 0%, #FFF3E7 100%); }
+.header { margin-bottom: 18px; padding: 4px 2px; }
+.title { display: block; margin-bottom: 7px; font-size: 25px; font-weight: 900; color: #333; }
 .subtitle, .sub-line, .empty-desc { display: block; color: #777; font-size: 13px; line-height: 20px; }
-.item-card, .empty-card { margin-bottom: 14px; padding: 16px; border-radius: 18px; background: #FFF9F0; box-shadow: 5px 5px 15px rgba(0,0,0,.08), -5px -5px 15px rgba(255,255,255,.75); }
-.tag { display: inline-block; padding: 4px 8px; margin-bottom: 10px; border-radius: 999px; background: #e8f4ff; color: #2678c7; font-size: 12px; font-weight: 700; }
+.item-card, .empty-card { margin-bottom: 14px; padding: 16px; border-radius: 22px; background: rgba(255,249,240,.96); box-shadow: 8px 8px 18px rgba(217,212,204,.78), -8px -8px 18px rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.65); }
+.empty-card { text-align: center; }
+.tag { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; padding: 0 9px; margin-bottom: 10px; border-radius: 999px; background: #e8f4ff; color: #2678c7; font-size: 12px; font-weight: 800; text-align: center; }
 .tag.warning { background: #fff4dc; color: #a66a00; }
-.main-line { display: block; margin-bottom: 8px; color: #333; font-size: 17px; font-weight: 800; }
+.main-line { display: block; margin-bottom: 8px; color: #333; font-size: 17px; font-weight: 900; line-height: 24px; }
 .main-line.small { font-size: 15px; }
-.compare-box { display: flex; flex-direction: column; gap: 4px; padding: 10px; margin-bottom: 8px; border-radius: 12px; background: rgba(255,255,255,.72); color: #333; font-size: 13px; }
+.compare-box { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; margin-bottom: 8px; border-radius: 14px; background: rgba(255,255,255,.72); color: #333; font-size: 13px; line-height: 19px; }
 .actions { display: flex; gap: 10px; margin-top: 12px; }
-.primary-btn, .secondary-btn, .danger-btn { min-height: 40px; border: 0; border-radius: 12px; font-size: 14px; font-weight: 700; }
-.primary-btn { width: 100%; margin-top: 12px; background: var(--color-primary, #FF8D5D); color: #fff; }
+.primary-btn, .secondary-btn, .danger-btn { min-height: 42px; border: 0; border-radius: 13px; font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; text-align: center; }
+.primary-btn { width: 100%; margin-top: 12px; background: var(--color-primary, #FF8D5D); color: #fff; box-shadow: 5px 5px 12px rgba(217,125,82,.22), -5px -5px 12px rgba(255,255,255,.8); }
 .secondary-btn, .danger-btn { flex: 1; }
 .secondary-btn { background: #fff3e7; color: var(--color-primary, #FF8D5D); }
 .danger-btn { background: #ffecec; color: #d64545; }
-.duplicate-local { padding: 12px; margin-top: 10px; border-radius: 14px; background: rgba(255,255,255,.72); }
-.empty-title { display: block; margin-bottom: 6px; font-size: 17px; font-weight: 700; color: #333; }
+.duplicate-local { padding: 12px; margin-top: 10px; border-radius: 16px; background: rgba(255,255,255,.72); box-shadow: inset 2px 2px 6px rgba(217,212,204,.45), inset -2px -2px 6px rgba(255,255,255,.75); }
+.empty-title { display: block; margin-bottom: 6px; font-size: 17px; font-weight: 800; color: #333; }
 </style>

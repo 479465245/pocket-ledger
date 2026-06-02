@@ -204,14 +204,44 @@ const parseBooleanValue = (value, fallback) => {
   return fallback
 }
 
+const padDatePart = (value) => String(value).padStart(2, '0')
+
+const formatLocalDateTime = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return ''
+  const y = date.getFullYear()
+  const m = padDatePart(date.getMonth() + 1)
+  const d = padDatePart(date.getDate())
+  const hh = padDatePart(date.getHours())
+  const mm = padDatePart(date.getMinutes())
+  const ss = padDatePart(date.getSeconds())
+  return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
+}
+
+const formatExcelSerialDate = (serial) => {
+  const wholeDays = Math.floor(serial)
+  const fraction = serial - wholeDays
+  const utcDate = new Date(Date.UTC(1899, 11, 30 + wholeDays))
+  if (Number.isNaN(utcDate.getTime())) return ''
+
+  const totalSeconds = Math.round(fraction * 24 * 60 * 60)
+  const hh = Math.floor(totalSeconds / 3600)
+  const mm = Math.floor((totalSeconds % 3600) / 60)
+  const ss = totalSeconds % 60
+  const y = utcDate.getUTCFullYear()
+  const m = padDatePart(utcDate.getUTCMonth() + 1)
+  const d = padDatePart(utcDate.getUTCDate())
+
+  if (hh === 0 && mm === 0 && ss === 0) return `${y}-${m}-${d}`
+  return `${y}-${m}-${d} ${padDatePart(hh)}:${padDatePart(mm)}:${padDatePart(ss)}`
+}
+
 const formatExcelDate = (value) => {
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 19).replace('T', ' ')
+    return formatLocalDateTime(value)
   }
 
   if (typeof value === 'number') {
-    const date = new Date((value - 25569) * 86400 * 1000)
-    return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+    return formatExcelSerialDate(value)
   }
 
   return normalizeText(value)

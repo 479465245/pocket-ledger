@@ -4,14 +4,33 @@ export const CROSS_CHECK_SESSION_KEY = 'account_book_cross_check_session'
 
 const DAY = 24 * 60 * 60 * 1000
 
+const parseLocalDateTime = (value, endOfDay = false) => {
+  const text = String(value || '').trim()
+  const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2})(?:\.\d{1,3})?)?)?$/)
+  if (!match) return NaN
+
+  const [, y, m, d, hh, mm, ss] = match
+  return new Date(
+    Number(y),
+    Number(m) - 1,
+    Number(d),
+    hh === undefined ? (endOfDay ? 23 : 0) : Number(hh),
+    mm === undefined ? (endOfDay ? 59 : 0) : Number(mm),
+    ss === undefined ? (endOfDay ? 59 : 0) : Number(ss),
+    endOfDay && hh === undefined ? 999 : 0
+  ).getTime()
+}
+
 export const parseTimestamp = (value) => {
   if (value === undefined || value === null || value === '') return NaN
   if (typeof value === 'number') return value
+  const localTimestamp = parseLocalDateTime(value)
+  if (!Number.isNaN(localTimestamp)) return localTimestamp
   const text = String(value).trim().replace(/-/g, '/')
   const timestamp = new Date(text).getTime()
   if (!Number.isNaN(timestamp)) return timestamp
-  const dateOnly = String(value).trim().slice(0, 10).replace(/-/g, '/')
-  return new Date(dateOnly).getTime()
+  const dateOnly = String(value).trim().slice(0, 10)
+  return parseLocalDateTime(dateOnly)
 }
 
 export const formatDate = (timestamp) => {
@@ -146,8 +165,8 @@ export const calculateCrossCheckReport = ({ session, bills = [], assets = [] }) 
     }
   }
 
-  const startTime = new Date(`${session.startDate} 00:00:00`.replace(/-/g, '/')).getTime()
-  const endTime = new Date(`${session.endDate} 23:59:59`.replace(/-/g, '/')).getTime()
+  const startTime = parseLocalDateTime(session.startDate)
+  const endTime = parseLocalDateTime(session.endDate, true)
   const localItems = bills
     .filter(bill => isBillInAssetRange(bill, session.assetId, startTime, endTime))
     .map(bill => makeLocalItem(bill, session.assetId, assets))

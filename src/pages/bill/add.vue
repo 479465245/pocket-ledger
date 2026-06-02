@@ -326,10 +326,22 @@ const pickingCurrencyType = ref('source')
 
 const currencies = CURRENCIES
 
+const toLocalDateString = (date = new Date()) => {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+}
+
+const parseLocalDate = (dateText) => {
+    const [y, m, d] = String(dateText || toLocalDateString()).split('-').map(Number)
+    return new Date(y, (m || 1) - 1, d || 1)
+}
+
 const form = reactive({
     amountStr: '0',
     remark: '',
-    date: new Date().toISOString().split('T')[0],
+    date: toLocalDateString(),
     assetId: '',
     parentCategoryId: '', // 一级分类ID，用于层级展示
     categoryId: '', // 实际分类ID（可以是父级或子级）
@@ -376,7 +388,7 @@ const selectedAssetName = computed(() => {
 })
 
 const displayDate = computed(() => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = toLocalDateString()
     if (form.date === today) return '今天'
     return form.date.substring(5) // MM-DD
 })
@@ -489,7 +501,7 @@ const loadBillData = (id) => {
     // 填充表单数据
     form.amountStr = Math.abs(bill.amount).toString()
     form.remark = bill.remark || ''
-    form.date = new Date(bill.timestamp).toISOString().split('T')[0]
+    form.date = toLocalDateString(new Date(bill.timestamp))
     form.assetId = bill.assetId
     form.parentCategoryId = bill.parentCategoryId
     form.categoryId = bill.categoryId
@@ -851,7 +863,7 @@ const submit = async () => {
         if (isEditMode.value) {
             const originalBill = billStore.bills.find(b => b.id === editBillId.value)
             const originalDate = new Date(originalBill.timestamp)
-            const selectedDate = new Date(form.date)
+            const selectedDate = parseLocalDate(form.date)
             
             timestamp = new Date(
                 selectedDate.getFullYear(),
@@ -864,7 +876,7 @@ const submit = async () => {
             ).getTime()
         } else {
             const now = new Date()
-            const selectedDate = new Date(form.date)
+            const selectedDate = parseLocalDate(form.date)
             timestamp = new Date(
                 selectedDate.getFullYear(),
                 selectedDate.getMonth(),

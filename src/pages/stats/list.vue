@@ -174,7 +174,7 @@ const filteredBills = computed(() => {
 
   if (assetId) {
     const start = appliedStartDate.value ? new Date(`${appliedStartDate.value} 00:00:00`).getTime() : null
-    const end = appliedEndDate.value ? new Date(`${appliedEndDate.value} 23:59:59`).getTime() : null
+    const end = appliedEndDate.value ? new Date(`${appliedEndDate.value} 23:59:59.999`).getTime() : null
 
     return billStore.bills.filter(b => {
       if (!(b.assetId === assetId || (b.type === 'transfer' && b.targetAssetId === assetId))) return false

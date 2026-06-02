@@ -109,25 +109,27 @@ const goList = (type) => uni.navigateTo({ url: `/pages/cross-check/list?type=${t
 </script>
 
 <style scoped>
-.container { min-height: 100vh; padding: 20px; box-sizing: border-box; background: var(--color-bg, #FFF9F0); }
-.header { margin-bottom: 18px; }
-.title { display: block; font-size: 24px; font-weight: 800; color: #333; margin-bottom: 6px; }
-.subtitle { color: #777; font-size: 13px; }
+.container { min-height: 100vh; padding: 20px; box-sizing: border-box; background: linear-gradient(180deg, #FFF9F0 0%, #FFF3E7 100%); }
+.header { margin-bottom: 18px; padding: 4px 2px; }
+.title { display: block; font-size: 25px; font-weight: 900; color: #333; margin-bottom: 7px; }
+.subtitle { display: block; color: #777; font-size: 13px; line-height: 20px; }
 .amount-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-.amount-card, .summary-card, .empty-card { border-radius: 18px; background: #FFF9F0; box-shadow: 5px 5px 15px rgba(0,0,0,.08), -5px -5px 15px rgba(255,255,255,.75); }
-.amount-card { box-sizing: border-box; width: calc(50% - 6px); padding: 16px; }
+.amount-card, .summary-card, .empty-card { border-radius: 22px; background: rgba(255,249,240,.96); box-shadow: 8px 8px 18px rgba(217,212,204,.78), -8px -8px 18px rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.65); }
+.amount-card { box-sizing: border-box; width: calc(50% - 6px); padding: 16px; text-align: center; }
 .amount-card.wide { width: 100%; }
 .amount-label { display: block; margin-bottom: 8px; color: #777; font-size: 12px; }
-.amount-value { display: block; color: #333; font-size: 21px; font-weight: 800; }
+.amount-value { display: block; color: #333; font-size: 21px; font-weight: 900; line-height: 28px; }
 .summary-card, .empty-card { padding: 18px; }
-.section-title { display: block; margin-bottom: 12px; font-size: 17px; font-weight: 800; color: #333; }
-.meta-row { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 14px; color: #777; font-size: 12px; }
+.empty-card { text-align: center; }
+.section-title { display: block; margin-bottom: 12px; font-size: 18px; font-weight: 900; color: #333; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.meta-row text { padding: 5px 9px; border-radius: 999px; background: rgba(255,255,255,.72); color: #777; font-size: 12px; line-height: 16px; }
 .problem-list { display: flex; flex-direction: column; gap: 12px; }
-.problem-item { display: flex; align-items: center; justify-content: space-between; padding: 14px; border-radius: 14px; background: rgba(255,255,255,.72); }
+.problem-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border-radius: 16px; background: rgba(255,255,255,.72); box-shadow: inset 2px 2px 6px rgba(217,212,204,.45), inset -2px -2px 6px rgba(255,255,255,.75); }
 .problem-title, .problem-desc { display: block; }
-.problem-title { margin-bottom: 5px; font-size: 16px; font-weight: 700; color: #333; }
+.problem-title { margin-bottom: 5px; font-size: 16px; font-weight: 800; color: #333; }
 .problem-desc { color: #777; font-size: 12px; line-height: 18px; }
-.problem-count { min-width: 42px; height: 42px; line-height: 42px; text-align: center; border-radius: 21px; color: #fff; background: var(--color-primary, #FF8D5D); font-size: 18px; font-weight: 800; }
-.empty-title { display: block; margin-bottom: 16px; color: #333; font-size: 17px; font-weight: 700; }
-.primary-btn { width: 100%; min-height: 44px; border: 0; border-radius: 14px; background: var(--color-primary, #FF8D5D); color: #fff; font-weight: 700; }
+.problem-count { flex-shrink: 0; min-width: 42px; height: 42px; line-height: 42px; text-align: center; border-radius: 21px; color: #fff; background: var(--color-primary, #FF8D5D); font-size: 18px; font-weight: 900; box-shadow: 3px 3px 8px rgba(255,141,93,.25); }
+.empty-title { display: block; margin-bottom: 16px; color: #333; font-size: 17px; font-weight: 800; }
+.primary-btn { width: 100%; min-height: 44px; border: 0; border-radius: 15px; background: var(--color-primary, #FF8D5D); color: #fff; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; text-align: center; box-shadow: 5px 5px 12px rgba(217,125,82,.22), -5px -5px 12px rgba(255,255,255,.8); }
 </style>
