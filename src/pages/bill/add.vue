@@ -73,7 +73,7 @@
 
                     <text class="row-value">{{ selectedAssetName }}</text>
 
-                    <text class="chevron">></text>
+                    <text class="chevron">›</text>
 
                 </view>
 
@@ -93,7 +93,7 @@
 
                     <text class="row-value">{{ assets.find(a => a.id === form.targetAssetId)?.name || '选择账户' }}</text>
 
-                    <text class="chevron">></text>
+                    <text class="chevron">›</text>
 
                 </view>
 
