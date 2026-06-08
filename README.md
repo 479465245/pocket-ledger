@@ -12,6 +12,7 @@
 - 统计分析：按月或按年查看收入、支出和分类占比。
 - 数据导入：支持读取 `.xls` / `.xlsx` 文件并预览、校验导入数据。
 - 数据导出：按日期范围导出账单数据。
+- WebDAV 备份：配置远程目录，上传备份文件或下载备份文件还原数据。
 - 本地持久化：资产、分类和账单通过 `uni.setStorageSync` 保存到本地。
 
 ## 技术栈
@@ -89,6 +90,8 @@ pnpm build:h5
 - `pages/settings/index`：旧设置入口，不再作为底部 tabBar。
 - `pages/settings/assets`：资产管理。
 - `pages/settings/import`：数据导入。
+- `pages/settings/backup`：本地备份还原。
+- `pages/settings/webdav`：WebDAV 远程备份还原。
 - `pages/settings/export`：数据导出。
 - `pages/categories/index`：分类管理。
 

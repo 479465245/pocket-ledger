@@ -66,11 +66,16 @@ import { readFileAsArrayBuffer } from '@/utils/networkFile'
 import { chooseLocalFile } from '@/utils/filePicker.js'
 import { saveLocalFile } from '@/utils/fileSaver.js'
 import { decodeUtf8 } from '@/utils/text.js'
+import {
+  applyBackupToStores,
+  buildBackupData,
+  getBackupCounts,
+  getBackupFileName,
+  validateBackup
+} from '@/utils/backup.js'
 import { usePageShare } from '@/utils/share'
 
 usePageShare({ title: '备份还原 - 记账本', path: '/pages/settings/index' })
-
-const BACKUP_VERSION = 1
 
 const billStore = useBillStore()
 const assetStore = useAssetStore()
@@ -107,27 +112,19 @@ const setProgress = ({ title = progress.title, message = '', current = 0, total 
   progress.total = total
 }
 
-const buildBackupData = () => ({
-  app: 'account-book',
-  type: 'full-backup',
-  version: BACKUP_VERSION,
-  createdAt: new Date().toISOString(),
-  data: {
-    bills: JSON.parse(JSON.stringify(billStore.bills || [])),
-    assets: JSON.parse(JSON.stringify(assetStore.assets || [])),
-    categories: JSON.parse(JSON.stringify(categoryStore.categories || []))
-  }
-})
-
 const exportBackup = async () => {
   if (isBusy.value) return
   isBusy.value = true
   try {
     setProgress({ title: '备份导出进度', message: '正在整理账单、资产和分类...', current: 1, total: 4 })
-    const backup = buildBackupData()
+    const backup = buildBackupData({
+      bills: billStore.bills || [],
+      assets: assetStore.assets || [],
+      categories: categoryStore.categories || []
+    })
     setProgress({ title: '备份导出进度', message: '正在生成备份文件...', current: 2, total: 4 })
     const content = JSON.stringify(backup, null, 2)
-    const fileName = `记账备份_${formatDateTime(new Date())}.json`
+    const fileName = getBackupFileName()
     setProgress({ title: '备份导出进度', message: '正在保存备份文件...', current: 3, total: 4 })
     await saveBackupFile(fileName, content)
     setProgress({ title: '备份导出进度', message: `备份完成：${fileName}`, current: 4, total: 4 })
@@ -168,11 +165,7 @@ const restoreFromFile = async (file) => {
     const backup = JSON.parse(text)
     validateBackup(backup)
 
-    const counts = {
-      bills: backup.data.bills.length,
-      assets: backup.data.assets.length,
-      categories: backup.data.categories.length
-    }
+    const counts = getBackupCounts(backup)
 
     uni.showModal({
       title: '确认还原备份',
@@ -198,16 +191,8 @@ const restoreFromFile = async (file) => {
 const applyBackup = async (backup) => {
   try {
     setProgress({ title: '备份还原进度', message: '正在还原分类...', current: 3, total: 5 })
-    categoryStore.categories = JSON.parse(JSON.stringify(backup.data.categories))
-    categoryStore.save()
-
-    setProgress({ title: '备份还原进度', message: '正在还原资产...', current: 4, total: 5 })
-    assetStore.assets = JSON.parse(JSON.stringify(backup.data.assets))
-    assetStore.save()
-
-    setProgress({ title: '备份还原进度', message: '正在还原账单...', current: 5, total: 5 })
-    billStore.bills = JSON.parse(JSON.stringify(backup.data.bills))
-    billStore.save()
+    setProgress({ title: '备份还原进度', message: '正在还原资产和账单...', current: 4, total: 5 })
+    applyBackupToStores(backup, { billStore, assetStore, categoryStore })
 
     initStores()
     setProgress({ title: '备份还原进度', message: '还原完成，本地数据已刷新', current: 5, total: 5 })
@@ -221,26 +206,7 @@ const applyBackup = async (backup) => {
   }
 }
 
-const validateBackup = (backup) => {
-  if (!backup || backup.type !== 'full-backup' || !backup.data) {
-    throw new Error('不是有效的备份文件')
-  }
-  if (!Array.isArray(backup.data.bills)) throw new Error('备份缺少账单数据')
-  if (!Array.isArray(backup.data.assets)) throw new Error('备份缺少资产数据')
-  if (!Array.isArray(backup.data.categories)) throw new Error('备份缺少分类数据')
-}
-
 const decodeBuffer = (buffer) => decodeUtf8(buffer)
-
-const formatDateTime = (date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  const h = String(date.getHours()).padStart(2, '0')
-  const min = String(date.getMinutes()).padStart(2, '0')
-  const s = String(date.getSeconds()).padStart(2, '0')
-  return `${y}${m}${d}_${h}${min}${s}`
-}
 
 const saveBackupFile = (fileName, content) => {
   return saveLocalFile({

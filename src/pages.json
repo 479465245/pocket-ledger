@@ -97,6 +97,14 @@
       }
     },
     {
+      "path": "pages/settings/webdav",
+      "style": {
+        "navigationBarTitleText": "WebDAV 备份",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/settings/export",
       "style": {
         "navigationBarTitleText": "数据导出",

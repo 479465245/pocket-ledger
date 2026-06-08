@@ -10,6 +10,7 @@
 - 分类管理：一级分类 + 二级分类
 - 统计分析：按月 / 按年看收入支出占比
 - 数据导入导出：支持 Excel 相关流程
+- WebDAV 备份：支持挂载远程目录上传备份、下载备份并覆盖还原
 - 本地持久化：全部数据走 `uni.setStorageSync`
 
 这个项目本质上是个 **纯前端单机账本**，没有后端，没有远程数据库。
@@ -99,6 +100,8 @@
 - `pages/settings/index`：旧设置入口，不再作为主入口
 - `pages/settings/assets`：资产管理
 - `pages/settings/import`：数据导入
+- `pages/settings/backup`：本地备份还原
+- `pages/settings/webdav`：WebDAV 远程备份还原
 - `pages/settings/export`：数据导出
 - `pages/categories/index`：分类管理
 
