@@ -1,15 +1,51 @@
 <script setup>
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { enableWxShareMenu } from '@/utils/share'
+import manifest from '@/manifest.json'
+
+let isCheckingVersion = false
+let hasPromptedVersionUpdate = false
+
+const checkStaticVersion = async () => {
+  if (isCheckingVersion || hasPromptedVersionUpdate) return
+  if (typeof window === 'undefined' || typeof fetch !== 'function') return
+
+  isCheckingVersion = true
+  try {
+    const response = await fetch('./static/version.txt?t=' + Date.now(), { cache: 'no-store' })
+    if (!response.ok) return
+
+    const latestVersion = (await response.text()).trim()
+    const currentVersion = String(manifest.versionName || '').trim()
+    if (!latestVersion || latestVersion === currentVersion) return
+
+    hasPromptedVersionUpdate = true
+    uni.showModal({
+      title: '发现新版本',
+      content: `当前版本 v${currentVersion}，最新版本 v${latestVersion}，是否立即刷新更新？`,
+      confirmText: '立即更新',
+      cancelText: '稍后',
+      success: (res) => {
+        if (res.confirm) window.location.reload()
+      }
+    })
+  } catch (error) {
+    console.warn('检查版本更新失败:', error)
+  } finally {
+    isCheckingVersion = false
+  }
+}
 
 onLaunch(() => {
   console.log('App Launch')
   enableWxShareMenu()
+  checkStaticVersion()
 })
 
 onShow(() => {
   console.log('App Show')
   enableWxShareMenu()
+  checkStaticVersion()
 })
 
 onHide(() => {

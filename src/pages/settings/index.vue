@@ -32,6 +32,10 @@
         <text class="menu-text">导出数据</text>
         <text class="arrow">›</text>
       </view>
+      <view class="menu-item neu-card version-item">
+        <text class="menu-text">当前版本</text>
+        <text class="version-text">v{{ appVersion }}</text>
+      </view>
     </view>
   </view>
 </template>
@@ -41,10 +45,12 @@ import { computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAssetStore } from '@/store/asset'
 import { usePageShare } from '@/utils/share'
+import manifest from '@/manifest.json'
 
 usePageShare({ title: '记账本设置', path: '/pages/settings/index' })
 
 const assetStore = useAssetStore()
+const appVersion = manifest.versionName
 
 onShow(() => {
   assetStore.init()
@@ -129,6 +135,15 @@ const navigateTo = (page) => {
 
 .arrow {
   font-size: 24px;
+  color: #999;
+}
+
+.version-item {
+  box-shadow: none;
+}
+
+.version-text {
+  font-size: 16px;
   color: #999;
 }
 </style>

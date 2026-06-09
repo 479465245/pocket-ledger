@@ -18,7 +18,7 @@ const normalizeDirectory = (directory = '') => trimSlashes(directory)
 
 const encodePath = (path = '') => trimSlashes(path).split('/').filter(Boolean).map(encodeURIComponent).join('/')
 
-const isH5 = () => typeof window !== 'undefined' && typeof document !== 'undefined' && typeof plus === 'undefined' && typeof wx === 'undefined'
+const isH5 = () => typeof window !== 'undefined' && typeof document !== 'undefined' && typeof fetch === 'function'
 
 const toBase64 = (value) => {
   if (typeof btoa === 'function') return btoa(unescape(encodeURIComponent(value)))
@@ -36,6 +36,27 @@ const buildHeaders = (config, extra = {}) => {
   const auth = buildAuthHeader(config)
   if (auth) headers.Authorization = auth
   return headers
+}
+
+const logWebDavRequest = ({ method = 'GET', url, config, headers = {} }) => {
+  console.info('[WebDAV]', method, url, {
+    username: config?.username || '',
+    hasPassword: Boolean(config?.password),
+    hasAuthorization: Boolean(headers.Authorization)
+  })
+}
+
+const normalizeFetchError = (error) => {
+  if (error instanceof TypeError) {
+    return new Error('请求被浏览器拦截，请确认 WebDAV 服务端已允许 H5 跨域访问')
+  }
+  return error
+}
+
+const buildStatusError = (status, action = '请求') => {
+  if (status === 401) return new Error('WebDAV 认证失败，请检查用户名、密码或应用授权码')
+  if (status === 403) return new Error('WebDAV 无访问权限，请检查账号权限或远程目录权限')
+  return new Error(`${action}失败：HTTP ${status}`)
 }
 
 export const buildWebDavUrl = (config, fileName = '') => {
@@ -95,9 +116,9 @@ const requestText = ({ url, method = 'GET', headers = {}, data }) => {
   if (isH5()) {
     return fetch(url, { method, headers, body: data }).then(async response => {
       const text = await response.text()
-      if (!response.ok) throw new Error(`请求失败：HTTP ${response.status}`)
+      if (!response.ok) throw buildStatusError(response.status, '请求')
       return text
-    })
+    }).catch(error => { throw normalizeFetchError(error) })
   }
 
   return new Promise((resolve, reject) => {
@@ -109,7 +130,7 @@ const requestText = ({ url, method = 'GET', headers = {}, data }) => {
       responseType: 'text',
       success: (res) => {
         if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(`请求失败：HTTP ${res.statusCode}`))
+          reject(buildStatusError(res.statusCode, '请求'))
           return
         }
         resolve(typeof res.data === 'string' ? res.data : String(res.data || ''))
@@ -122,9 +143,9 @@ const requestText = ({ url, method = 'GET', headers = {}, data }) => {
 const requestArrayBuffer = ({ url, headers = {} }) => {
   if (isH5()) {
     return fetch(url, { method: 'GET', headers }).then(async response => {
-      if (!response.ok) throw new Error(`下载失败：HTTP ${response.status}`)
+      if (!response.ok) throw buildStatusError(response.status, '下载')
       return response.arrayBuffer()
-    })
+    }).catch(error => { throw normalizeFetchError(error) })
   }
 
   return new Promise((resolve, reject) => {
@@ -135,7 +156,7 @@ const requestArrayBuffer = ({ url, headers = {} }) => {
       responseType: 'arraybuffer',
       success: (res) => {
         if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(`下载失败：HTTP ${res.statusCode}`))
+          reject(buildStatusError(res.statusCode, '下载'))
           return
         }
         resolve(res.data)
@@ -148,9 +169,9 @@ const requestArrayBuffer = ({ url, headers = {} }) => {
 const putText = ({ url, headers = {}, content }) => {
   if (isH5()) {
     return fetch(url, { method: 'PUT', headers, body: content }).then(response => {
-      if (!response.ok) throw new Error(`上传失败：HTTP ${response.status}`)
+      if (!response.ok) throw buildStatusError(response.status, '上传')
       return response
-    })
+    }).catch(error => { throw normalizeFetchError(error) })
   }
 
   return new Promise((resolve, reject) => {
@@ -161,7 +182,7 @@ const putText = ({ url, headers = {}, content }) => {
       data: content,
       success: (res) => {
         if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(`上传失败：HTTP ${res.statusCode}`))
+          reject(buildStatusError(res.statusCode, '上传'))
           return
         }
         resolve(res)
@@ -205,10 +226,13 @@ const parsePropfind = (xml = '', config) => {
 export const listWebDavBackupFiles = async (config) => {
   const message = validateWebDavConfig(config)
   if (message) throw new Error(message)
+  const url = buildWebDavUrl(config)
+  const headers = buildHeaders(config, { Depth: '1' })
+  logWebDavRequest({ method: 'PROPFIND', url, config, headers })
   const xml = await requestText({
-    url: buildWebDavUrl(config),
+    url,
     method: 'PROPFIND',
-    headers: buildHeaders(config, { Depth: '1' })
+    headers
   })
   return parsePropfind(xml, config)
 }
@@ -216,9 +240,12 @@ export const listWebDavBackupFiles = async (config) => {
 export const uploadWebDavBackup = async (config, fileName, content) => {
   const message = validateWebDavConfig(config)
   if (message) throw new Error(message)
+  const url = buildWebDavUrl(config, fileName)
+  const headers = buildHeaders(config, { 'Content-Type': 'application/json;charset=utf-8' })
+  logWebDavRequest({ method: 'PUT', url, config, headers })
   return putText({
-    url: buildWebDavUrl(config, fileName),
-    headers: buildHeaders(config, { 'Content-Type': 'application/json;charset=utf-8' }),
+    url,
+    headers,
     content
   })
 }
@@ -226,8 +253,11 @@ export const uploadWebDavBackup = async (config, fileName, content) => {
 export const downloadWebDavBackup = async (config, fileName) => {
   const message = validateWebDavConfig(config)
   if (message) throw new Error(message)
+  const url = buildWebDavUrl(config, fileName)
+  const headers = buildHeaders(config)
+  logWebDavRequest({ method: 'GET', url, config, headers })
   return requestArrayBuffer({
-    url: buildWebDavUrl(config, fileName),
-    headers: buildHeaders(config)
+    url,
+    headers
   })
 }

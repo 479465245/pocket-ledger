@@ -181,6 +181,10 @@ const chooseFileByAndroidIntent = ({ mimeType = '*/*' } = {}) => {
 }
 
 export const chooseLocalFile = async (options = {}) => {
+  if (isBrowser()) {
+    return chooseFileByInput(options)
+  }
+
   if (isAndroidApp()) {
     return chooseFileByAndroidIntent(options)
   }
@@ -191,10 +195,6 @@ export const chooseLocalFile = async (options = {}) => {
 
   if (typeof uni !== 'undefined' && typeof uni.chooseFile === 'function') {
     return chooseFileByUni(options)
-  }
-
-  if (isBrowser()) {
-    return chooseFileByInput(options)
   }
 
   throw new Error('当前平台不支持选择文件')

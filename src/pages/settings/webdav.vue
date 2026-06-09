@@ -1,5 +1,6 @@
 <template>
-  <scroll-view scroll-y class="container">
+  <view class="page">
+    <scroll-view scroll-y class="container">
     <view class="header">
       <text class="title">WebDAV 备份</text>
       <text class="subtitle">挂载远程目录，上传本地备份文件，或下载备份文件覆盖还原当前数据。</text>
@@ -77,6 +78,8 @@
       <text class="tip-item">4. H5 访问 WebDAV 时，服务端需要允许跨域请求。</text>
     </view>
 
+    </scroll-view>
+
     <view v-if="showConfigModal" class="modal-mask">
       <view class="modal neu-card" @click.stop>
         <view class="modal-title">WebDAV 配置</view>
@@ -88,36 +91,82 @@
           </view>
         </picker>
 
-        <view class="input-wrap">
-          <input class="neu-input" v-model="configForm.name" placeholder="配置名称，例如：坚果云备份" />
+        <view class="input-wrap" @click.stop="focusNameInput">
+          <input
+            class="neu-input"
+            :value="configForm.name"
+            :focus="nameInputFocus"
+            placeholder="配置名称，例如：坚果云备份"
+            confirm-type="next"
+            @focus="nameInputFocus = true"
+            @blur="nameInputFocus = false"
+            @input="onNameInput"
+          />
         </view>
-        <view class="input-wrap">
-          <input class="neu-input" v-model="configForm.url" placeholder="WebDAV 根地址，例如：https://dav.example.com/dav" />
+        <view class="input-wrap" @click.stop="focusUrlInput">
+          <input
+            class="neu-input"
+            :value="configForm.url"
+            :focus="urlInputFocus"
+            placeholder="WebDAV 根地址，例如：https://dav.example.com/dav"
+            confirm-type="next"
+            @focus="urlInputFocus = true"
+            @blur="urlInputFocus = false"
+            @input="onUrlInput"
+          />
         </view>
-        <view class="input-wrap">
-          <input class="neu-input" v-model="configForm.directory" placeholder="远程目录，例如：account-book/backups" />
+        <view class="input-wrap" @click.stop="focusDirectoryInput">
+          <input
+            class="neu-input"
+            :value="configForm.directory"
+            :focus="directoryInputFocus"
+            placeholder="远程目录，例如：account-book/backups"
+            confirm-type="next"
+            @focus="directoryInputFocus = true"
+            @blur="directoryInputFocus = false"
+            @input="onDirectoryInput"
+          />
         </view>
-        <view class="input-wrap">
-          <input class="neu-input" v-model="configForm.username" placeholder="用户名" />
+        <view class="input-wrap" @click.stop="focusUsernameInput">
+          <input
+            class="neu-input"
+            :value="configForm.username"
+            :focus="usernameInputFocus"
+            placeholder="用户名"
+            confirm-type="next"
+            @focus="usernameInputFocus = true"
+            @blur="usernameInputFocus = false"
+            @input="onUsernameInput"
+          />
         </view>
-        <view class="input-wrap">
-          <input class="neu-input" v-model="configForm.password" password placeholder="密码或应用授权码" />
+        <view class="input-wrap" @click.stop="focusPasswordInput">
+          <input
+            class="neu-input"
+            :value="configForm.password"
+            :focus="passwordInputFocus"
+            password
+            placeholder="密码或应用授权码"
+            confirm-type="done"
+            @focus="passwordInputFocus = true"
+            @blur="passwordInputFocus = false"
+            @input="onPasswordInput"
+          />
         </view>
 
         <text class="edit-tip">远程目录需已存在；如果服务商使用应用授权码，请填授权码作为密码。</text>
 
         <view class="modal-actions">
-          <button class="neu-btn danger" :disabled="!editingConfigId" @click="confirmDeleteConfig">删除</button>
-          <button class="neu-btn cancel" @click="closeConfigModal">取消</button>
-          <button class="neu-btn confirm" @click="saveConfig">保存</button>
+          <button class="neu-btn danger" :disabled="!editingConfigId" @click.stop="confirmDeleteConfig" @touchend.stop.prevent="confirmDeleteConfig">删除</button>
+          <button class="neu-btn cancel" @click.stop="closeConfigModal" @touchend.stop.prevent="closeConfigModal">取消</button>
+          <button class="neu-btn confirm" @click.stop="saveConfig" @touchend.stop.prevent="saveConfig">保存</button>
         </view>
       </view>
     </view>
-  </scroll-view>
+  </view>
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useAssetStore } from '@/store/asset'
@@ -155,6 +204,13 @@ const showConfigModal = ref(false)
 const editingConfigId = ref('')
 const configForm = reactive({ name: '', url: '', directory: '', username: '', password: '' })
 const progress = reactive({ visible: false, title: '', message: '', current: 0, total: 0 })
+let lastSaveConfigTime = 0
+
+const nameInputFocus = ref(false)
+const urlInputFocus = ref(false)
+const directoryInputFocus = ref(false)
+const usernameInputFocus = ref(false)
+const passwordInputFocus = ref(false)
 
 const activeConfig = computed(() => configs.value.find(item => item.id === activeConfigId.value) || configs.value[0] || null)
 const configNames = computed(() => configs.value.map(item => item.name || '未命名配置'))
@@ -202,6 +258,14 @@ const resetForm = () => {
   configForm.password = ''
 }
 
+const resetInputFocus = () => {
+  nameInputFocus.value = false
+  urlInputFocus.value = false
+  directoryInputFocus.value = false
+  usernameInputFocus.value = false
+  passwordInputFocus.value = false
+}
+
 const fillForm = (config) => {
   editingConfigId.value = config?.id || ''
   configForm.name = config?.name || ''
@@ -212,13 +276,65 @@ const fillForm = (config) => {
 }
 
 const openConfigModal = () => {
+  resetInputFocus()
   fillForm(activeConfig.value)
   showConfigModal.value = true
 }
 
 const closeConfigModal = () => {
+  resetInputFocus()
   showConfigModal.value = false
   resetForm()
+}
+
+const focusNameInput = async () => {
+  resetInputFocus()
+  await nextTick()
+  nameInputFocus.value = true
+}
+
+const focusUrlInput = async () => {
+  resetInputFocus()
+  await nextTick()
+  urlInputFocus.value = true
+}
+
+const focusDirectoryInput = async () => {
+  resetInputFocus()
+  await nextTick()
+  directoryInputFocus.value = true
+}
+
+const focusUsernameInput = async () => {
+  resetInputFocus()
+  await nextTick()
+  usernameInputFocus.value = true
+}
+
+const focusPasswordInput = async () => {
+  resetInputFocus()
+  await nextTick()
+  passwordInputFocus.value = true
+}
+
+const onNameInput = (e) => {
+  configForm.name = e.detail.value
+}
+
+const onUrlInput = (e) => {
+  configForm.url = e.detail.value
+}
+
+const onDirectoryInput = (e) => {
+  configForm.directory = e.detail.value
+}
+
+const onUsernameInput = (e) => {
+  configForm.username = e.detail.value
+}
+
+const onPasswordInput = (e) => {
+  configForm.password = e.detail.value
 }
 
 const selectConfig = (e) => {
@@ -230,6 +346,10 @@ const selectConfig = (e) => {
 }
 
 const saveConfig = () => {
+  const now = Date.now()
+  if (now - lastSaveConfigTime < 500) return
+  lastSaveConfigTime = now
+
   const payload = {
     id: editingConfigId.value,
     name: configForm.name.trim(),
@@ -375,7 +495,8 @@ const formatFileSize = (size = 0) => {
 </script>
 
 <style scoped>
-.container { height: 100vh; overflow-y: auto; padding: 20px; box-sizing: border-box; background: var(--app-bg); }
+.page { min-height: 100vh; background: var(--app-bg); }
+.container { height: 100vh; overflow-y: auto; padding: 20px; box-sizing: border-box; }
 .header { margin-bottom: 18px; }
 .title { display: block; margin-bottom: 8px; color: var(--color-text); font-size: 24px; font-weight: 800; }
 .subtitle, .card-desc, .tip-item, .mount-line, .file-meta, .edit-tip { display: block; color: var(--color-text-light); font-size: 13px; line-height: 20px; }
@@ -420,7 +541,7 @@ const formatFileSize = (size = 0) => {
 .neu-input { width: 100%; box-sizing: border-box; min-height: 44px; padding: 0 14px; border-radius: 14px; background: rgba(255,255,255,.76); color: var(--color-text); font-size: 14px; }
 .edit-tip { margin: 4px 0 14px; }
 .modal-actions { gap: 8px; }
-.modal-actions .neu-btn { flex: 1; min-height: 42px; border: 0; border-radius: 14px; font-size: 14px; font-weight: 800; }
+.modal-actions .neu-btn { flex: 1; min-height: 42px; border: 0; border-radius: 14px; font-size: 14px; font-weight: 800; touch-action: manipulation; }
 .danger { background: rgba(255,59,48,.14); color: #ff3b30; }
 .cancel { background: rgba(255,255,255,.72); color: var(--color-text-light); }
 .confirm { background: var(--color-primary); color: #fff; }

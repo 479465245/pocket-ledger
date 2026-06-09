@@ -47,7 +47,7 @@ const saveByBrowser = ({ fileName, content, mimeType }) => {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  URL.revokeObjectURL(objectUrl)
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000)
   return { filePath: '', fileName }
 }
 
