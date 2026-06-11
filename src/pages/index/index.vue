@@ -60,10 +60,9 @@
             <view
               class="bill-item-container"
               :class="{ 'show-actions': activeBillId === bill.id }"
-              :data-bill-id="bill.id"
               @touchstart="onTouchStart"
               @touchmove="onTouchMove"
-              @touchend="onTouchEnd"
+              @touchend="onTouchEnd($event, bill.id)"
             >
               <view class="bill-item" :class="getBillStateClass(bill)">
                 <view class="bill-left">
@@ -105,10 +104,9 @@
           <view
             class="asset-item-container"
             :class="{ 'show-actions': activeAssetId === asset.id }"
-            :data-asset-id="asset.id"
             @touchstart="onAssetTouchStart"
             @touchmove="onAssetTouchMove"
-            @touchend="onAssetTouchEnd"
+            @touchend="onAssetTouchEnd($event, asset.id)"
           >
             <view class="neu-card home-asset-item" @click="openAssetBills(asset)">
               <view class="asset-left">
@@ -443,13 +441,13 @@ const onTouchMove = (e) => {
   const deltaY = e.touches[0].clientY - touchStartY.value
   if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
     isMoving.value = true
+    e.preventDefault?.()
   }
 }
 
-const onTouchEnd = (e) => {
+const onTouchEnd = (e, billId) => {
   if (!isMoving.value) return
   const deltaX = e.changedTouches[0].clientX - touchStartX.value
-  const billId = e.currentTarget.dataset.billId
   if (deltaX < -50) {
     activeBillId.value = billId
   } else if (deltaX > 50) {
@@ -870,14 +868,14 @@ const onAssetTouchMove = (e) => {
 
   if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
     assetIsMoving.value = true
+    e.preventDefault?.()
   }
 }
 
-const onAssetTouchEnd = (e) => {
+const onAssetTouchEnd = (e, assetId) => {
   if (!assetIsMoving.value) return
 
   const deltaX = e.changedTouches[0].clientX - assetTouchStartX.value
-  const assetId = e.currentTarget.dataset.assetId
 
   if (deltaX < -50) {
     activeAssetId.value = assetId
@@ -1085,6 +1083,7 @@ const onAssetTouchEnd = (e) => {
 .bill-item-container {
   position: relative;
   transition: transform 0.3s ease;
+  touch-action: pan-y;
 }
 
 .bill-item-container.show-actions {
@@ -1269,6 +1268,7 @@ const onAssetTouchEnd = (e) => {
 .asset-item-container {
   position: relative;
   transition: transform 0.3s ease;
+  touch-action: pan-y;
 }
 
 .asset-item-container.show-actions {
