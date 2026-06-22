@@ -214,7 +214,7 @@ const categoryStats = computed(() => {
 
     filteredBills.value.forEach(bill => {
         const currency = bill.currency || 'CNY'
-        const pid = bill.parentCategoryId || (bill.type === 'transfer' ? 'credit-card-repayment' : 'unknown')
+        const pid = bill.parentCategoryId || 'unknown'
         const key = `${pid}__${currency}`
         if (!map[key]) {
             const cat = categoryStore.categories.find(c => c.id === pid)
@@ -222,8 +222,8 @@ const categoryStats = computed(() => {
                 statKey: key,
                 id: pid,
                 currency,
-                name: decodeHtmlEntities(cat ? cat.name : (pid === 'credit-card-repayment' ? '信用卡还款' : '未知分类')),
-                icon: cat ? cat.icon : (pid === 'credit-card-repayment' ? '💳' : '❓'),
+                name: decodeHtmlEntities(cat ? cat.name : '未知分类'),
+                icon: cat ? cat.icon : '❓',
                 amount: 0,
                 amountMap: {},
                 hasChildren: cat ? (cat.children && cat.children.length > 0) : false

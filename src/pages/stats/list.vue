@@ -145,9 +145,7 @@ onLoad((options) => {
       title = `${decodeDisplayText(assetName)}账单`
     } else if (params.value.id) {
       const name = categoryStore.getCategoryName(params.value.id)
-      if (params.value.id === 'credit-card-repayment') {
-        title = '信用卡还款明细'
-      } else if (decodeDisplayText(name) === 'Unknown') {
+      if (decodeDisplayText(name) === 'Unknown') {
         title = '分类明细'
       } else if (params.value.filterType === 'parent_other') {
         title = `${decodeDisplayText(name)} (其他) 明细`
@@ -201,9 +199,7 @@ const filteredBills = computed(() => {
     if (params.value.currency && (b.currency || 'CNY') !== params.value.currency) return false
     if (b.isIncludedInStats === false) return false
 
-    if (filterType === 'parent' && id === 'credit-card-repayment') {
-      return b.type === 'transfer'
-    } else if (filterType === 'parent') {
+    if (filterType === 'parent') {
       return b.parentCategoryId === id
     } else if (filterType === 'sub') {
       return b.categoryId === id

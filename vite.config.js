@@ -1,18 +1,29 @@
 import { defineConfig } from 'vite'
 import uni from '@dcloudio/vite-plugin-uni'
 import { VitePWA } from 'vite-plugin-pwa'
+import { readFileSync } from 'node:fs'
+
+const appIcon = readFileSync(new URL('./1024x1024.png', import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    {
+      name: 'emit-root-app-icon',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: '1024x1024.png',
+          source: appIcon,
+        })
+      },
+    },
     uni(),
     VitePWA({
       manifestFilename: 'manifest.json',
       registerType: 'autoUpdate',
       includeAssets: [
-        'static/icons/144x144.png',
-        'static/icons/192x192.png',
-        'static/icons/512x512.png',
+        '1024x1024.png',
       ],
       manifest: {
         name: '元起',
@@ -25,19 +36,13 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: '/static/icons/144x144.png',
-            sizes: '144x144',
+            src: '/1024x1024.png',
+            sizes: '1024x1024',
             type: 'image/png',
           },
           {
-            src: '/static/icons/192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-          {
-            src: '/static/icons/512x512.png',
-            sizes: '512x512',
+            src: '/1024x1024.png',
+            sizes: '1024x1024',
             type: 'image/png',
             purpose: 'any maskable',
           },

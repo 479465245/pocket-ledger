@@ -283,7 +283,7 @@ const currentMonthBills = computed(() => {
 
 const currentMonthExpense = computed(() => {
   return currentMonthBills.value
-    .filter(b => billStore.getStatType(b) === 'expense' && (b.currency || 'CNY') === 'CNY' && b.isIncludedInStats !== false)
+    .filter(b => b.type === 'expense' && (b.currency || 'CNY') === 'CNY' && b.isIncludedInStats !== false)
     .reduce((acc, cur) => acc + billStore.getStatAmount(cur), 0)
     .toFixed(2)
 })
@@ -334,7 +334,7 @@ const groupedBills = computed(() => {
 
     group.bills.push(bill)
 
-    if (billStore.getStatType(bill) === 'expense' && (bill.currency || 'CNY') === 'CNY' && bill.isIncludedInStats !== false) {
+    if (bill.type === 'expense' && (bill.currency || 'CNY') === 'CNY' && bill.isIncludedInStats !== false) {
 
       group.expense += billStore.getStatAmount(bill)
 

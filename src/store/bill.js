@@ -19,7 +19,9 @@ export const useBillStore = defineStore('bill', {
           ...b,
           currency: normalizeCurrency(b.currency),
           targetCurrency: normalizeCurrency(b.targetCurrency || b.currency),
-          isIncludedInStats: ['income', 'expense'].includes(b.type) && normalizeCurrency(b.currency) !== 'CNY' && b.isIncludedInStats === false
+          isIncludedInStats: b.type === 'transfer'
+            ? false
+            : ['income', 'expense'].includes(b.type) && normalizeCurrency(b.currency) !== 'CNY' && b.isIncludedInStats === false
             ? true
             : b.isIncludedInStats
         }))
@@ -47,7 +49,9 @@ export const useBillStore = defineStore('bill', {
         targetAmount,
         remark: billData.remark ?? billData.note ?? '',
         fee: Number(billData.fee || 0),
-        isIncludedInStats: billData.isIncludedInStats !== undefined ? billData.isIncludedInStats : true,
+        isIncludedInStats: billData.type === 'transfer'
+          ? false
+          : billData.isIncludedInStats !== undefined ? billData.isIncludedInStats : true,
       }
     },
     async addBill(billData) {
@@ -202,7 +206,6 @@ export const useBillStore = defineStore('bill', {
       this.save()
     },
     getStatType(bill) {
-      if (bill.type === 'transfer' && bill.isIncludedInStats !== false && bill.currency === 'CNY') return 'expense'
       return bill.type
     },
     getStatAmount(bill) {

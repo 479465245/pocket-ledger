@@ -186,8 +186,11 @@
                 <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab === 'transfer'">
                     <text>转出 {{ form.currency }}</text>
                 </view>
-                <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats">
+                <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats" v-if="currentTab !== 'transfer'">
                     <text>{{ form.isIncludedInStats ? '计入统计' : '不计入统计' }}</text>
+                </view>
+                <view class="option-tag disabled" v-if="currentTab === 'transfer'">
+                    <text>不计入统计</text>
                 </view>
             </view>
         </scroll-view>
@@ -301,6 +304,7 @@ import { CURRENCIES, getCurrencySymbol } from '@/utils/currency'
 const categoryStore = useCategoryStore()
 const assetStore = useAssetStore()
 const billStore = useBillStore()
+const LAST_ASSET_STORAGE_KEY = 'account_book_last_bill_assets'
 
 // 编辑模式相关
 const isEditMode = ref(false)
@@ -321,6 +325,8 @@ const showAssetPicker = ref(false)
 const showCurrencyPicker = ref(false)
 
 const pickingAssetType = ref('source')
+
+const assetTouched = ref(false)
 
 const pickingCurrencyType = ref('source')
 
@@ -404,6 +410,38 @@ const displayCurrencySymbol = computed(() => {
 const displayTransferInAmount = computed(() => {
     return form.targetAmountStr || '0'
 })
+
+const getLastUsedAssetMap = () => {
+    try {
+        const stored = uni.getStorageSync(LAST_ASSET_STORAGE_KEY)
+        if (!stored) return {}
+        return typeof stored === 'string' ? JSON.parse(stored) : stored
+    } catch (error) {
+        return {}
+    }
+}
+
+const getLastUsedAssetId = (type) => {
+    const map = getLastUsedAssetMap()
+    return map[type] || ''
+}
+
+const setLastUsedAssetId = (type, assetId) => {
+    if (!assetId || !['expense', 'income'].includes(type)) return
+    const map = getLastUsedAssetMap()
+    map[type] = assetId
+    uni.setStorageSync(LAST_ASSET_STORAGE_KEY, JSON.stringify(map))
+}
+
+const applyLastUsedAssetForCurrentType = () => {
+    if (isEditMode.value || currentTab.value === 'transfer' || assetTouched.value) return
+    const lastAssetId = getLastUsedAssetId(currentTab.value)
+    if (!lastAssetId) return
+    const exists = assets.value.some(asset => asset.id === lastAssetId)
+    if (exists) {
+        form.assetId = lastAssetId
+    }
+}
 
 // Watch categories change to ensure selection is valid
 import { watch } from 'vue'
@@ -542,8 +580,9 @@ const loadBillData = (id) => {
 
 const switchTab = (val) => {
     currentTab.value = val
+    assetTouched.value = false
     if (val === 'transfer') {
-        form.isIncludedInStats = true
+        form.isIncludedInStats = false
 
         form.currency = form.currency || 'CNY'
         if (!form.targetCurrency) form.targetCurrency = 'CNY'
@@ -567,6 +606,8 @@ const selectCategory = (cat) => {
     selectedCategoryId.value = cat.id
     selectedParentId.value = cat.id // Always set as parent context
     form.parentCategoryId = cat.id
+
+    applyLastUsedAssetForCurrentType()
     
     // 默认选择父分类作为categoryId，如果用户选择子分类会覆盖
     form.categoryId = cat.id
@@ -575,6 +616,7 @@ const selectCategory = (cat) => {
 }
 
 const selectSubCategory = (sub) => {
+    applyLastUsedAssetForCurrentType()
     form.categoryId = sub.id  // 子分类ID覆盖父分类ID
     console.log('Select Sub Category:', sub.name, sub.id)
 }
@@ -589,10 +631,14 @@ const openAssetPicker = (type) => {
 }
 
 const selectAsset = (a) => {
+    assetTouched.value = true
     if (pickingAssetType.value === 'source') {
         form.assetId = a.id
     } else {
         form.targetAssetId = a.id
+    }
+    if (currentTab.value !== 'transfer') {
+        setLastUsedAssetId(currentTab.value, a.id)
     }
     showAssetPicker.value = false
 }
@@ -654,13 +700,7 @@ const selectCurrency = (code) => {
 
 
         if (currentTab.value === 'transfer') {
-
-
-
-            form.isIncludedInStats = true
-
-
-
+            form.isIncludedInStats = false
         }
 
 
@@ -775,11 +815,7 @@ const resetForm = () => {
 
     form.remark = ''
 
-    if (currentTab.value !== 'transfer') {
-
-        form.isIncludedInStats = true
-
-    }
+    form.isIncludedInStats = currentTab.value !== 'transfer'
 
     if (currentTab.value === 'transfer') {
 
@@ -855,6 +891,10 @@ const submit = async () => {
             finalAmount = Math.abs(val)
         }
 
+        if (currentTab.value !== 'transfer') {
+            setLastUsedAssetId(currentTab.value, form.assetId)
+        }
+
         // Create timestamp with current time for proper sorting
         // 如果是编辑模式，保留原有的时分秒，只更新日期
         // 或者简单起见，如果日期没变，保留原时间戳；如果日期变了，设为该日期的当前时间
@@ -900,7 +940,7 @@ const submit = async () => {
             type: currentTab.value,
             timestamp: timestamp,
             remark: form.remark,
-            isIncludedInStats: form.isIncludedInStats,
+            isIncludedInStats: currentTab.value === 'transfer' ? false : form.isIncludedInStats,
             // 添加手续费字段
             fee: currentTab.value === 'transfer' ? parseFloat(form.fee) || 0 : undefined
         }
@@ -1449,5 +1489,3 @@ const submit = async () => {
 
 }
 </style>
-
-
