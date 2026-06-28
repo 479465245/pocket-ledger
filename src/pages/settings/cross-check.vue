@@ -45,7 +45,7 @@
       <view class="section">
         <button class="primary-btn" @click="selectFile">{{ selectedFileName || '选择校验文件' }}</button>
         <button class="primary-btn secondary-file-btn" @click="selectNetworkFile">选择网络文件</button>
-        <text class="hint">文件仅用于本次交叉校验，不会直接写入账本。</text>
+        <text class="hint">文件仅用于本次交叉校验，不会直接写入账本。PDF 会通过已配置的 AI 服务识别流水。</text>
       </view>
 
       <view v-if="progressState.visible" class="section progress-section">
@@ -89,6 +89,8 @@ import {
   downloadNetworkFile,
   readFileAsArrayBuffer
 } from '@/utils/networkFile'
+import { parsePdfStatementWithLlm } from '@/utils/aiCrossCheck'
+import { isPdfFile } from '@/utils/pdfPages'
 import { usePageShare } from '@/utils/share'
 
 usePageShare({ title: '交叉校验配置 - 记账本', path: '/pages/settings/index' })
@@ -142,7 +144,7 @@ const selectFile = async () => {
 
   try {
     const file = await chooseLocalFile({
-      extensions: ['xls', 'xlsx', 'csv'],
+      extensions: ['xls', 'xlsx', 'csv', 'pdf'],
       mimeType: '*/*'
     })
     await readFile(file)
@@ -176,6 +178,10 @@ const readFile = async (file) => {
   setProgress({ title: '校验文件进度', message: '正在读取文件...', current: 1, total: 4 })
   try {
     const buffer = await readFileAsArrayBuffer(file)
+    if (isPdfFile(file)) {
+      await readPdfFile(buffer)
+      return
+    }
     setProgress({ title: '校验文件进度', message: '正在解析流水...', current: 2, total: 4 })
     const data = new Uint8Array(buffer)
     const result = parseWorkbookData(data, selectedFileName.value)
@@ -194,6 +200,25 @@ const readFile = async (file) => {
     console.error(error)
     externalRows.value = []
     parseMessages.value = [{ type: 'error', message: '文件解析失败，请确认文件格式是否正确' }]
+  }
+}
+
+const readPdfFile = async (buffer) => {
+  setProgress({ title: 'PDF AI 识别进度', message: '正在准备 PDF...', current: 1, total: 5 })
+  const result = await parsePdfStatementWithLlm({
+    buffer,
+    assetName: selectedAssetName.value,
+    startDate: startDate.value,
+    endDate: endDate.value,
+    onProgress: (message) => setProgress({ title: 'PDF AI 识别进度', message, current: 3, total: 5 })
+  })
+
+  parsedProvider.value = result.provider
+  externalRows.value = result.rows.filter(row => row.type && row.date && !Number.isNaN(new Date(String(row.date).replace(/-/g, '/')).getTime()))
+  parseMessages.value = result.warnings.map(message => ({ type: 'warning', message }))
+  setProgress({ title: 'PDF AI 识别进度', message: `解析完成：有效流水 ${externalRows.value.length} 条`, current: 5, total: 5 })
+  if (!externalRows.value.length) {
+    uni.showToast({ title: 'PDF 未识别到有效流水', icon: 'none' })
   }
 }
 

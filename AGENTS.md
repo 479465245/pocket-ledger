@@ -14,6 +14,8 @@
 - 这是一个基于 uni-app、Vue 3、Pinia 和 Vite 的本地记账应用。
 - 项目是纯前端单机账本，不依赖后端服务或远程数据库。
 - 项目必须以保证 PWA 应用下的显示效果和可用性为主，功能、布局、交互和构建验证都应优先考虑 PWA 场景。
+- 一切功能以 PWA 打包后的实现和可用性为主；跨端能力存在差异时，优先保证 H5/PWA 打包产物。
+- 每次执行正式打包前必须自增版本号，并保持 `package.json` 的 `version`、`src/manifest.json` 的 `versionName` / `versionCode`、设置菜单显示版本和 `src/static/version.txt` 一致。
 - 资产、分类、账单都通过 `uni.setStorageSync` 持久化。
 - 任何改动都应优先保证账单、资产余额和统计数据的一致性。
 
@@ -31,6 +33,7 @@ pnpm type-check
 - 项目已有 `pnpm-lock.yaml`，默认使用 pnpm。
 - 不要随意改用 npm、yarn 或其他包管理器。
 - 只有在新增、删除或升级依赖时才更新 `pnpm-lock.yaml`。
+- `pnpm build:h5` 会先执行 `pnpm version:bump`，自动自增补丁版本并同步配置、设置页显示来源和 `version.txt`，打包产物固定输出到 `pwa-dist`；不要绕过该脚本直接执行 `uni build` 作为正式 PWA 打包。
 
 ## 目录职责
 
@@ -47,11 +50,16 @@ pnpm type-check
 | `src/pages/bill/add.vue` | 新增/编辑账单 |
 | `src/pages/stats` | 统计页、分类统计详情、统计明细 |
 | `src/pages/settings` | 设置、导入、导出、备份、WebDAV、网络文件配置、交叉校验入口 |
+| `src/pages/assistant/index.vue` | AI 助手，基于账本摘要进行对话式分析 |
 | `src/pages/categories/index.vue` | 分类管理 |
 | `src/pages/cross-check` | 交叉校验操作主页和问题列表 |
 | `src/utils/backup.js` | 备份数据结构、校验和覆盖还原 |
 | `src/utils/importParsers.js` | 支付宝、微信、通用模板导入解析 |
 | `src/utils/crossCheck.js` | 外部流水与本地账单核对逻辑 |
+| `src/utils/llm.js` | OpenAI-compatible 配置、连接测试和 Chat Completions 调用 |
+| `src/utils/llmContext.js` | 账本摘要分析上下文生成 |
+| `src/utils/pdfPages.js` | PDF 文本提取和页面图片渲染 |
+| `src/utils/aiCrossCheck.js` | AI 辅助 PDF 流水识别和结构校验 |
 | `src/utils/webdav.js` | WebDAV 配置、列表、上传、下载 |
 | `src/utils/networkFile.js` | 网络文件下载、上传和配置管理 |
 | `src/utils/filePicker.js` / `src/utils/fileSaver.js` | 跨端文件选择和保存 |
@@ -121,10 +129,18 @@ pnpm type-check
 ### 交叉校验模块
 
 - `pages/settings/cross-check.vue` 选择资产、日期范围和外部账单文件，解析后创建校验会话。
+- PDF 交叉校验会通过 AI 识别流水：文本型 PDF 优先发送提取文本，扫描件 PDF 会渲染页面图片并通过 OpenAI `image_url` 发送到用户配置的模型服务。
 - 校验会话持久化 key 为 `account_book_cross_check_session`。
 - `pages/cross-check/home.vue` 汇总本地账单与外部流水的匹配结果。
 - `pages/cross-check/list.vue` 展示本地缺失、本地多余、资产不一致、疑似重复，并支持补记或删除本地账单。
 - `src/utils/crossCheck.js` 以日期、金额、方向和资产名称匹配本地账单与外部流水；转账目标资产使用 `targetAmount` 或 `amount` 的绝对值参与核对。
+
+### AI 助手模块
+
+- `pages/settings/ai-config.vue` 管理 OpenAI-compatible API 地址、模型、API Key、temperature 和 max tokens，持久化 key 为 `llm_config`。
+- `pages/assistant/index.vue` 只发送 `llmContext` 生成的账本聚合摘要，不默认发送完整账单明细。
+- AI 只做摘要分析、PDF 流水识别和解释建议，不能直接调用 `billStore.addBill()`、`updateBill()`、`deleteBill()` 修改账本。
+- 使用 AI 功能时，账本摘要、PDF 文本或 PDF 页面图片会发送到用户配置的模型服务；不要在日志或文档中记录真实 API Key、账本内容或中转站私密地址。
 
 ## 主要业务流程
 

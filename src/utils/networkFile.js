@@ -1,6 +1,6 @@
-const STORAGE_KEY = 'network_file_configs'
+import { isWebRuntime } from './runtime.js'
 
-const isH5 = () => typeof window !== 'undefined' && typeof document !== 'undefined' && typeof plus === 'undefined' && typeof wx === 'undefined'
+const STORAGE_KEY = 'network_file_configs'
 
 const getUserDataPath = () => {
   if (typeof uni !== 'undefined' && uni.env?.USER_DATA_PATH) return uni.env.USER_DATA_PATH
@@ -96,7 +96,7 @@ export const downloadNetworkFile = async (config) => {
   const message = validateNetworkFileConfig(config, 'download')
   if (message) throw new Error(message)
 
-  if (isH5()) {
+  if (isWebRuntime()) {
     const response = await fetch(config.downloadUrl)
     if (!response.ok) throw new Error(`下载失败：HTTP ${response.status}`)
     const blob = await response.blob()
@@ -132,7 +132,7 @@ export const readFileAsArrayBuffer = (file) => {
       : Promise.resolve(file.arrayBuffer)
   }
 
-  if (isH5()) {
+  if (isWebRuntime()) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = (event) => resolve(event.target.result)
@@ -159,7 +159,7 @@ export const uploadNetworkFile = async (config, fileName, content) => {
   const message = validateNetworkFileConfig(config, 'upload')
   if (message) throw new Error(message)
 
-  if (isH5()) {
+  if (isWebRuntime()) {
     const blob = content instanceof Blob
       ? content
       : new Blob([content], { type: 'application/vnd.ms-excel;charset=utf-8' })

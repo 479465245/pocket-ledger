@@ -65,6 +65,22 @@
       }
     },
     {
+      "path": "pages/assistant/index",
+      "style": {
+        "navigationBarTitleText": "AI 助手",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/settings/ai-config",
+      "style": {
+        "navigationBarTitleText": "AI 配置",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/settings/network-file",
       "style": {
         "navigationBarTitleText": "网络文件配置",

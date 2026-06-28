@@ -205,6 +205,19 @@
             </view>
         </view>
 
+        <scroll-view v-if="remarkSuggestions.length > 0" scroll-x class="remark-suggestions" :show-scrollbar="false">
+            <view class="remark-suggestion-row">
+                <view
+                    v-for="remark in remarkSuggestions"
+                    :key="remark"
+                    class="remark-suggestion"
+                    @click="selectRemarkSuggestion(remark)"
+                >
+                    {{ remark }}
+                </view>
+            </view>
+        </scroll-view>
+
         <!-- Keypad -->
         <view class="keypad">
             <view class="key-row">
@@ -304,7 +317,6 @@ import { CURRENCIES, getCurrencySymbol } from '@/utils/currency'
 const categoryStore = useCategoryStore()
 const assetStore = useAssetStore()
 const billStore = useBillStore()
-const LAST_ASSET_STORAGE_KEY = 'account_book_last_bill_assets'
 
 // 编辑模式相关
 const isEditMode = ref(false)
@@ -411,37 +423,53 @@ const displayTransferInAmount = computed(() => {
     return form.targetAmountStr || '0'
 })
 
-const getLastUsedAssetMap = () => {
-    try {
-        const stored = uni.getStorageSync(LAST_ASSET_STORAGE_KEY)
-        if (!stored) return {}
-        return typeof stored === 'string' ? JSON.parse(stored) : stored
-    } catch (error) {
-        return {}
-    }
+const sortedBillsDesc = computed(() => {
+    return [...billStore.bills].sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
+})
+
+const getLatestBillByCategory = (categoryId) => {
+    if (!categoryId || currentTab.value !== 'expense') return null
+    return sortedBillsDesc.value.find(bill => (
+        bill.type === 'expense'
+        && bill.assetId
+        && (bill.categoryId === categoryId || bill.parentCategoryId === categoryId)
+    ))
 }
 
-const getLastUsedAssetId = (type) => {
-    const map = getLastUsedAssetMap()
-    return map[type] || ''
-}
-
-const setLastUsedAssetId = (type, assetId) => {
-    if (!assetId || !['expense', 'income'].includes(type)) return
-    const map = getLastUsedAssetMap()
-    map[type] = assetId
-    uni.setStorageSync(LAST_ASSET_STORAGE_KEY, JSON.stringify(map))
-}
-
-const applyLastUsedAssetForCurrentType = () => {
-    if (isEditMode.value || currentTab.value === 'transfer' || assetTouched.value) return
-    const lastAssetId = getLastUsedAssetId(currentTab.value)
-    if (!lastAssetId) return
-    const exists = assets.value.some(asset => asset.id === lastAssetId)
+const applyRecentAssetByCategory = (categoryId) => {
+    if (currentTab.value !== 'expense' || assetTouched.value) return
+    const latestBill = getLatestBillByCategory(categoryId)
+    if (!latestBill) return
+    const exists = assets.value.some(asset => asset.id === latestBill.assetId)
     if (exists) {
-        form.assetId = lastAssetId
+        form.assetId = latestBill.assetId
+        form.currency = latestBill.currency || form.currency
+        form.targetCurrency = form.currency
     }
 }
+
+const remarkSuggestions = computed(() => {
+    if (currentTab.value === 'transfer' || !form.categoryId || !form.assetId) return []
+    const suggestions = []
+    const seen = new Set()
+
+    for (const bill of sortedBillsDesc.value) {
+        const remark = String(bill.remark || '').trim()
+        if (
+            bill.type === currentTab.value
+            && bill.assetId === form.assetId
+            && (bill.categoryId === form.categoryId || bill.parentCategoryId === form.categoryId)
+            && remark
+            && !seen.has(remark)
+        ) {
+            seen.add(remark)
+            suggestions.push(remark)
+            if (suggestions.length >= 5) break
+        }
+    }
+
+    return suggestions
+})
 
 // Watch categories change to ensure selection is valid
 import { watch } from 'vue'
@@ -490,7 +518,7 @@ onMounted(() => {
 
     initStores()
 
-    if (!isEditMode.value && !form.assetId && assets.value.length > 0) {
+    if (!isEditMode.value && !assetTouched.value && !form.assetId && assets.value.length > 0) {
 
         form.assetId = assets.value[0].id
 
@@ -514,9 +542,16 @@ onLoad((options) => {
         isEditMode.value = true
         editBillId.value = options.id
         loadBillData(options.id)
-    } else if (options.type) {
-        // 新增模式，指定类型
+        return
+    }
+
+    if (options.type) {
         currentTab.value = options.type
+    }
+
+    if (options.assetId && assets.value.some(asset => asset.id === options.assetId)) {
+        form.assetId = options.assetId
+        assetTouched.value = true
     }
 })
 
@@ -607,18 +642,21 @@ const selectCategory = (cat) => {
     selectedParentId.value = cat.id // Always set as parent context
     form.parentCategoryId = cat.id
 
-    applyLastUsedAssetForCurrentType()
-    
     // 默认选择父分类作为categoryId，如果用户选择子分类会覆盖
     form.categoryId = cat.id
+    applyRecentAssetByCategory(cat.id)
     
     console.log('Children:', cat.children)
 }
 
 const selectSubCategory = (sub) => {
-    applyLastUsedAssetForCurrentType()
     form.categoryId = sub.id  // 子分类ID覆盖父分类ID
+    applyRecentAssetByCategory(sub.id)
     console.log('Select Sub Category:', sub.name, sub.id)
+}
+
+const selectRemarkSuggestion = (remark) => {
+    form.remark = remark
 }
 
 const goManageCategories = () => {
@@ -636,9 +674,6 @@ const selectAsset = (a) => {
         form.assetId = a.id
     } else {
         form.targetAssetId = a.id
-    }
-    if (currentTab.value !== 'transfer') {
-        setLastUsedAssetId(currentTab.value, a.id)
     }
     showAssetPicker.value = false
 }
@@ -889,10 +924,6 @@ const submit = async () => {
             finalAmount = -Math.abs(val)
         } else {
             finalAmount = Math.abs(val)
-        }
-
-        if (currentTab.value !== 'transfer') {
-            setLastUsedAssetId(currentTab.value, form.assetId)
         }
 
         // Create timestamp with current time for proper sorting
@@ -1214,6 +1245,36 @@ const submit = async () => {
 
     padding: 0 5px;
 
+}
+
+.remark-suggestions {
+    width: 100%;
+    margin: -2px 0 8px;
+    white-space: nowrap;
+}
+
+.remark-suggestion-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.remark-suggestion {
+    max-width: 150px;
+    height: 28px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    padding: 0 12px;
+    margin-right: 8px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(136,177,148,0.24);
+    color: var(--color-text-light);
+    font-size: 12px;
+    line-height: 28px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .remark-box {

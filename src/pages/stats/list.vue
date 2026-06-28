@@ -20,6 +20,8 @@
         </view>
       </view>
 
+      <button class="asset-add-btn" @click="goAddBill">+ 记一笔</button>
+
       <view v-if="showFilter" class="filter-body">
         <view class="date-inputs">
           <view class="date-input-wrapper">
@@ -63,10 +65,10 @@
             <view
               class="bill-item-container"
               :class="{ 'show-actions': activeBillId === bill.id }"
-              :data-bill-id="bill.id"
               @touchstart="onTouchStart"
               @touchmove="onTouchMove"
-              @touchend="onTouchEnd"
+              @touchend="onTouchEnd($event, bill.id)"
+              @touchcancel="onTouchCancel"
             >
               <view class="bill-item" :class="getBillStateClass(bill)">
                 <view class="bill-left">
@@ -85,10 +87,12 @@
                 </view>
                 <view class="bill-right">
                   <text :class="['bill-amount', getAmountClass(bill)]">{{ getDisplayAmount(bill) }}</text>
+                  <text v-if="isAssetMode" class="balance-snapshot">余 {{ getAssetBalanceSnapshotText(bill) }}</text>
                 </view>
               </view>
               <view class="action-buttons">
-                <button class="action-btn edit-btn" @click.stop="editBill(bill.id)">修改</button>
+                <button class="action-btn edit-btn" @click.stop="editBill(bill.id)">编辑</button>
+                <button class="action-btn refund-btn" @click.stop="refundBill(bill.id)">退款</button>
                 <button class="action-btn delete-btn" @click.stop="deleteBill(bill.id)">删除</button>
               </view>
             </view>
@@ -159,6 +163,8 @@ onLoad((options) => {
 
 onShow(() => {
   initStores()
+  activeBillId.value = null
+  resetTouchState()
 })
 
 const initStores = () => {
@@ -285,6 +291,12 @@ const applyDateFilter = () => {
   showFilter.value = false
 }
 
+const resetTouchState = () => {
+  touchStartX.value = 0
+  touchStartY.value = 0
+  isMoving.value = false
+}
+
 const onTouchStart = (e) => {
   touchStartX.value = e.touches[0].clientX
   touchStartY.value = e.touches[0].clientY
@@ -296,19 +308,27 @@ const onTouchMove = (e) => {
   const deltaY = e.touches[0].clientY - touchStartY.value
   if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
     isMoving.value = true
+    e.preventDefault?.()
   }
 }
 
-const onTouchEnd = (e) => {
-  if (!isMoving.value) return
+const onTouchEnd = (e, billId) => {
+  if (!isMoving.value) {
+    resetTouchState()
+    return
+  }
   const deltaX = e.changedTouches[0].clientX - touchStartX.value
-  const billId = e.currentTarget.dataset.billId
   if (deltaX < -50) {
     activeBillId.value = billId
   } else if (deltaX > 50) {
     activeBillId.value = null
   }
-  isMoving.value = false
+  resetTouchState()
+}
+
+const onTouchCancel = () => {
+  activeBillId.value = null
+  resetTouchState()
 }
 
 const decodeDisplayText = (value) => decodeHtmlEntities(value)
@@ -382,6 +402,17 @@ const getDisplayAmount = (bill) => {
   return formatCurrencyAmount(scoped.amount, scoped.currency)
 }
 
+const getAssetBalanceSnapshotText = (bill) => {
+  const assetId = params.value.assetId
+  if (assetId && bill.type === 'transfer' && bill.targetAssetId === assetId) {
+    if (bill.targetBalanceSnapshot === undefined) return '--'
+    return formatCurrencyAmount(bill.targetBalanceSnapshot, bill.targetBalanceCurrency || bill.targetCurrency || bill.currency || 'CNY')
+  }
+
+  if (bill.balanceSnapshot === undefined) return '--'
+  return formatCurrencyAmount(bill.balanceSnapshot, bill.balanceCurrency || bill.currency || 'CNY')
+}
+
 const getAmountClass = (bill) => {
   return getAssetScopedAmount(bill).amount >= 0 ? 'income' : 'expense'
 }
@@ -406,6 +437,13 @@ const getBillStateClass = (bill) => {
   return ''
 }
 
+const goAddBill = () => {
+  const assetId = params.value.assetId
+  const query = assetId ? `?assetId=${assetId}` : ''
+  activeBillId.value = null
+  uni.navigateTo({ url: `/pages/bill/add${query}` })
+}
+
 const editBill = (id) => {
   const bill = billStore.getBill(id)
   if (!bill) {
@@ -414,6 +452,55 @@ const editBill = (id) => {
   }
   activeBillId.value = null
   uni.navigateTo({ url: '/pages/bill/add?id=' + id + '&type=' + bill.type })
+}
+
+const refundBill = (id) => {
+  const bill = billStore.getBill(id)
+  if (!bill) {
+    uni.showToast({ title: '账单不存在', icon: 'none' })
+    activeBillId.value = null
+    return
+  }
+
+  if (bill.type === 'transfer') {
+    uni.showToast({ title: '转账记录不支持退款', icon: 'none' })
+    activeBillId.value = null
+    return
+  }
+
+  if (bill.type === 'adjustment') {
+    uni.showToast({ title: '资产调整记录不支持退款', icon: 'none' })
+    activeBillId.value = null
+    return
+  }
+
+  if (bill.type === 'refund') {
+    uni.showToast({ title: '退款记录不能再次退款', icon: 'none' })
+    activeBillId.value = null
+    return
+  }
+
+  if (bill.isRefunded) {
+    uni.showToast({ title: '该账单已退款', icon: 'none' })
+    activeBillId.value = null
+    return
+  }
+
+  uni.showModal({
+    title: '确认退款',
+    content: '将按原金额生成一条退款记录，并自动修正余额。',
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await billStore.createRefund(id)
+        uni.showToast({ title: '退款已生成', icon: 'success' })
+      } catch (error) {
+        uni.showToast({ title: error.message || '退款失败', icon: 'none' })
+      } finally {
+        activeBillId.value = null
+      }
+    }
+  })
 }
 
 const deleteBill = (id) => {
@@ -516,6 +603,18 @@ const deleteBill = (id) => {
 
 .asset-total-item.income .asset-total-value {
   color: #5b9469;
+}
+
+.asset-add-btn {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 12px;
+  border: none;
+  border-radius: 16px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .filter-body {
@@ -642,10 +741,11 @@ const deleteBill = (id) => {
 .bill-item-container {
   position: relative;
   transition: transform 0.3s ease;
+  touch-action: pan-y;
 }
 
 .bill-item-container.show-actions {
-  transform: translateX(-180rpx);
+  transform: translateX(-240rpx);
 }
 
 .bill-item {
@@ -752,12 +852,20 @@ const deleteBill = (id) => {
   text-align: right;
 }
 
+.balance-snapshot {
+  margin-top: 4px;
+  color: var(--color-text-light);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .action-buttons {
   position: absolute;
   left: 100%;
   top: 0;
   bottom: 0;
-  width: 180rpx;
+  width: 240rpx;
   display: flex;
   align-items: stretch;
   height: 100%;
@@ -777,6 +885,7 @@ const deleteBill = (id) => {
 }
 
 .edit-btn { background-color: #007aff; }
+.refund-btn { background-color: #ff9500; }
 .delete-btn { background-color: #ff3b30; }
 
 .expense { color: var(--color-text); }

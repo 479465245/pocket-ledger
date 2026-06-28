@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-这是一个基于 **uni-app + Vue 3 + Pinia** 的本地记账应用，主打轻量、多端、离线可用。
+这是一个基于 **uni-app + Vue 3 + Pinia** 的本地记账应用，主打轻量、PWA 优先、离线可用。
 
 核心能力：
 - 记账：支出 / 收入 / 转账
@@ -13,7 +13,9 @@
 - WebDAV 备份：支持挂载远程目录上传备份、下载备份并覆盖还原
 - 本地持久化：全部数据走 `uni.setStorageSync`
 
-这个项目本质上是个 **纯前端单机账本**，没有后端，没有远程数据库。
+这个项目本质上是个 **纯前端单机账本**，没有后端，没有远程数据库。一切功能以 PWA/H5 打包后的实现和可用性为主；跨端能力存在差异时，优先保证 PWA 打包产物。
+
+AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key 保存在本地 `llm_config`，账本分析默认只发送聚合摘要；PDF 交叉校验会把提取文本或页面图片发送到用户配置的模型服务，AI 结果只作为辅助识别和分析，不能直接修改账本。
 
 ---
 
@@ -28,6 +30,7 @@
 
 ### 依赖
 - `xlsx`：Excel 导入
+- `pdfjs-dist`：PDF 文本提取和页面渲染，服务 AI 辅助 PDF 交叉校验
 - `dayjs`：已安装，但代码里基本没实际使用
 - `uuid`：已安装，但项目实际使用的是自写 `utils/uuid.js`
 - `vue-i18n`：已安装，但未见实际接入
@@ -35,7 +38,7 @@
 ### 运行脚本
 定义在 `package.json`：
 - `pnpm dev:h5`：H5 开发
-- `pnpm build:h5`：H5 构建
+- `pnpm build:h5`：H5/PWA 正式构建，构建前会自增补丁版本并同步 `package.json`、`src/manifest.json`、设置菜单显示版本和 `src/static/version.txt`，打包产物固定输出到 `pwa-dist`
 - 也支持 app / 小程序等 uni-app 多端构建
 
 ---
@@ -100,6 +103,9 @@
 - `pages/settings/index`：旧设置入口，不再作为主入口
 - `pages/settings/assets`：资产管理
 - `pages/settings/import`：数据导入
+- `pages/settings/cross-check`：交叉校验配置，支持表格文件和 AI 辅助 PDF 识别
+- `pages/assistant/index`：AI 助手，基于账本摘要进行对话式分析
+- `pages/settings/ai-config`：OpenAI-compatible 服务配置
 - `pages/settings/backup`：本地备份还原
 - `pages/settings/webdav`：WebDAV 远程备份还原
 - `pages/settings/export`：数据导出
@@ -540,6 +546,7 @@
 说明：
 - 页面用了 `xlsx` 去解析工作表
 - 逻辑上想做“资产/分类不存在就自动创建”
+- PWA/H5 打包后本地文件选择走浏览器 `<input type="file">`，不要依赖 App 端 `plus` 或小程序文件系统 API
 
 ---
 
@@ -553,6 +560,7 @@
 - 不是生成真正的二进制 Excel，而是生成 **HTML Table 伪装的 xls 文件**
 - H5 下通过 Blob 下载
 - 非 H5 下尝试写到 `USER_DATA_PATH`
+- PWA/H5 平台判断优先使用 Web 运行时，避免误走 App 文件保存逻辑
 
 优点：
 - 实现简单

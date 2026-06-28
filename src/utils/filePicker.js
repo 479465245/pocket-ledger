@@ -1,5 +1,5 @@
-const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined' && typeof plus === 'undefined' && typeof wx === 'undefined'
-const isAndroidApp = () => typeof plus !== 'undefined' && plus.os?.name === 'Android'
+import { isAndroidAppRuntime, isWebRuntime } from './runtime.js'
+
 const getWxApi = () => {
   if (typeof uni !== 'undefined' && typeof uni.chooseMessageFile === 'function') return uni
   if (typeof wx !== 'undefined' && typeof wx.chooseMessageFile === 'function') return wx
@@ -7,6 +7,17 @@ const getWxApi = () => {
 }
 
 const getExtensionAccept = (extensions = []) => extensions.map(ext => `.${String(ext).replace(/^\./, '')}`).join(',')
+
+const getPickerAcceptTypes = ({ extensions = [], mimeType = '*/*' } = {}) => {
+  const accept = getExtensionAccept(extensions)
+  if (!accept) return []
+  return [{
+    description: '账单文件',
+    accept: {
+      [mimeType === '*/*' ? 'application/octet-stream' : mimeType]: accept.split(',')
+    }
+  }]
+}
 
 const getFileNameFromUri = (uri = '', fallbackPrefix = '文件') => {
   const clean = String(uri).split('?')[0]
@@ -23,7 +34,10 @@ const chooseFileByInput = ({ extensions = [], mimeType = '*/*' } = {}) => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = getExtensionAccept(extensions) || mimeType
-    input.style.display = 'none'
+    input.style.position = 'fixed'
+    input.style.left = '-9999px'
+    input.style.top = '0'
+    input.style.opacity = '0'
 
     const cleanup = () => {
       if (document.body.contains(input)) document.body.removeChild(input)
@@ -46,6 +60,24 @@ const chooseFileByInput = ({ extensions = [], mimeType = '*/*' } = {}) => {
     document.body.appendChild(input)
     input.click()
   })
+}
+
+const chooseFileByFilePicker = async (options = {}) => {
+  if (typeof window === 'undefined' || typeof window.showOpenFilePicker !== 'function') {
+    throw new Error('当前浏览器不支持文件选择器')
+  }
+
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      multiple: false,
+      excludeAcceptAllOption: false,
+      types: getPickerAcceptTypes(options)
+    })
+    return handle.getFile()
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('已取消选择')
+    throw new Error(error.message || '文件选择失败')
+  }
 }
 
 const chooseFileByUni = ({ extensions = [] } = {}) => {
@@ -181,11 +213,14 @@ const chooseFileByAndroidIntent = ({ mimeType = '*/*' } = {}) => {
 }
 
 export const chooseLocalFile = async (options = {}) => {
-  if (isBrowser()) {
+  if (isWebRuntime()) {
+    if (typeof window !== 'undefined' && typeof window.showOpenFilePicker === 'function') {
+      return chooseFileByFilePicker(options)
+    }
     return chooseFileByInput(options)
   }
 
-  if (isAndroidApp()) {
+  if (isAndroidAppRuntime()) {
     return chooseFileByAndroidIntent(options)
   }
 

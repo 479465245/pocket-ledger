@@ -16,6 +16,14 @@
         <text class="menu-text">交叉校验</text>
         <text class="arrow">›</text>
       </view>
+      <view class="menu-item neu-card" @click="navigateToAssistant">
+        <text class="menu-text">AI 助手</text>
+        <text class="arrow">›</text>
+      </view>
+      <view class="menu-item neu-card" @click="navigateTo('ai-config')">
+        <text class="menu-text">AI 配置</text>
+        <text class="arrow">›</text>
+      </view>
       <view class="menu-item neu-card" @click="navigateTo('network-file')">
         <text class="menu-text">网络文件配置</text>
         <text class="arrow">›</text>
@@ -73,6 +81,12 @@ const totalAsset = computed(() => {
 const navigateTo = (page) => {
   uni.navigateTo({
     url: `/pages/settings/${page}`
+  })
+}
+
+const navigateToAssistant = () => {
+  uni.navigateTo({
+    url: '/pages/assistant/index'
   })
 }
 </script>

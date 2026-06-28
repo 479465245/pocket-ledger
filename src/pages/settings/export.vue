@@ -274,6 +274,10 @@ const handleExport = async () => {
     setExportProgress({ title: '导出进度', message: '导出完成：共 ' + payload.count + ' 条记录', current: 4, total: 4 })
     uni.showToast({ title: `导出成功，共${payload.count}条记录`, icon: 'success', duration: 2000 })
   } catch (error) {
+    if (error.message === '已取消选择') {
+      setExportProgress({ title: '导出进度', message: '已取消选择保存位置', current: 1, total: 1 })
+      return
+    }
     console.error('导出失败:', error)
     uni.showToast({ title: error.message || '导出失败，请重试', icon: 'none' })
   } finally {
@@ -533,4 +537,3 @@ function generateXLS(data) {
   line-height: 1.5;
 }
 </style>
-

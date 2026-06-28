@@ -1,5 +1,5 @@
-const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined' && typeof plus === 'undefined' && typeof wx === 'undefined'
-const isAppPlus = () => typeof plus !== 'undefined'
+import { isAppPlusRuntime, isWebRuntime } from './runtime.js'
+
 const getWxApi = () => (typeof wx !== 'undefined' ? wx : null)
 
 const getUserDataPath = () => {
@@ -14,6 +14,16 @@ const getFileSystemManager = () => {
   const wxApi = getWxApi()
   if (wxApi && typeof wxApi.getFileSystemManager === 'function') return wxApi.getFileSystemManager()
   return null
+}
+
+const getSavePickerAcceptTypes = ({ mimeType = 'application/octet-stream', extension = '' } = {}) => {
+  if (!extension) return []
+  return [{
+    description: '导出文件',
+    accept: {
+      [mimeType.split(';')[0] || 'application/octet-stream']: [extension]
+    }
+  }]
 }
 
 const showSavedModal = ({ filePath, fileName, canOpen = false, openFile }) => {
@@ -49,6 +59,29 @@ const saveByBrowser = ({ fileName, content, mimeType }) => {
   document.body.removeChild(link)
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000)
   return { filePath: '', fileName }
+}
+
+const saveByBrowserPicker = async ({ fileName, content, mimeType, openType }) => {
+  if (typeof window === 'undefined' || typeof window.showSaveFilePicker !== 'function') {
+    throw new Error('当前浏览器不支持选择保存位置')
+  }
+
+  const extension = openType ? `.${String(openType).replace(/^\./, '')}` : ''
+  const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType })
+
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: fileName,
+      types: getSavePickerAcceptTypes({ mimeType, extension })
+    })
+    const writable = await handle.createWritable()
+    await writable.write(blob)
+    await writable.close()
+    return { filePath: '', fileName: handle.name || fileName }
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('已取消选择')
+    throw new Error(error.message || '保存文件失败')
+  }
 }
 
 const saveByFileSystemManager = ({ fileName, content, encoding = 'utf8', openType }) => {
@@ -117,12 +150,15 @@ const saveByPlus = ({ fileName, content }) => {
 }
 
 export const saveLocalFile = async ({ fileName, content, mimeType = 'application/octet-stream', encoding = 'utf8', openType = '' }) => {
-  if (isAppPlus()) {
-    return saveByPlus({ fileName, content, mimeType, encoding, openType })
+  if (isWebRuntime()) {
+    if (typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function') {
+      return saveByBrowserPicker({ fileName, content, mimeType, openType })
+    }
+    return saveByBrowser({ fileName, content, mimeType })
   }
 
-  if (isBrowser()) {
-    return saveByBrowser({ fileName, content, mimeType })
+  if (isAppPlusRuntime()) {
+    return saveByPlus({ fileName, content, mimeType, encoding, openType })
   }
 
   return saveByFileSystemManager({ fileName, content, mimeType, encoding, openType })

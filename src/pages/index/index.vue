@@ -63,6 +63,7 @@
               @touchstart="onTouchStart"
               @touchmove="onTouchMove"
               @touchend="onTouchEnd($event, bill.id)"
+              @touchcancel="onBillTouchCancel"
             >
               <view class="bill-item" :class="getBillStateClass(bill)">
                 <view class="bill-left">
@@ -107,6 +108,7 @@
             @touchstart="onAssetTouchStart"
             @touchmove="onAssetTouchMove"
             @touchend="onAssetTouchEnd($event, asset.id)"
+            @touchcancel="onAssetTouchCancel"
           >
             <view class="neu-card home-asset-item" @click="openAssetBills(asset)">
               <view class="asset-left">
@@ -208,6 +210,10 @@ onShow(() => {
   categoryStore.init()
   assetStore.init()
   billStore.init()
+  activeBillId.value = null
+  activeAssetId.value = null
+  resetBillTouchState()
+  resetAssetTouchState()
 })
 
 const now = new Date()
@@ -403,6 +409,7 @@ const getTypeName = (type) => {
 }
 
 const goAddBill = () => {
+  activeBillId.value = null
   uni.navigateTo({ url: '/pages/bill/add' })
 }
 
@@ -436,6 +443,12 @@ const onTouchStart = (e) => {
   isMoving.value = false
 }
 
+const resetBillTouchState = () => {
+  touchStartX.value = 0
+  touchStartY.value = 0
+  isMoving.value = false
+}
+
 const onTouchMove = (e) => {
   const deltaX = e.touches[0].clientX - touchStartX.value
   const deltaY = e.touches[0].clientY - touchStartY.value
@@ -446,14 +459,22 @@ const onTouchMove = (e) => {
 }
 
 const onTouchEnd = (e, billId) => {
-  if (!isMoving.value) return
+  if (!isMoving.value) {
+    resetBillTouchState()
+    return
+  }
   const deltaX = e.changedTouches[0].clientX - touchStartX.value
   if (deltaX < -50) {
     activeBillId.value = billId
   } else if (deltaX > 50) {
     activeBillId.value = null
   }
-  isMoving.value = false
+  resetBillTouchState()
+}
+
+const onBillTouchCancel = () => {
+  activeBillId.value = null
+  resetBillTouchState()
 }
 
 const editBill = (id) => {
@@ -862,6 +883,12 @@ const onAssetTouchStart = (e) => {
   assetIsMoving.value = false
 }
 
+const resetAssetTouchState = () => {
+  assetTouchStartX.value = 0
+  assetTouchStartY.value = 0
+  assetIsMoving.value = false
+}
+
 const onAssetTouchMove = (e) => {
   const deltaX = e.touches[0].clientX - assetTouchStartX.value
   const deltaY = e.touches[0].clientY - assetTouchStartY.value
@@ -873,7 +900,10 @@ const onAssetTouchMove = (e) => {
 }
 
 const onAssetTouchEnd = (e, assetId) => {
-  if (!assetIsMoving.value) return
+  if (!assetIsMoving.value) {
+    resetAssetTouchState()
+    return
+  }
 
   const deltaX = e.changedTouches[0].clientX - assetTouchStartX.value
 
@@ -883,7 +913,12 @@ const onAssetTouchEnd = (e, assetId) => {
     activeAssetId.value = null
   }
 
-  assetIsMoving.value = false
+  resetAssetTouchState()
+}
+
+const onAssetTouchCancel = () => {
+  activeAssetId.value = null
+  resetAssetTouchState()
 }
 </script>
 
