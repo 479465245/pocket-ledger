@@ -186,9 +186,7 @@ export const calculateCrossCheckReport = ({ session, bills = [], assets = [] }) 
   externalRows.forEach(external => {
     const candidates = findCandidates(external, localItems)
     if (candidates.length === 0) {
-      if (normalizeName(external.assetName) === normalizeName(session.assetName) || !external.assetName) {
-        missingItems.push({ id: external.id, external })
-      }
+      missingItems.push({ id: external.id, external })
       return
     }
 

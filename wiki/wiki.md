@@ -261,6 +261,9 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 {
   id,
   amount,
+  currency,
+  targetAmount,
+  targetCurrency,
   assetId,
   targetAssetId,
   parentCategoryId,
@@ -269,6 +272,9 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
   timestamp,
   remark,
   isIncludedInStats,
+  statAmount,
+  aa: { enabled, groupId, role, ownAmount, receivableAmount, settlementAmount },
+  installment: { groupId, period, totalPeriods, totalAmount, principalAmount, fee, periodPrincipal, periodFee, periodAmount, statAmount },
   isRefunded,
   fee,
   balanceSnapshot,
@@ -277,15 +283,14 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 ```
 
 ### 字段说明
-- `amount`：支出/转账通常为负，收入为正
-- `assetId`：主账户
-- `targetAssetId`：转账目标账户
-- `parentCategoryId`：一级分类
-- `categoryId`：实际分类，可为一级也可为二级
-- `isIncludedInStats`：是否参与统计
-- `fee`：转账手续费
-- `balanceSnapshot`：主账户余额快照
-- `targetBalanceSnapshot`：转入账户余额快照
+- `amount`：余额和交叉校验使用的真实流水金额；支出/转出为负，收入为正。
+- `statAmount`：统计金额；普通账单缺省时取 `abs(amount)`，AA 付款取本人承担金额。
+- `aa`：付款记录保存完整代付金额，按 `ownAmount` 和 `receivableAmount` 结算；还款使用 `role: 'repayment'`、正数收入并强制不计入统计。
+- `installment`：分期组和每期本金、手续费、真实金额。首期 `statAmount` 为总额加手续费，后续期为 0 且不计入统计。
+- `assetId`：主账户；`targetAssetId`、`targetAmount` 仅用于转账目标账户。
+- `isIncludedInStats`：是否参与收入/支出统计；转账、退款、AA 还款和后续分期默认排除。
+- `fee`：转账手续费，由转出账户承担。
+- `balanceSnapshot`：主账户余额时间线快照；`targetBalanceSnapshot`：转入账户快照。
 
 ### 主要方法
 - `init()`
@@ -293,7 +298,9 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 - `addBill(billData)`
 - `updateBill(id, billData)`
 - `deleteBill(id)`
-- `recalculateAssetBalance(assetId, fromTimestamp)`
+- `recalculateAssetBalance(assetId)`
+- `addInstallment(billData, options)` / `updateInstallment(groupId, payload)` / `deleteInstallment(groupId)`
+- `getStatType(bill)` / `getStatAmount(bill)`
 - `migrateCategory(oldCatId, newCatId)`
 - `deleteBillsByCategory(catId)`
 
@@ -340,7 +347,8 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 - 逻辑稳
 - 小数据量下可靠
 - 实际更接近“整条流水全量重算”
-- `fromTimestamp` 参数目前没有真正被用来做局部优化
+- 未来日期账单仍生成时间线快照和导出/对账记录，但只有 `timestamp <= Date.now()` 的流水会进入资产当前余额
+- 转账源账户扣除 `amount - abs(fee)`，目标账户增加 `targetAmount`；多币种分别计算
 
 ---
 
@@ -378,6 +386,20 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 - 按一级分类聚合金额
 - 生成环形图和分类列表
 
+### 收支趋势、年度总结与资产变化报表
+
+统计页还提供三个报表入口：
+
+- `pages/stats/trend.vue`：月度按日、年度按月展示收入、支出和净收支趋势。
+- `pages/stats/annual.vue`：展示全年收入、支出、净收支、储蓄率、月均值、最高月份、分类排行和月度明细。
+- `pages/stats/assets.vue`：按币种展示各账户的期初统计余额、期末统计余额和期间变化，并汇总计入总资产账户的变化。
+
+三个报表统一只处理 `billStore.getStatType()` 为 `income` 或 `expense` 且 `isIncludedInStats !== false` 的账单，金额统一使用 `billStore.getStatAmount()`。转账、退款和资产调整不会进入报表。多币种不直接相加，页面通过币种切换分别查看。
+
+年度总结的储蓄率为 `净收支 / 全年收入`，全年收入为 0 时显示 `--`；月均值按完整 12 个月计算，分类占比分别以收入总额或支出总额为分母。分类排行可以下钻到年度账单明细。
+
+资产变化报表从资产 `initialBalances`（人民币兼容 `initialBalance`）开始，先应用统计范围开始前的收入/支出账单得到期初统计余额，再按日或按月应用范围内账单生成余额序列。总资产只汇总 `includeInTotal !== false` 的账户。该报表的余额是统计口径下的余额，首页资产余额仍然包含完整账单流水，两者用途不同。
+
 ### 二级统计：`pages/stats/category.vue`
 - 只看某一个一级分类下的数据
 - 如果账单属于二级分类，则归到对应二级分类
@@ -389,9 +411,6 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 - `filterType=sub`
 - `filterType=parent_other`
 
----
-
-## 5. 记账录入逻辑
 文件：`pages/bill/add.vue`
 
 这是整个项目最复杂的页面。
@@ -456,13 +475,14 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 
 ---
 
-## 3. 统计页 `pages/stats/index.vue`
+## 4. 统计页 `pages/stats/index.vue`
 功能：
 - 月 / 年切换
 - 收入 / 支出切换
 - 一级分类金额占比
 - 环形图 + 列表
 - 点击下钻明细
+- 进入收支趋势、年度收支总结、账户余额和资产变化报表
 
 亮点：
 - 使用 CSS `conic-gradient` 绘制环图
@@ -470,7 +490,32 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 
 ---
 
-## 4. 分类统计详情页 `pages/stats/category.vue`
+## 4.1 收支趋势页 `pages/stats/trend.vue`
+- 月度按日、年度按月汇总收入、支出和净收支。
+- 仅统计计入统计的收入/支出账单。
+- 多币种通过币种切换分别展示，不直接混合金额。
+- 使用原生 CSS 柱状图，适配 PWA/H5 小屏显示。
+
+---
+
+## 4.2 年度收支总结页 `pages/stats/annual.vue`
+- 按年度展示全年收入、支出、净收支和储蓄率。
+- 展示月均收入、月均支出、最高收入/支出月份、分类排行和月度明细。
+- 收入为 0 时储蓄率显示 `--`，月均值按完整 12 个月计算。
+- 分类排行可进入对应年度账单明细。
+
+---
+
+## 4.3 账户余额和资产变化页 `pages/stats/assets.vue`
+- 按月或按年查看各账户统计余额变化。
+- 展示期初余额、期末余额和期间变化。
+- 总资产只汇总 `includeInTotal !== false` 的账户。
+- 点击账户可进入已有资产账单明细，资产明细仍展示完整流水。
+- 统计余额仅基于计入统计的收入/支出账单，不等同于首页完整流水余额。
+
+---
+
+## 5. 分类统计详情页 `pages/stats/category.vue`
 功能：
 - 查看某一级分类下的拆分统计
 - 点击进入账单明细页

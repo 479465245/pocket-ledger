@@ -39,7 +39,7 @@
         <view class="format-box">
           <text class="format-title">可上传格式</text>
           <text class="format-text">支付宝 / 微信：平台导出的 `.xls`、`.xlsx`、`.csv` 原始文件。</text>
-          <text class="format-text">通用模板：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、是否计入统计、备注。</text>
+          <text class="format-text">通用模板：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。AA/分期列用于迁移扩展字段，带组 ID 的记录会逐条导入，不会再次展开分期。</text>
         </view>
       </view>
 
@@ -648,12 +648,36 @@ const startImport = async () => {
           type: item.type,
           isIncludedInStats: item.isIncludedInStats,
           fee: item.type === 'transfer' ? Number(item.fee || 0) : 0,
+          statAmount: item.statAmount,
+          aa: item.aaGroupId
+            ? {
+                enabled: true,
+                groupId: item.aaGroupId,
+                role: item.aaRole || (item.type === 'income' ? 'repayment' : 'payer'),
+                ownAmount: item.aaOwnAmount,
+                receivableAmount: item.aaReceivableAmount,
+                settlementAmount: item.type === 'income' ? Math.abs(normalizedAmount) : undefined
+              }
+            : undefined,
+          installment: item.installmentGroupId
+            ? {
+                groupId: item.installmentGroupId,
+                period: item.installmentPeriod,
+                totalPeriods: item.installmentTotalPeriods,
+                totalAmount: item.installmentTotalAmount,
+                fee: item.installmentFee,
+                periodAmount: item.installmentPeriodAmount
+              }
+            : undefined,
           importProvider: item.provider,
           externalUniqueKey: item.externalUniqueKey,
           externalOrderNo: item.orderNo
         }
 
-        await billStore.addBill(billData)
+        await billStore.addBill(billData, {
+          allowImportedInstallment: Boolean(item.installmentGroupId),
+          allowImportedRelations: Boolean(item.aaGroupId)
+        })
         successCount += 1
         setProgress({ title: '导入进度', message: '已导入 ' + (index + 1) + ' / ' + importableData.value.length + ' 条', current: index + 1, total: importableData.value.length })
         if ((index + 1) % 10 === 0 || index + 1 === importableData.value.length) showImportLoading(index + 1, importableData.value.length)

@@ -17,6 +17,14 @@
       }
     },
     {
+      "path": "pages/bill/installment",
+      "style": {
+        "navigationBarTitleText": "分期账单",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/stats/index",
       "style": {
         "navigationBarTitleText": "统计",
@@ -28,6 +36,30 @@
       "path": "pages/stats/category",
       "style": {
         "navigationBarTitleText": "分类详情",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/stats/annual",
+      "style": {
+        "navigationBarTitleText": "年度收支总结",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/stats/trend",
+      "style": {
+        "navigationBarTitleText": "收支趋势",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/stats/assets",
+      "style": {
+        "navigationBarTitleText": "账户余额和资产变化",
         "navigationBarBackgroundColor": "#F7FAFF",
         "navigationBarTextStyle": "black"
       }

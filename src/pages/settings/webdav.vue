@@ -472,7 +472,7 @@ const restoreRemoteFile = async (file) => {
 const applyRemoteBackup = async (backup) => {
   try {
     setProgress({ title: 'WebDAV 还原进度', message: '正在覆盖本地分类、资产和账单...', current: 4, total: 5 })
-    applyBackupToStores(backup, { billStore, assetStore, categoryStore })
+    await applyBackupToStores(backup, { billStore, assetStore, categoryStore })
     initStores()
     setProgress({ title: 'WebDAV 还原进度', message: '还原完成，本地数据已刷新', current: 5, total: 5 })
     uni.showToast({ title: '还原完成', icon: 'success' })

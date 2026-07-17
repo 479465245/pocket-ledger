@@ -126,7 +126,12 @@ const formatAmount = (amount) => {
 }
 
 const editBill = (id) => {
-  uni.navigateTo({ url: `/pages/bill/add?id=${id}` })
+  const bill = billStore.getBill(id)
+  if (!bill) return
+  const url = bill.installment?.groupId
+    ? `/pages/bill/installment?id=${id}`
+    : `/pages/bill/add?id=${id}&type=${bill.type}`
+  uni.navigateTo({ url })
 }
 
 const deleteBill = (id) => {

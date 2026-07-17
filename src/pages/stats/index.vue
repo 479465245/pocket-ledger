@@ -32,7 +32,34 @@
 
     <scroll-view scroll-y class="content-scroll">
         <view class="content-wrapper">
-            <!-- Pie Chart -->
+        <view class="report-entry-list">
+            <view class="report-entry neu-card" @click="openReport('/pages/stats/trend')">
+                <view class="report-entry-icon trend-icon">↗</view>
+                <view class="report-entry-info">
+                    <text class="report-entry-title">收支趋势</text>
+                    <text class="report-entry-desc">按日或按月查看收入、支出和净收支变化</text>
+                </view>
+                <text class="report-entry-arrow">›</text>
+            </view>
+            <view class="report-entry neu-card" @click="openReport('/pages/stats/annual')">
+                <view class="report-entry-icon annual-icon">★</view>
+                <view class="report-entry-info">
+                    <text class="report-entry-title">年度收支总结</text>
+                    <text class="report-entry-desc">查看全年收支、储蓄率和分类排行</text>
+                </view>
+                <text class="report-entry-arrow">›</text>
+            </view>
+            <view class="report-entry neu-card" @click="openReport('/pages/stats/assets')">
+                <view class="report-entry-icon asset-icon">▣</view>
+                <view class="report-entry-info">
+                    <text class="report-entry-title">账户余额和资产变化</text>
+                    <text class="report-entry-desc">查看各账户统计余额及期间变化</text>
+                </view>
+                <text class="report-entry-arrow">›</text>
+            </view>
+        </view>
+
+        <!-- Pie Chart -->
             <view class="chart-container" v-if="categoryStats.length > 0">
                 <view class="pie-chart" :style="{ background: pieGradient }"></view>
                 <!-- Center Hole for Donut Chart effect -->
@@ -476,6 +503,10 @@ const chartLabels = computed(() => {
 
 })
 
+const openReport = (url) => {
+    uni.navigateTo({ url })
+}
+
 // Navigation
 const onItemClick = (item) => {
     if (item.hasChildren) {
@@ -711,6 +742,67 @@ const onItemClick = (item) => {
         font-weight: 600;
         opacity: 0.95;
     }
+}
+
+.report-entry-list {
+    margin-bottom: 20px;
+}
+
+.report-entry {
+    display: flex;
+    align-items: center;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.report-entry-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.trend-icon {
+    color: var(--color-primary);
+    background: rgba(255, 141, 93, 0.16);
+}
+
+.asset-icon {
+    color: var(--color-secondary);
+    background: rgba(136, 177, 148, 0.18);
+}
+
+.report-entry-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.report-entry-title {
+    display: block;
+    color: var(--color-text);
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.report-entry-desc {
+    display: block;
+    margin-top: 4px;
+    color: var(--color-text-light);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.report-entry-arrow {
+    margin-left: 8px;
+    color: var(--color-text-light);
+    font-size: 22px;
 }
 
 .stat-list {

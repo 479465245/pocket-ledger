@@ -9,7 +9,7 @@ export const PROVIDER_GUIDES = {
   auto: '上传支付宝、微信导出的原始账单，系统会根据表头识别来源。',
   alipay: '上传支付宝导出的个人账单文件，保持原始表头和列顺序。',
   wechat: '上传微信支付导出的个人账单文件，保持原始表头和列顺序。',
-  generic: '上传按本应用模板整理的表格：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、是否计入统计、备注。'
+  generic: '上传按本应用模板整理的表格：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。'
 }
 
 const PLATFORM_WALLET_ASSET_NAME = {
@@ -59,6 +59,17 @@ const HEADER_ALIASES = {
     category2: ['二级分类', '子分类'],
 
     fee: ['手续费', '费用'],
+    statAmount: ['统计金额', '统计口径金额'],
+    aaGroupId: ['AA组ID', 'AA群组ID'],
+    aaRole: ['AA角色'],
+    aaOwnAmount: ['AA本人承担', '本人承担'],
+    aaReceivableAmount: ['AA待收', '代垫待收'],
+    installmentGroupId: ['分期组ID', '分期账单组ID'],
+    installmentPeriod: ['当前期数', '分期期数'],
+    installmentTotalPeriods: ['总期数', '分期总期数'],
+    installmentTotalAmount: ['分期总额', '分期金额'],
+    installmentFee: ['分期手续费'],
+    installmentPeriodAmount: ['每期金额', '本期金额'],
     isIncludedInStats: ['是否计入统计', '计入统计', '参与统计', '是否参与统计', '是否计入收支', '计入收支', '是否计入统计金额'],
     remark: ['备注', '说明', '商品说明']
   },
@@ -388,6 +399,7 @@ const createRemark = (parts) => parts
   .join(' / ')
 
 const parseGenericRow = (row, headerMap, rowIndex) => {
+  const errors = []
 
   const type = parseGenericType(getCell(row, headerMap, 'type'))
 
@@ -410,8 +422,17 @@ const parseGenericRow = (row, headerMap, rowIndex) => {
   const defaultIncludedInStats = type ? !['transfer', 'refund', 'adjustment'].includes(type) : false
 
   const isIncludedInStats = parseBooleanValue(getCell(row, headerMap, 'isIncludedInStats'), defaultIncludedInStats)
-
-  const errors = []
+  const statAmount = parseAmount(getCell(row, headerMap, 'statAmount'))
+  const aaGroupId = getCell(row, headerMap, 'aaGroupId')
+  const aaRole = getCell(row, headerMap, 'aaRole')
+  const aaOwnAmount = parseAmount(getCell(row, headerMap, 'aaOwnAmount'))
+  const aaReceivableAmount = parseAmount(getCell(row, headerMap, 'aaReceivableAmount'))
+  const installmentGroupId = getCell(row, headerMap, 'installmentGroupId')
+  const installmentPeriod = parseAmount(getCell(row, headerMap, 'installmentPeriod'))
+  const installmentTotalPeriods = parseAmount(getCell(row, headerMap, 'installmentTotalPeriods'))
+  const installmentTotalAmount = parseAmount(getCell(row, headerMap, 'installmentTotalAmount'))
+  const installmentFee = parseAmount(getCell(row, headerMap, 'installmentFee'))
+  const installmentPeriodAmount = parseAmount(getCell(row, headerMap, 'installmentPeriodAmount'))
 
 
 
@@ -450,7 +471,17 @@ const parseGenericRow = (row, headerMap, rowIndex) => {
     amount: amount ?? 0,
 
     fee: parseAmount(getCell(row, headerMap, 'fee')) ?? 0,
-
+    statAmount: statAmount ?? undefined,
+    aaGroupId,
+    aaRole,
+    aaOwnAmount: aaOwnAmount ?? undefined,
+    aaReceivableAmount: aaReceivableAmount ?? undefined,
+    installmentGroupId,
+    installmentPeriod: installmentPeriod ?? undefined,
+    installmentTotalPeriods: installmentTotalPeriods ?? undefined,
+    installmentTotalAmount: installmentTotalAmount ?? undefined,
+    installmentFee: installmentFee ?? undefined,
+    installmentPeriodAmount: installmentPeriodAmount ?? undefined,
     remark: getCell(row, headerMap, 'remark'),
 
     orderNo: '',

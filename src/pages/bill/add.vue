@@ -218,6 +218,43 @@
             </view>
         </scroll-view>
 
+        <view v-if="currentTab === 'expense' && !isAARepayment" class="advanced-options">
+            <view class="advanced-option" @click="toggleAA">
+                <text>{{ form.aaEnabled ? 'AA分摊已开启' : 'AA分摊' }}</text>
+                <text class="advanced-value">{{ form.aaEnabled ? `本人承担 ${form.aaOwnAmountStr || '0'}` : '关闭' }}</text>
+            </view>
+            <view class="advanced-option" @click="toggleInstallment">
+                <text>{{ form.installmentEnabled ? '分期账单已开启' : '分期账单' }}</text>
+                <text class="advanced-value">{{ form.installmentEnabled ? `${form.installmentPeriods}期` : '关闭' }}</text>
+            </view>
+        </view>
+
+        <view v-if="currentTab === 'expense' && form.aaEnabled" class="advanced-form">
+            <view class="advanced-row">
+                <text>本人承担</text>
+                <input class="fee-input" type="digit" v-model="form.aaOwnAmountStr" placeholder="本人承担金额" @input="onAAOwnAmountInput" />
+            </view>
+            <text class="advanced-tip">代垫待收 {{ aaReceivableAmount.toFixed(2) }}，AA 与分期不能同时使用</text>
+            <view v-if="canAddAARepayment" class="advanced-option repayment-entry" @click="addAARepayment">
+                <text>新增 AA 还款</text>
+                <text class="advanced-value">待收 {{ aaSettlement.outstanding.toFixed(2) }} ›</text>
+            </view>
+        </view>
+
+        <view v-if="currentTab === 'expense' && form.installmentEnabled" class="advanced-form">
+            <view class="advanced-row">
+                <text>分期期数</text>
+                <input class="fee-input" type="number" v-model="form.installmentPeriods" />
+                <text class="fee-unit">期</text>
+            </view>
+            <view class="advanced-row">
+                <text>总手续费</text>
+                <input class="fee-input" type="digit" v-model="form.installmentFeeStr" placeholder="0" @input="onInstallmentFeeInput" />
+                <text class="fee-unit">元</text>
+            </view>
+            <text class="advanced-tip">每期约 {{ installmentPeriodAmount.toFixed(2) }}，首期统计 {{ installmentStatAmount.toFixed(2) }}</text>
+        </view>
+
         <!-- Keypad -->
         <view class="keypad">
             <view class="key-row">
@@ -367,6 +404,12 @@ const form = reactive({
     targetCurrency: 'CNY',
     targetAmountStr: '',
     isIncludedInStats: true,
+    aaEnabled: false,
+    aaOwnAmountStr: '',
+    aaGroupId: '',
+    installmentEnabled: false,
+    installmentPeriods: '2',
+    installmentFeeStr: '0',
     // 转账相关字段
     targetAssetId: '',
     fee: '0' // 手续费
@@ -422,6 +465,30 @@ const displayCurrencySymbol = computed(() => {
 const displayTransferInAmount = computed(() => {
     return form.targetAmountStr || '0'
 })
+
+const isAARepayment = computed(() => currentTab.value === 'income' && !!form.aaGroupId)
+const aaSettlement = computed(() => form.aaGroupId
+    ? billStore.getAASettlement(form.aaGroupId)
+    : { receivable: 0, settled: 0, outstanding: 0 })
+const canAddAARepayment = computed(() => isEditMode.value && form.aaEnabled && !!form.aaGroupId && aaSettlement.value.outstanding > 0)
+const aaReceivableAmount = computed(() => {
+    const total = Math.max(0, Number(form.amountStr || 0))
+    const own = Math.max(0, Number(form.aaOwnAmountStr || 0))
+    return Math.max(0, total - own)
+})
+const installmentPeriodAmount = computed(() => {
+    const total = Math.max(0, Number(form.amountStr || 0))
+    const fee = Math.max(0, Number(form.installmentFeeStr || 0))
+    const periods = Math.max(1, Number(form.installmentPeriods || 1))
+    return (total + fee) / periods
+})
+const installmentStatAmount = computed(() => Number(form.amountStr || 0) + Number(form.installmentFeeStr || 0))
+
+
+const addAARepayment = () => {
+    if (!form.aaGroupId || aaSettlement.value.outstanding <= 0) return
+    uni.navigateTo({ url: `/pages/bill/add?type=income&aaGroupId=${encodeURIComponent(form.aaGroupId)}` })
+}
 
 const sortedBillsDesc = computed(() => {
     return [...billStore.bills].sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
@@ -545,6 +612,21 @@ onLoad((options) => {
         return
     }
 
+    if (options.aaGroupId) {
+        form.aaGroupId = options.aaGroupId
+        currentTab.value = 'income'
+        form.aaEnabled = false
+        form.installmentEnabled = false
+        const payer = billStore.getAAPayer(options.aaGroupId)
+        if (payer) {
+            form.assetId = payer.assetId
+            form.currency = payer.currency || 'CNY'
+            form.parentCategoryId = payer.parentCategoryId || ''
+            form.categoryId = payer.categoryId || ''
+            form.remark = payer.remark ? `AA还款：${payer.remark}` : 'AA还款'
+        }
+    }
+
     if (options.type) {
         currentTab.value = options.type
     }
@@ -563,7 +645,11 @@ const loadBillData = (id) => {
         uni.navigateBack()
         return
     }
-    
+    if (bill.installment?.groupId) {
+        uni.redirectTo({ url: `/pages/bill/installment?id=${encodeURIComponent(id)}` })
+        return
+    }
+
     console.log('加载账单数据:', bill)
     console.log('账单类型:', bill.type)
     console.log('账单分类:', bill.categoryId, '父分类:', bill.parentCategoryId)
@@ -582,8 +668,13 @@ const loadBillData = (id) => {
     form.targetCurrency = bill.targetCurrency || bill.currency || 'CNY'
     form.targetAmountStr = bill.targetAmount !== undefined ? Math.abs(Number(bill.targetAmount || 0)).toString() : ''
     form.isIncludedInStats = bill.isIncludedInStats !== false
-    
-    // 如果是转账，设置目标账户和手续费
+    form.aaEnabled = !!bill.aa?.enabled && bill.aa?.role !== 'repayment'
+    form.aaOwnAmountStr = bill.aa?.ownAmount !== undefined ? String(bill.aa.ownAmount) : ''
+    form.aaGroupId = bill.aa?.groupId || ''
+    form.installmentEnabled = false
+    form.installmentPeriods = '2'
+    form.installmentFeeStr = '0'
+
     if (bill.type === 'transfer') {
         form.targetAssetId = bill.targetAssetId
         form.targetAmountStr = bill.targetAmount !== undefined ? Math.abs(Number(bill.targetAmount || 0)).toString() : ''
@@ -618,6 +709,10 @@ const switchTab = (val) => {
     assetTouched.value = false
     if (val === 'transfer') {
         form.isIncludedInStats = false
+        form.aaEnabled = false
+        form.installmentEnabled = false
+        form.aaOwnAmountStr = ''
+        form.aaGroupId = ''
 
         form.currency = form.currency || 'CNY'
         if (!form.targetCurrency) form.targetCurrency = 'CNY'
@@ -634,6 +729,40 @@ const switchTab = (val) => {
         form.targetCurrency = form.currency
         form.targetAssetId = ''
     }
+}
+
+const toggleAA = () => {
+    if (isEditMode.value && !form.aaEnabled) return
+    form.aaEnabled = !form.aaEnabled
+    if (form.aaEnabled) {
+        form.installmentEnabled = false
+        if (!form.aaOwnAmountStr) form.aaOwnAmountStr = form.amountStr
+    }
+}
+
+const toggleInstallment = () => {
+    if (isEditMode.value && !form.installmentEnabled) return
+    form.installmentEnabled = !form.installmentEnabled
+    if (form.installmentEnabled) {
+        form.aaEnabled = false
+        form.aaOwnAmountStr = ''
+    }
+}
+
+const onAAOwnAmountInput = (e) => {
+    let value = e.detail.value.replace(/[^\d.]/g, '')
+    const parts = value.split('.')
+    if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('')
+    if (parts[1]?.length > 2) value = parts[0] + '.' + parts[1].slice(0, 2)
+    form.aaOwnAmountStr = value
+}
+
+const onInstallmentFeeInput = (e) => {
+    let value = e.detail.value.replace(/[^\d.]/g, '')
+    const parts = value.split('.')
+    if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('')
+    if (parts[1]?.length > 2) value = parts[0] + '.' + parts[1].slice(0, 2)
+    form.installmentFeeStr = value
 }
 
 const selectCategory = (cat) => {
@@ -971,11 +1100,55 @@ const submit = async () => {
             type: currentTab.value,
             timestamp: timestamp,
             remark: form.remark,
-            isIncludedInStats: currentTab.value === 'transfer' ? false : form.isIncludedInStats,
-            // 添加手续费字段
-            fee: currentTab.value === 'transfer' ? parseFloat(form.fee) || 0 : undefined
+            isIncludedInStats: isAARepayment.value ? false : (currentTab.value === 'transfer' ? false : form.isIncludedInStats),
+            fee: currentTab.value === 'transfer' ? parseFloat(form.fee) || 0 : 0,
+            aa: isAARepayment.value
+                ? { enabled: true, groupId: form.aaGroupId, role: 'repayment', settlementAmount: Math.abs(finalAmount) }
+                : form.aaEnabled
+                    ? { enabled: true, groupId: form.aaGroupId, role: 'payer', ownAmount: Number(form.aaOwnAmountStr || 0) }
+                    : undefined
         }
 
+        if (form.aaEnabled && form.installmentEnabled) {
+            uni.showToast({ title: 'AA与分期不能同时使用', icon: 'none' })
+            return
+        }
+        if (form.aaEnabled) {
+            const ownAmount = Number(form.aaOwnAmountStr)
+            if (!Number.isFinite(ownAmount) || ownAmount < 0 || ownAmount > val) {
+                uni.showToast({ title: '请输入正确的本人承担金额', icon: 'none' })
+                return
+            }
+            billData.aa.groupId = form.aaGroupId || undefined
+            billData.statAmount = ownAmount
+        }
+
+        if (form.installmentEnabled) {
+            const periods = Number(form.installmentPeriods)
+            const fee = Number(form.installmentFeeStr || 0)
+            if (!Number.isInteger(periods) || periods < 2) {
+                uni.showToast({ title: '分期期数至少为2期', icon: 'none' })
+                return
+            }
+            if (!Number.isFinite(fee) || fee < 0) {
+                uni.showToast({ title: '请输入正确的分期手续费', icon: 'none' })
+                return
+            }
+            if (isEditMode.value) {
+                uni.showToast({ title: '请从分期编辑页修改整组账单', icon: 'none' })
+                return
+            }
+            await billStore.addInstallment(billData, {
+                totalAmount: val,
+                periods,
+                fee,
+                firstDate: timestamp
+            })
+            uni.showToast({ title: '分期账单已生成' })
+            resetForm()
+            uni.navigateBack()
+            return
+        }
         if (isEditMode.value) {
             await billStore.updateBill(editBillId.value, billData)
             uni.showToast({ title: '已更新' })
@@ -990,7 +1163,7 @@ const submit = async () => {
         uni.navigateBack()
     } catch (e) {
         console.error(e)
-        uni.showToast({ title: isEditMode.value ? '更新失败' : '保存失败', icon: 'none' })
+        uni.showToast({ title: e.message || (isEditMode.value ? '更新失败' : '保存失败'), icon: 'none' })
     }
 }
 

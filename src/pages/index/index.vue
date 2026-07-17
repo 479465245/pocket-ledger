@@ -480,7 +480,10 @@ const onBillTouchCancel = () => {
 const editBill = (id) => {
   const bill = billStore.bills.find(b => b.id === id)
   if (bill) {
-    uni.navigateTo({ url: `/pages/bill/add?id=${id}&type=${bill.type}` })
+    const url = bill.installment?.groupId
+      ? `/pages/bill/installment?id=${id}`
+      : `/pages/bill/add?id=${id}&type=${bill.type}`
+    uni.navigateTo({ url })
   }
   activeBillId.value = null
 }
@@ -571,9 +574,9 @@ const formatDayTitle = (ts) => {
   if (key === formatDateKey(today.getTime())) return '今天'
   if (key === formatDateKey(yesterday.getTime())) return '昨天'
 
-  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  const dateText = `${date.getMonth() + 1}月${date.getDate()}日`
-  const yearText = date.getFullYear() !== today.getFullYear() ? ` ${date.getFullYear()}年` : ''
+  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const dateText = `${date.getMonth() + 1}月${date.getDate()}日`
+  const yearText = date.getFullYear() !== today.getFullYear() ? ` ${date.getFullYear()}年` : ''
   return `${dateText}${yearText} ${weekdays[date.getDay()]}`
 }
 
@@ -602,15 +605,17 @@ const formatSignedMoney = (amount, currency = 'CNY') => {
 
 
 const getBillMetaText = (bill) => {
-
+  let text
   if (bill.type === 'transfer') {
-
-    return `${getAssetName(bill.assetId)} → ${getAssetName(bill.targetAssetId)}`
-
+    text = `${getAssetName(bill.assetId)} → ${getAssetName(bill.targetAssetId)}`
+  } else {
+    text = getAssetName(bill.assetId)
   }
 
-  return getAssetName(bill.assetId)
-
+  if (bill.installment?.groupId) {
+    text += ` · 第 ${bill.installment.period}/${bill.installment.totalPeriods} 期`
+  }
+  return text
 }
 
 

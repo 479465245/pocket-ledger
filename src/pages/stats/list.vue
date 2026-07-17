@@ -250,26 +250,28 @@ const groupedBills = computed(() => {
 
   filteredBills.value.forEach(bill => {
     const dateKey = formatDateKey(bill.timestamp)
-    if (!map.has(dateKey)) {
+    const scoped = getAssetScopedAmount(bill)
+    const key = `${dateKey}__${scoped.currency || 'CNY'}`
+    if (!map.has(key)) {
       const group = {
-        dateKey,
+        dateKey: key,
         title: formatDayTitle(bill.timestamp),
         bills: [],
         total: 0,
-        currency: getAssetScopedAmount(bill).currency
+        currency: scoped.currency || 'CNY'
       }
-      map.set(dateKey, group)
+      map.set(key, group)
       groups.push(group)
     }
 
-    const group = map.get(dateKey)
+    const group = map.get(key)
     group.bills.push(bill)
-    group.total += getAssetScopedAmount(bill).amount
+    group.total += scoped.amount
   })
 
   return groups.map(group => ({
     ...group,
-    totalText: formatCurrencyAmount(group.total, group.currency || 'CNY')
+    totalText: formatCurrencyAmount(group.total, group.currency)
   }))
 })
 
@@ -376,10 +378,17 @@ const formatDayTitle = (ts) => {
 const formatDate = (ts) => new Date(ts).toLocaleDateString()
 
 const getBillMetaText = (bill) => {
+  let text
   if (bill.type === 'transfer') {
-    return `${getAssetName(bill.assetId)} → ${getAssetName(bill.targetAssetId)}`
+    text = `${getAssetName(bill.assetId)} → ${getAssetName(bill.targetAssetId)}`
+  } else {
+    text = getAssetName(bill.assetId)
   }
-  return getAssetName(bill.assetId)
+
+  if (bill.installment?.groupId) {
+    text += ` · 第 ${bill.installment.period}/${bill.installment.totalPeriods} 期`
+  }
+  return text
 }
 
 const getAssetScopedAmount = (bill) => {
@@ -451,7 +460,10 @@ const editBill = (id) => {
     return
   }
   activeBillId.value = null
-  uni.navigateTo({ url: '/pages/bill/add?id=' + id + '&type=' + bill.type })
+  const url = bill.installment?.groupId
+    ? `/pages/bill/installment?id=${id}`
+    : '/pages/bill/add?id=' + id + '&type=' + bill.type
+  uni.navigateTo({ url })
 }
 
 const refundBill = (id) => {

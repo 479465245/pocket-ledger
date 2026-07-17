@@ -97,7 +97,7 @@
         <text class="tip-title">导出说明：</text>
         <text class="tip-item">1. 包含指定日期范围内的所有账单记录</text>
         <text class="tip-item">2. 导出格式为 Excel (.xls)</text>
-        <text class="tip-item">3. 包含列：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、备注</text>
+        <text class="tip-item">3. 包含列：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注</text>
         <text class="tip-item">4. 可在电脑上进行数据分析</text>
       </view>
     </view>
@@ -245,6 +245,17 @@ const buildExportPayload = () => {
       '一级分类': parentCategoryName,
       '二级分类': categoryName,
       '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
+      '统计金额': bill.statAmount !== undefined ? bill.statAmount : '',
+      'AA组ID': bill.aa?.groupId || '',
+      'AA角色': bill.aa?.role || '',
+      'AA本人承担': bill.aa?.ownAmount !== undefined ? bill.aa.ownAmount : '',
+      'AA待收': bill.aa?.receivableAmount !== undefined ? bill.aa.receivableAmount : '',
+      '分期组ID': bill.installment?.groupId || '',
+      '当前期数': bill.installment?.period || '',
+      '总期数': bill.installment?.totalPeriods || '',
+      '分期总额': bill.installment?.totalAmount !== undefined ? bill.installment.totalAmount : '',
+      '分期手续费': bill.installment?.fee !== undefined ? bill.installment.fee : '',
+      '每期金额': bill.installment?.periodAmount !== undefined ? bill.installment.periodAmount : '',
       '是否计入统计': bill.isIncludedInStats === false ? '否' : '是',
       '备注': bill.remark || bill.note || ''
     }

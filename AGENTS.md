@@ -47,7 +47,8 @@ pnpm type-check
 | `src/store/category.js` | 分类 store |
 | `src/store/bill.js` | 账单 store 和余额重算逻辑 |
 | `src/pages/index/index.vue` | 账单明细首页 |
-| `src/pages/bill/add.vue` | 新增/编辑账单 |
+| `src/pages/bill/add.vue` | 新增/编辑普通账单、AA 付款与还款入口 |
+| `src/pages/bill/installment.vue` | 分期组查看、整组编辑和整组删除 |
 | `src/pages/stats` | 统计页、分类统计详情、统计明细 |
 | `src/pages/settings` | 设置、导入、导出、备份、WebDAV、网络文件配置、交叉校验入口 |
 | `src/pages/assistant/index.vue` | AI 助手，基于账本摘要进行对话式分析 |
@@ -82,8 +83,9 @@ pnpm type-check
 
 - `assetStore` 管理资产账户，持久化 key 为 `account_book_assets`。
 - `categoryStore` 管理收入、支出、系统分类和二级分类，持久化 key 为 `account_book_categories`。
-- `billStore` 管理账单流水、退款、转账和资产余额快照，持久化 key 为 `account_book_bills`。
-- 账单是资产余额和统计的事实来源；资产当前余额不能绕过账单流水长期单独维护。
+- `billStore` 管理账单流水、退款、转账、AA 分摊/还款、分期组和资产余额快照。账单是资产余额和统计的事实来源；资产当前余额不能绕过账单流水长期单独维护。
+- AA 付款保留完整 `amount`，用 `aa.ownAmount` 作为支出统计金额；AA 还款是关联同组的正数收入，强制 `isIncludedInStats: false`，累计还款不得超过待收金额。
+- 分期账单通过 `addInstallment()` 生成完整分期组，首期统计总额加手续费，后续期不重复统计；编辑、删除必须通过整组入口。未来日期账单只在到期后进入资产当前余额，但仍生成时间线快照。
 
 ### 明细与记账模块
 
@@ -113,7 +115,8 @@ pnpm type-check
 - `pages/settings/import.vue` 支持本地文件和网络文件导入，使用 `xlsx` 读取工作表，再由 `parseImportRows()` 解析为预览数据。
 - `src/utils/importParsers.js` 支持 `auto`、`alipay`、`wechat`、`generic` 四种来源，负责表头识别、金额解析、日期解析、资产推断、类型判断和备注拼装。
 - 导入落库时页面负责补齐资产、分类、时间戳和账单字段，最终必须调用 `billStore.addBill()`。
-- 通用模板字段包括日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、是否计入统计、备注。
+- 通用模板字段包括日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。
+- 导入带 AA/分期组 ID 的迁移记录时逐条保留元数据，不再次展开分期；普通用户新增分期仍必须通过分期组入口。
 - `pages/settings/export.vue` 按日期范围导出账单，导出字段要兼容资产、分类、币种、金额、手续费、统计标记和备注。
 - 导入导出格式发生变化时，必须同步更新 `README.md`、`wiki/wiki.md` 和本文件相关说明。
 
@@ -121,7 +124,7 @@ pnpm type-check
 
 - `pages/settings/backup.vue` 使用 `buildBackupData()` 生成完整 JSON 备份，使用 `applyBackupToStores()` 覆盖还原三类核心 store。
 - 备份格式包含 `app: 'account-book'`、`type: 'full-backup'`、`version`、`createdAt` 和 `data.bills/assets/categories`。
-- 覆盖还原是破坏性操作，必须先 `validateBackup()` 校验结构，再写入 category、asset、bill 三个 store。
+- 覆盖还原是破坏性操作，必须先 `validateBackup()` 校验结构和版本，再写入 category、asset、bill 三个 store，并重算资产余额；当前备份版本为 2，兼容旧版基础备份字段。
 - `pages/settings/webdav.vue` 通过 `src/utils/webdav.js` 管理 WebDAV 配置、列出远程 JSON 备份、上传备份、下载备份并覆盖还原。
 - WebDAV 配置持久化 key 为 `webdav_configs`，包含地址、目录、用户名和密码；不要在日志或文档中泄露真实配置。
 - `pages/settings/network-file.vue` 通过 `src/utils/networkFile.js` 管理下载/上传地址，持久化 key 为 `network_file_configs`，主要服务导入文件下载和导出文件上传。
@@ -133,7 +136,7 @@ pnpm type-check
 - 校验会话持久化 key 为 `account_book_cross_check_session`。
 - `pages/cross-check/home.vue` 汇总本地账单与外部流水的匹配结果。
 - `pages/cross-check/list.vue` 展示本地缺失、本地多余、资产不一致、疑似重复，并支持补记或删除本地账单。
-- `src/utils/crossCheck.js` 以日期、金额、方向和资产名称匹配本地账单与外部流水；转账目标资产使用 `targetAmount` 或 `amount` 的绝对值参与核对。
+- `src/utils/crossCheck.js` 以日期、真实金额绝对值、方向和资产名称匹配本地账单与外部流水；不要使用 `statAmount` 参与对账。转账目标资产使用 `targetAmount` 或 `amount` 的绝对值参与核对。
 
 ### AI 助手模块
 
