@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="container">
     <!-- Header: Tabs -->
     <view class="header-tabs">
@@ -218,23 +218,59 @@
             </view>
         </scroll-view>
 
-        <view v-if="currentTab === 'expense' && !isAARepayment" class="advanced-options">
-            <view class="advanced-option" @click="toggleAA">
-                <text>{{ form.aaEnabled ? 'AA分摊已开启' : 'AA分摊' }}</text>
-                <text class="advanced-value">{{ form.aaEnabled ? `本人承担 ${form.aaOwnAmountStr || '0'}` : '关闭' }}</text>
+        <view v-if="currentTab === 'expense' && !isAARepayment" class="feature-section">
+            <view class="feature-section-head">
+                <view>
+                    <text class="section-label">特殊记账方式</text>
+                    <text class="section-hint">AA 和分期只能选择一种</text>
+                </view>
+                <text class="section-state">{{ form.aaEnabled || form.installmentEnabled ? '已配置' : '普通账单' }}</text>
             </view>
-            <view class="advanced-option" @click="toggleInstallment">
-                <text>{{ form.installmentEnabled ? '分期账单已开启' : '分期账单' }}</text>
-                <text class="advanced-value">{{ form.installmentEnabled ? `${form.installmentPeriods}期` : '关闭' }}</text>
+            <view class="feature-grid">
+                <view :class="['feature-card', 'aa-card', { active: form.aaEnabled }]" @click="toggleAA">
+                    <view class="feature-card-top">
+                        <text class="feature-icon">AA</text>
+                        <text class="feature-switch">{{ form.aaEnabled ? '已开启' : '开启' }}</text>
+                    </view>
+                    <text class="feature-card-title">代垫分摊</text>
+                    <text class="feature-card-desc">保留全额流水，统计本人承担</text>
+                    <text v-if="form.aaEnabled" class="feature-card-value">本人 {{ form.aaOwnAmountStr || '0' }} · 待收 {{ aaReceivableAmount.toFixed(2) }}</text>
+                </view>
+                <view :class="['feature-card', 'installment-card', { active: form.installmentEnabled }]" @click="toggleInstallment">
+                    <view class="feature-card-top">
+                        <text class="feature-icon">分</text>
+                        <text class="feature-switch">{{ form.installmentEnabled ? '已开启' : '开启' }}</text>
+                    </view>
+                    <text class="feature-card-title">分期账单</text>
+                    <text class="feature-card-desc">按月生成每期流水和手续费</text>
+                    <text v-if="form.installmentEnabled" class="feature-card-value">{{ form.installmentPeriods }} 期 · 每期约 {{ installmentPeriodAmount.toFixed(2) }}</text>
+                </view>
             </view>
         </view>
-
         <view v-if="currentTab === 'expense' && form.aaEnabled" class="advanced-form">
-            <view class="advanced-row">
-                <text>本人承担</text>
-                <input class="fee-input" type="digit" v-model="form.aaOwnAmountStr" placeholder="本人承担金额" @input="onAAOwnAmountInput" />
+            <view class="feature-detail-head">
+                <view>
+                    <text class="feature-detail-title">AA 分摊明细</text>
+                    <text class="feature-detail-subtitle">原始流水仍按完整消费金额记账</text>
+                </view>
+                <text class="feature-detail-total">总额 {{ form.amountStr || '0' }}</text>
             </view>
-            <text class="advanced-tip">代垫待收 {{ aaReceivableAmount.toFixed(2) }}，AA 与分期不能同时使用</text>
+            <view class="amount-breakdown">
+                <view class="breakdown-item">
+                    <text class="breakdown-label">本人承担</text>
+                    <text class="breakdown-value own">{{ form.aaOwnAmountStr || '0.00' }}</text>
+                </view>
+                <view class="breakdown-divider">+</view>
+                <view class="breakdown-item">
+                    <text class="breakdown-label">代垫待收</text>
+                    <text class="breakdown-value receivable">{{ aaReceivableAmount.toFixed(2) }}</text>
+                </view>
+            </view>
+            <view class="advanced-row">
+                <text>本人承担金额</text>
+                <input class="fee-input" type="digit" v-model="form.aaOwnAmountStr" placeholder="输入金额" @input="onAAOwnAmountInput" />
+            </view>
+            <text class="advanced-tip">保存后可从首页 AA 账单直接新增还款</text>
             <view v-if="canAddAARepayment" class="advanced-option repayment-entry" @click="addAARepayment">
                 <text>新增 AA 还款</text>
                 <text class="advanced-value">待收 {{ aaSettlement.outstanding.toFixed(2) }} ›</text>
@@ -242,6 +278,27 @@
         </view>
 
         <view v-if="currentTab === 'expense' && form.installmentEnabled" class="advanced-form">
+            <view class="feature-detail-head">
+                <view>
+                    <text class="feature-detail-title">分期计划</text>
+                    <text class="feature-detail-subtitle">首期会计入统计，后续期不重复统计</text>
+                </view>
+                <text class="feature-detail-total">总额 {{ form.amountStr || '0' }}</text>
+            </view>
+            <view class="installment-preview">
+                <view class="preview-item">
+                    <text class="preview-label">期数</text>
+                    <text class="preview-value">{{ form.installmentPeriods || '0' }} 期</text>
+                </view>
+                <view class="preview-item">
+                    <text class="preview-label">手续费</text>
+                    <text class="preview-value">{{ form.installmentFeeStr || '0.00' }}</text>
+                </view>
+                <view class="preview-item highlight">
+                    <text class="preview-label">每期约</text>
+                    <text class="preview-value">{{ installmentPeriodAmount.toFixed(2) }}</text>
+                </view>
+            </view>
             <view class="advanced-row">
                 <text>分期期数</text>
                 <input class="fee-input" type="number" v-model="form.installmentPeriods" />
@@ -252,7 +309,7 @@
                 <input class="fee-input" type="digit" v-model="form.installmentFeeStr" placeholder="0" @input="onInstallmentFeeInput" />
                 <text class="fee-unit">元</text>
             </view>
-            <text class="advanced-tip">每期约 {{ installmentPeriodAmount.toFixed(2) }}，首期统计 {{ installmentStatAmount.toFixed(2) }}</text>
+            <text class="advanced-tip">首期统计 {{ installmentStatAmount.toFixed(2) }}，之后每期只影响余额</text>
         </view>
 
         <!-- Keypad -->
@@ -1404,6 +1461,210 @@ const submit = async () => {
     color: var(--color-text);
     white-space: nowrap;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.feature-section {
+    margin: 8px 0 10px;
+    padding: 10px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.52);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+}
+
+.feature-section-head,
+.feature-card-top,
+.feature-detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.section-label,
+.feature-detail-title {
+    display: block;
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.section-hint,
+.feature-detail-subtitle {
+    display: block;
+    margin-top: 2px;
+    color: var(--color-text-light);
+    font-size: 10px;
+}
+
+.section-state,
+.feature-switch {
+    color: var(--color-text-light);
+    font-size: 10px;
+}
+
+.feature-grid {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.feature-card {
+    flex: 1;
+    min-width: 0;
+    padding: 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.66);
+    border: 1px solid rgba(138, 138, 138, 0.12);
+    transition: all 0.2s ease;
+}
+
+.feature-card.active {
+    border-color: rgba(136, 177, 148, 0.64);
+    background: rgba(232, 246, 235, 0.92);
+    transform: translateY(-1px);
+}
+
+.aa-card.active {
+    border-color: rgba(255, 141, 93, 0.55);
+    background: rgba(255, 242, 235, 0.96);
+}
+
+.feature-icon {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    background: rgba(255, 141, 93, 0.14);
+    color: var(--color-primary);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.installment-card .feature-icon {
+    background: rgba(136, 177, 148, 0.2);
+    color: #5b9469;
+}
+
+.feature-card-title {
+    display: block;
+    margin-top: 8px;
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.feature-card-desc,
+.feature-card-value {
+    display: block;
+    margin-top: 3px;
+    color: var(--color-text-light);
+    font-size: 10px;
+    line-height: 14px;
+}
+
+.feature-card-value {
+    color: var(--color-text);
+    font-weight: 700;
+}
+
+.advanced-form {
+    margin: 0 0 8px;
+    padding: 10px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(136, 177, 148, 0.22);
+}
+
+.feature-detail-total {
+    color: var(--color-primary);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.amount-breakdown,
+.installment-preview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0;
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(247, 250, 255, 0.7);
+}
+
+.breakdown-item,
+.preview-item {
+    flex: 1;
+    min-width: 0;
+}
+
+.breakdown-label,
+.preview-label {
+    display: block;
+    color: var(--color-text-light);
+    font-size: 10px;
+}
+
+.breakdown-value,
+.preview-value {
+    display: block;
+    margin-top: 2px;
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.breakdown-value.own {
+    color: var(--color-primary);
+}
+
+.breakdown-value.receivable {
+    color: #5b9469;
+}
+
+.breakdown-divider {
+    color: var(--color-text-light);
+    font-size: 12px;
+}
+
+.preview-item.highlight {
+    padding-left: 8px;
+    border-left: 1px solid rgba(138, 138, 138, 0.16);
+}
+
+.advanced-row {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid rgba(138, 138, 138, 0.12);
+}
+
+.advanced-tip {
+    display: block;
+    margin-top: 5px;
+    color: var(--color-text-light);
+    font-size: 10px;
+    line-height: 14px;
+}
+
+.advanced-option {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    margin-top: 8px;
+    border-radius: 12px;
+    background: rgba(136, 177, 148, 0.14);
+    color: var(--color-text);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.advanced-value {
+    color: var(--color-text-light);
+    font-weight: 500;
 }
 /* Input Display Row */
 .input-display-row {

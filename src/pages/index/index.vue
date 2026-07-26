@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="container">
     <view class="fixed-header">
       <view class="segment-wrap neu-card">
@@ -73,16 +73,24 @@
                   <view class="bill-info">
                     <view class="category-row">
                       <text class="category-name">{{ getBillTitle(bill) }}</text>
-                      <text v-if="bill.type === 'refund'" class="state-badge refund">退款</text>
+                      <text v-if="bill.aa?.role === 'payer'" class="state-badge aa">AA</text>
+                      <text v-else-if="bill.aa?.role === 'repayment'" class="state-badge repayment">还款</text>
+                      <text v-if="bill.installment?.groupId" class="state-badge installment">分期</text>
+                      <text v-else-if="bill.type === 'refund'" class="state-badge refund">退款</text>
                       <text v-else-if="bill.isRefunded" class="state-badge refunded">已退</text>
                     </view>
                     <text class="bill-date">{{ getBillMetaText(bill) }}</text>
+                    <text v-if="getBillSpecialText(bill)" class="bill-special-meta">{{ getBillSpecialText(bill) }}</text>
                     <text v-if="bill.remark || bill.note" class="bill-remark">{{ bill.remark || bill.note }}</text>
                   </view>
                 </view>
 
                 <view class="bill-right">
                   <text :class="['bill-amount', getAmountClass(bill)]">{{ getDisplayAmount(bill) }}</text>
+                  <view v-if="isAAPayerWithOutstanding(bill)" class="aa-repay-action" @click.stop="addAARepayment(bill)">
+                    <text>新增还款</text>
+                    <text class="aa-repay-amount">待收 {{ formatMoney(billStore.getAASettlement(bill.aa.groupId).outstanding, bill.currency || 'CNY') }}</text>
+                  </view>
                   <text class="balance-snapshot">余 {{ getBalanceSnapshotText(bill) }}</text>
                 </view>
               </view>
@@ -604,6 +612,28 @@ const formatSignedMoney = (amount, currency = 'CNY') => {
 
 
 
+const isAAPayerWithOutstanding = (bill) => {
+  if (bill.aa?.role !== 'payer' || !bill.aa.groupId) return false
+  return billStore.getAASettlement(bill.aa.groupId).outstanding > 0
+}
+
+const addAARepayment = (bill) => {
+  if (!isAAPayerWithOutstanding(bill)) return
+  activeBillId.value = null
+  uni.navigateTo({ url: `/pages/bill/add?type=income&aaGroupId=${encodeURIComponent(bill.aa.groupId)}` })
+}
+
+const getBillSpecialText = (bill) => {
+  if (bill.aa?.role === 'payer') {
+    const settlement = billStore.getAASettlement(bill.aa.groupId)
+    return `应收 ${formatMoney(settlement.receivable, bill.currency || 'CNY')} · 待收 ${formatMoney(settlement.outstanding, bill.currency || 'CNY')}`
+  }
+  if (bill.aa?.role === 'repayment') return 'AA 还款 · 不计入收入统计'
+  if (bill.installment?.groupId) {
+    return `总额 ${formatMoney(bill.installment.totalAmount, bill.currency || 'CNY')} · 每期 ${formatMoney(bill.installment.periodAmount, bill.currency || 'CNY')}`
+  }
+  return ''
+}
 const getBillMetaText = (bill) => {
   let text
   if (bill.type === 'transfer') {
@@ -1298,6 +1328,42 @@ const onAssetTouchCancel = () => {
 
 .state-badge.refund { background: #ff9500; }
 .state-badge.refunded { background: #999; }
+.state-badge.aa { background: rgba(255, 141, 93, 0.92); }
+.state-badge.repayment { background: rgba(91, 148, 105, 0.92); }
+.state-badge.installment { background: rgba(75, 163, 255, 0.9); }
+
+.bill-special-meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-primary);
+  font-size: 10px;
+  line-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aa-repay-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 150px;
+  margin-top: 4px;
+  padding: 4px 7px;
+  border-radius: 9px;
+  background: rgba(255, 141, 93, 0.12);
+  color: var(--color-primary);
+  font-size: 10px;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.aa-repay-amount {
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 
 .asset-item-wrapper {
   position: relative;

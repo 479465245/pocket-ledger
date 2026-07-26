@@ -2,11 +2,33 @@
   <scroll-view scroll-y class="container">
     <view v-if="loaded" class="content">
       <view class="summary neu-card">
-        <text class="title">分期账单</text>
-        <text class="summary-amount">¥ {{ form.totalAmount }}</text>
-        <text class="summary-tip">共 {{ form.periods }} 期 · 每期约 ¥{{ periodAmount }}</text>
+        <view class="summary-top">
+          <view>
+            <text class="eyebrow">分期账单</text>
+            <text class="title">{{ selectedCategoryName }}</text>
+          </view>
+          <text class="summary-badge">按月</text>
+        </view>
+        <text class="summary-amount">{{ periodCurrencyLabel }} {{ form.totalAmount }}</text>
+        <text class="summary-tip">含手续费 {{ periodCurrencyLabel }}{{ form.fee }} · 每期约 {{ periodCurrencyLabel }}{{ periodAmount }}</text>
+        <view class="progress-track">
+          <view class="progress-value" :style="{ width: progressPercent + '%' }"></view>
+        </view>
+        <view class="progress-caption">
+          <text>已到期 {{ completedPeriods }}/{{ form.periods }} 期</text>
+          <text>{{ progressPercent }}%</text>
+        </view>
+        <view class="summary-metrics">
+          <view>
+            <text class="metric-label">已发生</text>
+            <text class="metric-value">{{ periodCurrencyLabel }}{{ paidAmount }}</text>
+          </view>
+          <view>
+            <text class="metric-label">待发生</text>
+            <text class="metric-value pending">{{ periodCurrencyLabel }}{{ pendingAmount }}</text>
+          </view>
+        </view>
       </view>
-
       <view class="card neu-card">
         <view class="row input-row">
           <text class="label">消费总额</text>
@@ -49,13 +71,19 @@
       <view class="card neu-card">
         <text class="section-title">分期明细</text>
         <view v-for="bill in installmentBills" :key="bill.id" class="period-row">
-          <view>
-            <text class="period-title">第 {{ bill.installment.period }}/{{ bill.installment.totalPeriods }} 期</text>
+          <view class="period-marker" :class="getPeriodStatusClass(bill)">
+            <text>{{ bill.installment.period }}</text>
+          </view>
+          <view class="period-main">
+            <view class="period-heading">
+              <text class="period-title">第 {{ bill.installment.period }}/{{ bill.installment.totalPeriods }} 期</text>
+              <text :class="['period-status', getPeriodStatusClass(bill)]">{{ getPeriodStatus(bill) }}</text>
+            </view>
             <text class="period-date">{{ formatDate(bill.timestamp) }}</text>
           </view>
           <view class="period-right">
-            <text class="period-amount">¥{{ Math.abs(Number(bill.amount || 0)).toFixed(2) }}</text>
-            <text class="period-stat">{{ bill.isIncludedInStats !== false ? `统计 ¥${bill.statAmount.toFixed(2)}` : '不计入统计' }}</text>
+            <text class="period-amount">{{ periodCurrencyLabel }}{{ Math.abs(Number(bill.amount || 0)).toFixed(2) }}</text>
+            <text class="period-stat">{{ bill.isIncludedInStats !== false ? `统计 ${periodCurrencyLabel}${Number(bill.statAmount || 0).toFixed(2)}` : '不计入统计' }}</text>
           </view>
         </view>
       </view>
@@ -124,6 +152,20 @@ const periodAmount = computed(() => {
   const total = Number(form.totalAmount || 0) + Number(form.fee || 0)
   return (total / Math.max(1, Number(form.periods || 1))).toFixed(2)
 })
+const completedPeriods = computed(() => installmentBills.value.filter(bill => Number(bill.timestamp || 0) <= Date.now()).length)
+const progressPercent = computed(() => {
+  const total = Math.max(1, Number(form.periods || 1))
+  return Math.min(100, Math.round((completedPeriods.value / total) * 100))
+})
+const paidAmount = computed(() => installmentBills.value
+  .filter(bill => Number(bill.timestamp || 0) <= Date.now())
+  .reduce((sum, bill) => sum + Math.abs(Number(bill.amount || 0)), 0)
+  .toFixed(2))
+const pendingAmount = computed(() => Math.max(0, Number(form.totalAmount || 0) + Number(form.fee || 0) - Number(paidAmount.value)).toFixed(2))
+const periodCurrencyLabel = computed(() => form.currency === 'CNY' ? '¥' : form.currency)
+const getPeriodStatus = (bill) => Number(bill.timestamp || 0) <= Date.now() ? '已到期' : '待发生'
+const getPeriodStatusClass = (bill) => Number(bill.timestamp || 0) <= Date.now() ? 'due' : 'pending'
+
 
 const formatDate = (timestamp) => {
   const date = new Date(timestamp)
@@ -225,6 +267,82 @@ const remove = () => {
 .title, .section-title { display: block; font-weight: 800; color: var(--color-text); }
 .summary-amount { display: block; margin-top: 10px; font-size: 32px; font-weight: 900; color: var(--color-primary); }
 .summary-tip, .period-date, .period-stat, .advanced-tip { display: block; color: var(--color-text-light); font-size: 12px; }
+.summary-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.eyebrow {
+  display: block;
+  color: var(--color-text-light);
+  font-size: 11px;
+}
+
+.summary-badge {
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: rgba(136, 177, 148, 0.16);
+  color: #5b9469;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.progress-track {
+  height: 7px;
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: rgba(138, 138, 138, 0.14);
+}
+
+.progress-value {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-primary), #5b9469);
+  transition: width 0.25s ease;
+}
+
+.progress-caption {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--color-text-light);
+  font-size: 11px;
+}
+
+.summary-metrics {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.summary-metrics > view {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(247, 250, 255, 0.72);
+}
+
+.metric-label {
+  display: block;
+  color: var(--color-text-light);
+  font-size: 10px;
+}
+
+.metric-value {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.metric-value.pending {
+  color: var(--color-primary);
+}
+
 .card { margin-bottom: 16px; padding: 8px 16px; border-radius: 20px; }
 .row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(138,138,138,.12); }
 .row:last-child { border-bottom: none; }
@@ -236,6 +354,57 @@ const remove = () => {
 .remark-input { flex: 1; margin-left: 16px; }
 .section-title { padding: 10px 0 12px; }
 .period-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid rgba(138,138,138,.12); }
+.period-marker {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 10px;
+  border-radius: 10px;
+  background: rgba(91, 148, 105, 0.14);
+  color: #5b9469;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.period-marker.pending {
+  background: rgba(75, 163, 255, 0.12);
+  color: #4BA3FF;
+}
+
+.period-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.period-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.period-status {
+  padding: 2px 5px;
+  border-radius: 6px;
+  font-size: 9px;
+}
+
+.period-status.due {
+  background: rgba(91, 148, 105, 0.14);
+  color: #5b9469;
+}
+
+.period-status.pending {
+  background: rgba(75, 163, 255, 0.12);
+  color: #4BA3FF;
+}
+
+.period-right {
+  margin-left: 8px;
+}
+
 .period-title, .period-amount { display: block; color: var(--color-text); font-size: 14px; font-weight: 700; }
 .period-right { text-align: right; }
 .period-amount { color: var(--color-primary); }

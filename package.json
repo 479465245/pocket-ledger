@@ -1,6 +1,6 @@
 {
   "name": "uni-app-account-book",
-  "version": "1.0.16",
+  "version": "1.0.18",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev:app": "uni -p app",
