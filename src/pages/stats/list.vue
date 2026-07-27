@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="container">
     <view v-if="isAssetMode" class="filter-panel">
       <view class="filter-summary" @click="showFilter = !showFilter">
@@ -100,6 +100,12 @@
         </view>
       </view>
     </scroll-view>
+  <RefundAmountModal
+    v-model="showRefundModal"
+    :max-amount="refundMaximum"
+    :currency="refundTarget?.currency || 'CNY'"
+    @confirm="confirmRefund"
+  />
   </view>
 </template>
 
@@ -109,6 +115,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
+import RefundAmountModal from '@/components/RefundAmountModal.vue'
 import { formatCurrencyAmount } from '@/utils/currency'
 import { decodeHtmlEntities } from '@/utils/text'
 import { usePageShare } from '@/utils/share'
@@ -126,6 +133,9 @@ const endDate = ref('')
 const appliedStartDate = ref('')
 const appliedEndDate = ref('')
 const activeBillId = ref(null)
+const refundTarget = ref(null)
+const showRefundModal = ref(false)
+const refundMaximum = computed(() => Math.abs(Number(refundTarget.value?.amount || 0)))
 const touchStartX = ref(0)
 const touchStartY = ref(0)
 const isMoving = ref(false)
@@ -498,23 +508,26 @@ const refundBill = (id) => {
     return
   }
 
-  uni.showModal({
-    title: '确认退款',
-    content: '将按原金额生成一条退款记录，并自动修正余额。',
-    success: async (res) => {
-      if (!res.confirm) return
-      try {
-        await billStore.createRefund(id)
-        uni.showToast({ title: '退款已生成', icon: 'success' })
-      } catch (error) {
-        uni.showToast({ title: error.message || '退款失败', icon: 'none' })
-      } finally {
-        activeBillId.value = null
-      }
-    }
-  })
+  refundTarget.value = bill
+  showRefundModal.value = true
+  activeBillId.value = null
 }
 
+const confirmRefund = async (amount) => {
+  const bill = refundTarget.value
+  if (!bill) return
+
+  try {
+    await billStore.createRefund(bill.id, { amount })
+    uni.showToast({ title: '退款已生成', icon: 'success' })
+    showRefundModal.value = false
+    refundTarget.value = null
+  } catch (error) {
+    uni.showToast({ title: error.message || '退款失败', icon: 'none' })
+  } finally {
+    activeBillId.value = null
+  }
+}
 const deleteBill = (id) => {
   uni.showModal({
     title: '删除账单',

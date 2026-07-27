@@ -182,9 +182,9 @@ pnpm type-check
 
 ### 退款流程
 
-1. 页面调用 `billStore.createRefund(originalBillId)`。
+1. 页面通过退款金额弹窗调用 `billStore.createRefund(originalBillId, { amount })`。
 2. store 禁止转账退款、退款再退款、已退款账单重复退款。
-3. store 创建 `type: 'refund'` 的反向金额账单，继承原账单资产、分类和币种。
+3. store 校验退款金额大于 0 且不超过原账单金额，再创建 `type: 'refund'` 的实际退款额反向账单，继承原账单资产、分类和币种。
 4. 退款账单默认 `isIncludedInStats: false`，用于冲销余额但不参与普通统计。
 5. 原账单标记 `isRefunded: true`，删除退款时需要恢复。
 

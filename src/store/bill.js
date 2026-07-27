@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { generateId } from '@/utils/uuid'
+import { getRefundTransactionAmount, validateRefundAmount } from '@/utils/refund'
 import { useAssetStore } from './asset'
 
 const STORAGE_KEY = 'account_book_bills'
@@ -358,10 +359,13 @@ export const useBillStore = defineStore('bill', {
       if (original.installment?.groupId) throw new Error('分期账单请通过分期页面处理退款')
       if (original.isRefunded) throw new Error('该账单已退款')
 
-      const refundAmount = -Number(original.amount)
+      const refundAmount = validateRefundAmount(
+        overrides.amount ?? Math.abs(Number(original.amount)),
+        original.amount
+      )
       const remark = overrides.remark || (original.remark ? `退款：${original.remark}` : '退款')
       return await this.addBill({
-        amount: refundAmount,
+        amount: getRefundTransactionAmount(original.amount, refundAmount),
         assetId: original.assetId,
         parentCategoryId: original.parentCategoryId,
         categoryId: original.categoryId,

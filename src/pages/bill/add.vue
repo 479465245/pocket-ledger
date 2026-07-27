@@ -194,15 +194,22 @@
                 </view>
             </view>
         </scroll-view>
-        <!-- Input Row 2: Remark & Amount -->
-        <view class="input-display-row">
-            <view class="remark-box">
-                <input class="remark-input" v-model="form.remark" placeholder="请输入备注信息..." />
-            </view>
-            <view class="amount-box">
+        <!-- Amount & Remark -->
+        <view class="amount-entry">
+            <text class="amount-label">金额</text>
+            <view class="amount-input-wrap">
                 <text class="currency">{{ displayCurrencySymbol }}</text>
-                <text class="amount-text">{{ displayAmount }}</text>
+                <input
+                    class="amount-input"
+                    type="digit"
+                    :value="displayAmount"
+                    placeholder="0.00"
+                    @input="onAmountInput"
+                />
             </view>
+        </view>
+        <view class="remark-box">
+            <input class="remark-input" v-model="form.remark" placeholder="添加备注（选填）" />
         </view>
 
         <scroll-view v-if="remarkSuggestions.length > 0" scroll-x class="remark-suggestions" :show-scrollbar="false">
@@ -312,32 +319,9 @@
             <text class="advanced-tip">首期统计 {{ installmentStatAmount.toFixed(2) }}，之后每期只影响余额</text>
         </view>
 
-        <!-- Keypad -->
-        <view class="keypad">
-            <view class="key-row">
-                <view class="key-cell" @click="onKey('1')">1</view>
-                <view class="key-cell" @click="onKey('2')">2</view>
-                <view class="key-cell" @click="onKey('3')">3</view>
-                <view class="key-cell del-btn" @click="onKey('del')">⌫</view>
-            </view>
-            <view class="key-row">
-                <view class="key-cell" @click="onKey('4')">4</view>
-                <view class="key-cell" @click="onKey('5')">5</view>
-                <view class="key-cell" @click="onKey('6')">6</view>
-                <view class="key-cell placeholder"></view>
-            </view>
-            <view class="key-row">
-                <view class="key-cell" @click="onKey('7')">7</view>
-                <view class="key-cell" @click="onKey('8')">8</view>
-                <view class="key-cell" @click="onKey('9')">9</view>
-                <view class="key-cell placeholder"></view>
-            </view>
-            <view class="key-row">
-                <view class="key-cell action-btn" @click="resetForm">再记</view>
-                <view class="key-cell" @click="onKey('0')">0</view>
-                <view class="key-cell" @click="onKey('.')">.</view>
-                <view class="key-cell submit-btn" @click="submit">保存</view>
-            </view>
+        <view class="form-actions">
+            <button class="form-action secondary" @click="resetForm">清空</button>
+            <button class="form-action primary" @click="submit">保存</button>
         </view>
     </view>
     
@@ -512,7 +496,7 @@ const displayDate = computed(() => {
 })
 
 const displayAmount = computed(() => {
-    return form.amountStr
+    return form.amountStr === '0' ? '' : form.amountStr
 })
 
 const displayCurrencySymbol = computed(() => {
@@ -965,6 +949,16 @@ const onDateChange = (e) => {
     form.date = e.detail.value
 }
 
+const onAmountInput = (e) => {
+    let value = e.detail.value.replace(/[^\d.]/g, '')
+    const parts = value.split('.')
+    if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('')
+    if (parts[1]?.length > 2) value = parts[0] + '.' + parts[1].slice(0, 2)
+    if (value.length > 10) value = value.slice(0, 10)
+    form.amountStr = value || '0'
+    syncTargetAmountFromSource()
+}
+
 const onTargetAmountInput = (e) => {
     let value = e.detail.value
     value = value.replace(/[^\d.]/g, '')
@@ -994,40 +988,6 @@ const onFeeInput = (e) => {
         value = parts[0] + '.' + parts[1].substring(0, 2)
     }
     form.fee = value
-}
-
-// Keypad Logic
-const onKey = (key) => {
-    if (key === 'del') {
-        if (form.amountStr.length > 1) {
-            form.amountStr = form.amountStr.slice(0, -1)
-        } else {
-            form.amountStr = '0'
-        }
-        syncTargetAmountFromSource()
-        return
-    }
-    
-    if (['+', '-'].includes(key)) {
-        return
-    }
-
-    if (key === '.') {
-        if (form.amountStr.includes('.')) return
-        form.amountStr += '.'
-        syncTargetAmountFromSource()
-        return
-    }
-
-    if (form.amountStr === '0') {
-        form.amountStr = key
-    } else {
-        if (form.amountStr.length < 10) {
-             form.amountStr += key
-        }
-    }
-
-    syncTargetAmountFromSource()
 }
 
 const resetForm = () => {
@@ -1268,7 +1228,7 @@ const submit = async () => {
     flex: 1;
     height: 0;
     box-sizing: border-box;
-    padding: 4px 10px 300px;
+    padding: 4px 10px 16px;
     overflow-y: auto;
 }
 
@@ -1394,18 +1354,10 @@ const submit = async () => {
 
 /* Bottom Panel */
 .bottom-panel {
-
-    position: fixed;
-
-    left: 0;
-
-    right: 0;
-
-    bottom: 0;
-
-    z-index: 30;
-
     box-sizing: border-box;
+    flex-shrink: 0;
+    max-height: 62vh;
+    overflow-y: auto;
 
     background: #f8fcf8; /* Light Mint/Cream */
 
@@ -1666,19 +1618,31 @@ const submit = async () => {
     color: var(--color-text-light);
     font-weight: 500;
 }
-/* Input Display Row */
-.input-display-row {
-
+.amount-entry {
     display: flex;
-
-    justify-content: space-between;
-
     align-items: center;
-
+    justify-content: space-between;
+    min-height: 56px;
+    padding: 0 12px;
     margin-bottom: 8px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.88);
+}
 
-    padding: 0 5px;
+.amount-label {
+    color: var(--color-text-light);
+    font-size: 13px;
+    font-weight: 700;
+}
 
+.amount-input-wrap {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    flex: 1;
+    justify-content: flex-end;
+    color: var(--color-primary);
 }
 
 .remark-suggestions {
@@ -1712,91 +1676,63 @@ const submit = async () => {
 }
 
 .remark-box {
-    flex: 1;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    margin-bottom: 8px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.56);
+    border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .remark-input {
+    width: 100%;
     font-size: 14px;
     color: var(--color-text);
-}
-
-.amount-box {
-    display: flex;
-    align-items: flex-end;
-    color: #e74c3c; /* Red for expense */
 }
 
 .currency {
     font-size: 18px;
     margin-right: 5px;
-    margin-bottom: 5px;
 }
 
-.amount-text {
-    font-size: 32px;
-    font-weight: bold;
-}
-
-/* Keypad */
-.keypad {
-    background: #eef5ef; /* Greenish tint bg */
-    border-radius: 16px;
-    padding: 4px;
-}
-
-.key-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 6px;
-    &:last-child { margin-bottom: 0; }
-}
-
-.key-cell {
-    width: 23%;
+.amount-input {
+    width: 180px;
+    max-width: 100%;
     height: 44px;
-    background: #fff;
-    border-radius: 12px;
+    line-height: 44px;
+    color: var(--color-primary);
+    font-size: 30px;
+    font-weight: bold;
+    text-align: right;
+}
+
+.form-actions {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: 500;
+    gap: 10px;
+    padding-top: 2px;
+}
+
+.form-action {
+    flex: 1;
+    height: 46px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 46px;
+}
+
+.form-action.secondary {
     color: var(--color-text);
-    box-shadow: 0 2px 0 rgba(0,0,0,0.05);
-    
-    &:active {
-        background: #f0f0f0;
-        transform: translateY(2px);
-        box-shadow: none;
-    }
-
-    &.placeholder {
-        visibility: hidden;
-        pointer-events: none;
-        box-shadow: none;
-        background: transparent;
-    }
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(138, 138, 138, 0.12);
 }
 
-.del-btn, .op-btn {
-    font-size: 18px;
-    color: var(--color-text-light);
-}
-
-.action-btn {
-    font-size: 16px;
-    color: var(--color-text);
-}
-
-.submit-btn {
-    background: #88B194; /* Green */
+.form-action.primary {
+    background: #88B194;
     color: #fff;
-    font-size: 16px;
-    box-shadow: 0 2px 0 #6a8f75;
-    
-    &:active {
-        background: #7da589;
-    }
+    box-shadow: 0 4px 10px rgba(91, 148, 105, 0.24);
 }
 
 /* Picker Modal */
@@ -1848,7 +1784,7 @@ const submit = async () => {
 
     padding: 20px;
 
-    padding-bottom: 320px;
+    padding-bottom: 16px;
 
     overflow-y: auto;
 

@@ -195,6 +195,12 @@
         </view>
       </view>
     </view>
+  <RefundAmountModal
+    v-model="showRefundModal"
+    :max-amount="refundMaximum"
+    :currency="refundTarget?.currency || 'CNY'"
+    @confirm="confirmRefund"
+  />
   </view>
 </template>
 
@@ -204,6 +210,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
+import RefundAmountModal from '@/components/RefundAmountModal.vue'
 import { ASSET_ADJUSTMENT_CATEGORY_ID } from '@/store/category'
 import { formatCurrencyAmount } from '@/utils/currency'
 import { usePageShare } from '@/utils/share'
@@ -229,6 +236,9 @@ const currentView = ref('bill')
 const currentMonthStr = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
 
 const activeBillId = ref(null)
+const refundTarget = ref(null)
+const showRefundModal = ref(false)
+const refundMaximum = computed(() => Math.abs(Number(refundTarget.value?.amount || 0)))
 const activeAssetId = ref(null)
 const touchStartX = ref(0)
 const touchStartY = ref(0)
@@ -527,23 +537,26 @@ const refundBill = (id) => {
     return
   }
 
-  uni.showModal({
-    title: '确认退款',
-    content: '将按原金额生成一条退款记录，并自动修正余额。',
-    success: async (res) => {
-      if (!res.confirm) return
-      try {
-        await billStore.createRefund(id)
-        uni.showToast({ title: '退款已生成', icon: 'success' })
-      } catch (error) {
-        uni.showToast({ title: error.message || '退款失败', icon: 'none' })
-      } finally {
-        activeBillId.value = null
-      }
-    }
-  })
+  refundTarget.value = bill
+  showRefundModal.value = true
+  activeBillId.value = null
 }
 
+const confirmRefund = async (amount) => {
+  const bill = refundTarget.value
+  if (!bill) return
+
+  try {
+    await billStore.createRefund(bill.id, { amount })
+    uni.showToast({ title: '退款已生成', icon: 'success' })
+    showRefundModal.value = false
+    refundTarget.value = null
+  } catch (error) {
+    uni.showToast({ title: error.message || '退款失败', icon: 'none' })
+  } finally {
+    activeBillId.value = null
+  }
+}
 const getBillIcon = (bill) => {
   if (bill.type === 'transfer') return '⇄'
   if (bill.type === 'refund') return '↩'
