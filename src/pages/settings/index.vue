@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="container">
     <!-- 总资产卡片 -->
     <view class="total-assets-card neu-card">
@@ -40,6 +40,13 @@
         <text class="menu-text">导出数据</text>
         <text class="arrow">›</text>
       </view>
+      <view v-if="canInstall" class="menu-item neu-card install-item" @click="installApp">
+        <view>
+          <text class="menu-text">安装到设备</text>
+          <text class="menu-hint">添加到主屏幕，离线使用更方便</text>
+        </view>
+        <text class="arrow">›</text>
+      </view>
       <view class="menu-item neu-card version-item">
         <text class="menu-text">当前版本</text>
         <text class="version-text">v{{ appVersion }}</text>
@@ -49,7 +56,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAssetStore } from '@/store/asset'
 import { usePageShare } from '@/utils/share'
@@ -59,6 +66,46 @@ usePageShare({ title: '记账本设置', path: '/pages/settings/index' })
 
 const assetStore = useAssetStore()
 const appVersion = manifest.versionName
+const canInstall = ref(false)
+let installPrompt = null
+
+const updateInstallState = () => {
+  canInstall.value = Boolean(installPrompt) && !window.matchMedia('(display-mode: standalone)').matches
+}
+
+const handleBeforeInstallPrompt = (event) => {
+  event.preventDefault()
+  installPrompt = event
+  updateInstallState()
+}
+
+const handleAppInstalled = () => {
+  installPrompt = null
+  canInstall.value = false
+}
+
+const installApp = async () => {
+  if (!installPrompt) return
+  await installPrompt.prompt()
+  const result = await installPrompt.userChoice
+  if (result.outcome === 'accepted') {
+    installPrompt = null
+    canInstall.value = false
+  }
+}
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  window.addEventListener('appinstalled', handleAppInstalled)
+  updateInstallState()
+})
+
+onBeforeUnmount(() => {
+  if (typeof window === 'undefined') return
+  window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  window.removeEventListener('appinstalled', handleAppInstalled)
+})
 
 onShow(() => {
   assetStore.init()
@@ -160,5 +207,17 @@ const navigateToAssistant = () => {
   font-size: 16px;
   color: #999;
 }
+.install-item {
+  background: linear-gradient(135deg, #fff3c4, #fff9f0);
+}
+
+.menu-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 13px;
+  color: #9a7b31;
+}
 </style>
+
+
 

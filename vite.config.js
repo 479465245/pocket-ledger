@@ -29,6 +29,7 @@ export default defineConfig({
         name: '元起',
         short_name: '元起',
         description: '元起记账应用',
+        id: '/',
         theme_color: '#FFD54F',
         background_color: '#FFF8E1',
         display: 'standalone',
@@ -36,13 +37,18 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: '/1024x1024.png',
-            sizes: '1024x1024',
+            src: '/static/icons/192x192.png',
+            sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/1024x1024.png',
-            sizes: '1024x1024',
+            src: '/static/icons/512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: '/static/icons/512x512.png',
+            sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',
           },
@@ -62,3 +68,4 @@ export default defineConfig({
     },
   },
 })
+
