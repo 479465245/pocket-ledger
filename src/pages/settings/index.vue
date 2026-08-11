@@ -40,6 +40,10 @@
         <text class="menu-text">导出数据</text>
         <text class="arrow">›</text>
       </view>
+      <view class="menu-item neu-card" @click="navigateToCategories">
+        <text class="menu-text">账单分类管理</text>
+        <text class="arrow">›</text>
+      </view>
       <view v-if="canInstall" class="menu-item neu-card install-item" @click="installApp">
         <view>
           <text class="menu-text">安装到设备</text>
@@ -134,6 +138,12 @@ const navigateTo = (page) => {
 const navigateToAssistant = () => {
   uni.navigateTo({
     url: '/pages/assistant/index'
+  })
+}
+
+const navigateToCategories = () => {
+  uni.navigateTo({
+    url: '/pages/categories/index'
   })
 }
 </script>

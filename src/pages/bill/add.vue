@@ -1,6 +1,10 @@
 <template>
   <view class="container">
-    <!-- Header: Tabs -->
+    <view class="page-heading">
+        <text class="page-title">{{ isEditMode ? '编辑账单' : '记一笔' }}</text>
+        <text class="page-subtitle">{{ currentTab === 'transfer' ? '账户之间转移资金' : (currentTab === 'income' ? '记录一笔收入' : '记录一笔支出') }}</text>
+    </view>
+
     <view class="header-tabs">
         <view 
             v-for="t in tabs" 
@@ -12,8 +16,47 @@
         </view>
     </view>
 
+    <view class="quick-entry">
+        <view class="amount-entry">
+            <text class="amount-label">{{ amountLabel }}</text>
+            <view class="amount-input-wrap">
+                <text class="currency">{{ displayCurrencySymbol }}</text>
+                <input
+                    class="amount-input"
+                    type="digit"
+                    :value="displayAmount"
+                    placeholder="0.00"
+                    @input="onAmountInput"
+                />
+            </view>
+        </view>
+
+        <scroll-view scroll-x class="options-scroll" :show-scrollbar="false">
+            <view class="options-row">
+                <view class="option-tag" @click="openAssetPicker('source')">
+                    <text>{{ currentTab === 'transfer' ? '转出 · ' + selectedAssetName : selectedAssetName }}</text>
+                </view>
+                <picker class="option-picker" mode="date" :value="form.date" @change="onDateChange">
+                    <view class="option-tag">
+                        <text>{{ displayDate }}</text>
+                    </view>
+                </picker>
+                <view class="option-tag" @click="openCurrencyPicker('source')">
+                    <text>{{ form.currency }}</text>
+                </view>
+                <view class="option-tag" :class="{ disabled: currentTab === 'transfer' }" @click="currentTab !== 'transfer' && (form.isIncludedInStats = !form.isIncludedInStats)">
+                    <text>{{ currentTab === 'transfer' ? '不计入统计' : (form.isIncludedInStats ? '计入统计' : '不计入统计') }}</text>
+                </view>
+            </view>
+        </scroll-view>
+    </view>
+
     <!-- Category Grid -->
     <scroll-view scroll-y class="category-area" v-if="currentTab !== 'transfer'" :show-scrollbar="false">
+        <view class="section-caption">
+            <text class="section-caption-title">选择分类</text>
+            <text class="section-caption-value">{{ selectedCategoryName }}</text>
+        </view>
         <swiper class="category-swiper" :indicator-dots="categoryPages.length > 1" indicator-color="rgba(74,74,74,.18)" indicator-active-color="#88B194">
             <swiper-item v-for="(page, pageIndex) in categoryPages" :key="pageIndex" class="category-swiper-item">
                 <view class="category-page">
@@ -61,7 +104,7 @@
     <!-- Transfer Area -->
     <view class="transfer-area" v-if="currentTab === 'transfer'">
         <view class="transfer-card">
-            <view class="transfer-row" @click="openAssetPicker('source')">
+            <view class="transfer-row source-account-row" @click="openAssetPicker('source')">
 
                 <view class="row-label">
 
@@ -320,8 +363,8 @@
         </view>
 
         <view class="form-actions">
-            <button class="form-action secondary" @click="resetForm">清空</button>
-            <button class="form-action primary" @click="submit">保存</button>
+            <button class="form-action secondary" @click="isEditMode ? cancelEdit() : resetForm">{{ isEditMode ? '取消' : '清空' }}</button>
+            <button class="form-action primary" @click="submit">{{ isEditMode ? '保存修改' : '保存' }}</button>
         </view>
     </view>
     
@@ -501,6 +544,23 @@ const displayAmount = computed(() => {
 
 const displayCurrencySymbol = computed(() => {
     return getCurrencySymbol(form.currency)
+})
+
+const amountLabel = computed(() => {
+    if (currentTab.value === 'income') return '收入金额'
+    if (currentTab.value === 'transfer') return '转出金额'
+    return '支出金额'
+})
+
+const selectedCategoryName = computed(() => {
+    if (!form.categoryId) return '未选择'
+    const direct = categoryStore.categories.find(category => category.id === form.categoryId)
+    if (direct) return direct.name
+    for (const parent of categoryStore.categories) {
+        const child = (parent.children || []).find(category => category.id === form.categoryId)
+        if (child) return parent.name + ' · ' + child.name
+    }
+    return '未选择'
 })
 
 const displayTransferInAmount = computed(() => {
@@ -990,6 +1050,10 @@ const onFeeInput = (e) => {
     form.fee = value
 }
 
+const cancelEdit = () => {
+    uni.navigateBack()
+}
+
 const resetForm = () => {
 
     form.amountStr = '0'
@@ -1190,27 +1254,49 @@ const submit = async () => {
 .container {
   display: flex;
   flex-direction: column;
-  height: 100vh; /* Match page height */
-  /* height: calc(100vh - var(--window-top)); */ /* Try this for H5 if navbar issue persists */
+  height: 100vh;
+  min-height: 520px;
   background-color: var(--color-bg);
   overflow: hidden;
+}
+
+.page-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-shrink: 0;
+    padding: 8px 16px 2px;
+}
+
+.page-title {
+    color: var(--color-text);
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 28px;
+}
+
+.page-subtitle {
+    color: var(--color-text-light);
+    font-size: 11px;
 }
 
 /* Header Tabs */
 .header-tabs {
     display: flex;
     justify-content: center;
-    padding-top: 20px;
-    padding-bottom: 10px;
+    gap: 6px;
+    padding: 2px 12px 7px;
     background: var(--color-bg);
     z-index: 10;
     flex-shrink: 0;
 }
 
 .tab-item {
-    padding: 8px 20px;
-    margin: 0 10px;
-    font-size: 16px;
+    min-width: 72px;
+    padding: 7px 16px;
+    margin: 0;
+    text-align: center;
+    font-size: 14px;
     color: var(--color-text-light);
     font-weight: bold;
     border-radius: 16px;
@@ -1223,22 +1309,50 @@ const submit = async () => {
     }
 }
 
-/* Category Grid */
+.quick-entry {
+    flex-shrink: 0;
+    padding: 0 14px 4px;
+}
+
+.section-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 24px;
+    padding: 0 4px 4px;
+}
+
+.section-caption-title {
+    color: var(--color-text);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.section-caption-value {
+    max-width: 62%;
+    overflow: hidden;
+    color: var(--color-secondary);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .category-area {
     flex: 1;
     height: 0;
+    min-height: 132px;
     box-sizing: border-box;
-    padding: 4px 10px 16px;
+    padding: 2px 12px 8px;
     overflow-y: auto;
 }
 
 .category-swiper {
     width: 100%;
-    height: 188px;
+    height: 146px;
 }
 
 .category-swiper.sub-swiper {
-    height: 180px;
+    height: 132px;
 }
 
 .category-swiper-item {
@@ -1264,7 +1378,7 @@ const submit = async () => {
 
 .grid-item {
     width: 20%;
-    height: 58px;
+    height: 48px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1272,30 +1386,30 @@ const submit = async () => {
 }
 
 .icon-wrapper {
-    position: relative; /* Ensure badge is positioned relative to this */
-    width: 34px;
-    height: 34px;
+    position: relative;
+    width: 30px;
+    height: 30px;
     border-radius: 12px;
-    background: #f0f4f8; /* Slightly different bg for icon */
+    background: #f0f4f8;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 5px;
-    font-size: 18px;
+    margin-bottom: 3px;
+    font-size: 16px;
     color: var(--color-text-light);
     transition: all 0.2s;
-    
+
     &.selected {
-        background: #88B194; /* Greenish accent from user image */
+        background: #88B194;
         color: #fff;
         box-shadow: 0 4px 10px rgba(136, 177, 148, 0.4);
     }
-    
+
     &.setting {
         background: transparent;
         border: 1px solid #ddd;
     }
-    
+
     .plus-badge {
         position: absolute;
         bottom: -2px;
@@ -1356,25 +1470,19 @@ const submit = async () => {
 .bottom-panel {
     box-sizing: border-box;
     flex-shrink: 0;
-    max-height: 62vh;
+    max-height: 44vh;
     overflow-y: auto;
-
-    background: #f8fcf8; /* Light Mint/Cream */
-
+    background: #f8fcf8;
     border-radius: 24px 24px 0 0;
-
     box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
-
-    padding: 10px 16px;
-
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
-
+    padding: 8px 14px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
 }
 
 /* Options Row */
 .options-scroll {
     width: 100%;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     white-space: nowrap;
 }
 
@@ -1395,28 +1503,25 @@ const submit = async () => {
 }
 
 .option-tag {
-
-    height: 34px;
-
+    height: 30px;
     box-sizing: border-box;
-
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     background: #fff;
-    padding: 0 16px;
-    border-radius: 17px;
-    margin-right: 10px;
-    font-size: 12px;
-    line-height: 34px;
+    padding: 0 12px;
+    border-radius: 15px;
+    margin-right: 6px;
+    font-size: 11px;
+    line-height: 30px;
     color: var(--color-text);
     white-space: nowrap;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 .feature-section {
-    margin: 8px 0 10px;
-    padding: 10px;
+    margin: 4px 0 6px;
+    padding: 8px;
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.52);
     border: 1px solid rgba(255, 255, 255, 0.72);
@@ -1455,13 +1560,13 @@ const submit = async () => {
 .feature-grid {
     display: flex;
     gap: 8px;
-    margin-top: 8px;
+    margin-top:  5px;
 }
 
 .feature-card {
     flex: 1;
     min-width: 0;
-    padding: 10px;
+    padding:  8px;
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.66);
     border: 1px solid rgba(138, 138, 138, 0.12);
@@ -1622,7 +1727,7 @@ const submit = async () => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 56px;
+    min-height: 52px;
     padding: 0 12px;
     margin-bottom: 8px;
     border-radius: 16px;
@@ -1700,11 +1805,11 @@ const submit = async () => {
 .amount-input {
     width: 180px;
     max-width: 100%;
-    height: 44px;
-    line-height: 44px;
+    height: 40px;
+    line-height: 40px;
     color: var(--color-primary);
-    font-size: 30px;
-    font-weight: bold;
+    font-size: 27px;
+    font-weight: 800;
     text-align: right;
 }
 
@@ -1716,11 +1821,11 @@ const submit = async () => {
 
 .form-action {
     flex: 1;
-    height: 46px;
+    height: 42px;
     border-radius: 14px;
     font-size: 15px;
     font-weight: 800;
-    line-height: 46px;
+    line-height:  42px;
 }
 
 .form-action.secondary {
@@ -1735,7 +1840,47 @@ const submit = async () => {
     box-shadow: 0 4px 10px rgba(91, 148, 105, 0.24);
 }
 
-/* Picker Modal */
+.bottom-panel > .options-scroll,
+.bottom-panel > .amount-entry {
+    display: none;
+}
+
+@media screen and (max-height: 680px) {
+    .page-heading {
+        padding-top: 4px;
+    }
+
+    .category-swiper {
+        height: 128px;
+    }
+
+    .category-swiper.sub-swiper {
+        height: 112px;
+    }
+
+    .grid-item {
+        height: 43px;
+    }
+
+    .icon-wrapper {
+        width: 27px;
+        height: 27px;
+        font-size: 14px;
+    }
+
+    .cat-name {
+        line-height: 14px;
+    }
+}
+
+@media screen and (min-width: 600px) {
+    .container {
+        max-width: 520px;
+        margin: 0 auto;
+    }
+}
+
+ /* Picker Modal */
 .picker-mask {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -1772,6 +1917,10 @@ const submit = async () => {
 }
 
 /* Transfer Area */
+.transfer-area .source-account-row {
+    display: none;
+}
+
 .transfer-area {
 
     flex: 1;
@@ -1782,7 +1931,7 @@ const submit = async () => {
 
     align-items: flex-start;
 
-    padding: 20px;
+    padding:  8px 14px;
 
     padding-bottom: 16px;
 
@@ -1800,7 +1949,7 @@ const submit = async () => {
 
     border-radius: 16px;
 
-    padding: 20px;
+    padding:  10px;
 
     box-shadow: -6px -6px 16px #ffffff, 6px 6px 16px #a3b1c6;
 
@@ -1822,7 +1971,7 @@ const submit = async () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px;
+    padding:  10px;
     border-radius: 15px;
     background: #f0f4f8;
     margin-bottom: 10px;
@@ -1842,7 +1991,7 @@ const submit = async () => {
 .row-label {
     display: flex;
     align-items: center;
-    font-size: 16px;
+    font-size:  13px;
     font-weight: bold;
     color: var(--color-text);
 }
@@ -1858,7 +2007,7 @@ const submit = async () => {
 }
 
 .row-value {
-    font-size: 16px;
+    font-size:  13px;
     color: var(--color-text);
     margin-right: 5px;
 }
