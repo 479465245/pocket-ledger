@@ -2,8 +2,8 @@
     "name" : "元起",
     "appid" : "__UNI__4B7711F",
     "description" : "",
-    "versionName" : "1.0.21",
-    "versionCode" : "1021",
+    "versionName" : "1.0.28",
+    "versionCode" : "1028",
     "transformPx" : false,
     "app-plus" : {
         "usingComponents" : true,

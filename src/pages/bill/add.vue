@@ -1,10 +1,5 @@
 <template>
   <view class="container">
-    <view class="page-heading">
-        <text class="page-title">{{ isEditMode ? '编辑账单' : '记一笔' }}</text>
-        <text class="page-subtitle">{{ currentTab === 'transfer' ? '账户之间转移资金' : (currentTab === 'income' ? '记录一笔收入' : '记录一笔支出') }}</text>
-    </view>
-
     <view class="header-tabs">
         <view 
             v-for="t in tabs" 
@@ -14,41 +9,6 @@
         >
             {{ t.label }}
         </view>
-    </view>
-
-    <view class="quick-entry">
-        <view class="amount-entry">
-            <text class="amount-label">{{ amountLabel }}</text>
-            <view class="amount-input-wrap">
-                <text class="currency">{{ displayCurrencySymbol }}</text>
-                <input
-                    class="amount-input"
-                    type="digit"
-                    :value="displayAmount"
-                    placeholder="0.00"
-                    @input="onAmountInput"
-                />
-            </view>
-        </view>
-
-        <scroll-view scroll-x class="options-scroll" :show-scrollbar="false">
-            <view class="options-row">
-                <view class="option-tag" @click="openAssetPicker('source')">
-                    <text>{{ currentTab === 'transfer' ? '转出 · ' + selectedAssetName : selectedAssetName }}</text>
-                </view>
-                <picker class="option-picker" mode="date" :value="form.date" @change="onDateChange">
-                    <view class="option-tag">
-                        <text>{{ displayDate }}</text>
-                    </view>
-                </picker>
-                <view class="option-tag" @click="openCurrencyPicker('source')">
-                    <text>{{ form.currency }}</text>
-                </view>
-                <view class="option-tag" :class="{ disabled: currentTab === 'transfer' }" @click="currentTab !== 'transfer' && (form.isIncludedInStats = !form.isIncludedInStats)">
-                    <text>{{ currentTab === 'transfer' ? '不计入统计' : (form.isIncludedInStats ? '计入统计' : '不计入统计') }}</text>
-                </view>
-            </view>
-        </scroll-view>
     </view>
 
     <!-- Category Grid -->
@@ -212,9 +172,21 @@
 
     <!-- Bottom Panel -->
     <view class="bottom-panel neu-card-top">
-        <!-- Input Row 1: Asset & Date & Stats -->
+        <!-- Amount, Asset, Date, Currency and Stats -->
         <scroll-view scroll-x class="options-scroll" :show-scrollbar="false">
             <view class="options-row">
+                <view class="amount-entry">
+                    <view class="amount-input-wrap">
+                        <text class="currency">{{ displayCurrencySymbol }}</text>
+                        <input
+                            class="amount-input"
+                            type="digit"
+                            :value="displayAmount"
+                            placeholder="0.00"
+                            @input="onAmountInput"
+                        />
+                    </view>
+                </view>
                 <view class="option-tag" @click="openAssetPicker('source')" v-if="currentTab !== 'transfer'">
                     <text>{{ selectedAssetName }}</text>
                 </view>
@@ -237,20 +209,7 @@
                 </view>
             </view>
         </scroll-view>
-        <!-- Amount & Remark -->
-        <view class="amount-entry">
-            <text class="amount-label">金额</text>
-            <view class="amount-input-wrap">
-                <text class="currency">{{ displayCurrencySymbol }}</text>
-                <input
-                    class="amount-input"
-                    type="digit"
-                    :value="displayAmount"
-                    placeholder="0.00"
-                    @input="onAmountInput"
-                />
-            </view>
-        </view>
+        <!-- Remark -->
         <view class="remark-box">
             <input class="remark-input" v-model="form.remark" placeholder="添加备注（选填）" />
         </view>
@@ -504,6 +463,7 @@ const categories = computed(() => {
 })
 const assets = computed(() => assetStore.assets)
 const CATEGORY_PAGE_SIZE = 15
+const SUB_CATEGORY_PAGE_SIZE = 5
 const chunkItems = (items, size = CATEGORY_PAGE_SIZE) => {
     const pages = []
     for (let index = 0; index < items.length; index += size) {
@@ -517,7 +477,7 @@ const categoryPages = computed(() => {
     return chunkItems([...categories.value, settingItem])
 })
 
-const subCategoryPages = computed(() => chunkItems(subCategories.value))
+const subCategoryPages = computed(() => chunkItems(subCategories.value, SUB_CATEGORY_PAGE_SIZE))
 
 const subCategories = computed(() => {
     if (!selectedParentId.value) return []
@@ -1309,11 +1269,6 @@ const submit = async () => {
     }
 }
 
-.quick-entry {
-    flex-shrink: 0;
-    padding: 0 14px 4px;
-}
-
 .section-caption {
     display: flex;
     align-items: center;
@@ -1340,7 +1295,7 @@ const submit = async () => {
 .category-area {
     flex: 1;
     height: 0;
-    min-height: 132px;
+    min-height: 0;
     box-sizing: border-box;
     padding: 2px 12px 8px;
     overflow-y: auto;
@@ -1352,7 +1307,7 @@ const submit = async () => {
 }
 
 .category-swiper.sub-swiper {
-    height: 132px;
+    height: 48px;
 }
 
 .category-swiper-item {
@@ -1469,8 +1424,9 @@ const submit = async () => {
 /* Bottom Panel */
 .bottom-panel {
     box-sizing: border-box;
-    flex-shrink: 0;
-    max-height: 44vh;
+    flex: 0 0 52vh;
+    min-height: 270px;
+    max-height: 58vh;
     overflow-y: auto;
     background: #f8fcf8;
     border-radius: 24px 24px 0 0;
@@ -1482,20 +1438,16 @@ const submit = async () => {
 /* Options Row */
 .options-scroll {
     width: 100%;
+    flex-shrink: 0;
     margin-bottom: 4px;
     white-space: nowrap;
 }
 
 .options-row {
-
     display: flex;
-
     align-items: center;
-
     flex-wrap: nowrap;
-
-    min-width: 100%;
-
+    min-width: max-content;
 }
 
 .option-picker {
@@ -1725,20 +1677,17 @@ const submit = async () => {
 }
 .amount-entry {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
-    min-height: 52px;
-    padding: 0 12px;
-    margin-bottom: 8px;
-    border-radius: 16px;
+    width: 132px;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    margin-right: 6px;
+    border-radius: 15px;
     background: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(255, 255, 255, 0.88);
-}
-
-.amount-label {
-    color: var(--color-text-light);
-    font-size: 13px;
-    font-weight: 700;
 }
 
 .amount-input-wrap {
@@ -1746,7 +1695,7 @@ const submit = async () => {
     align-items: baseline;
     min-width: 0;
     flex: 1;
-    justify-content: flex-end;
+    justify-content: flex-start;
     color: var(--color-primary);
 }
 
@@ -1782,6 +1731,7 @@ const submit = async () => {
 
 .remark-box {
     height: 40px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     padding: 0 12px;
@@ -1798,23 +1748,25 @@ const submit = async () => {
 }
 
 .currency {
-    font-size: 18px;
-    margin-right: 5px;
+    flex-shrink: 0;
+    margin-right: 3px;
+    font-size: 14px;
 }
 
 .amount-input {
-    width: 180px;
+    width: 100%;
     max-width: 100%;
-    height: 40px;
-    line-height: 40px;
+    height: 28px;
+    line-height: 28px;
     color: var(--color-primary);
-    font-size: 27px;
+    font-size: 18px;
     font-weight: 800;
-    text-align: right;
+    text-align: left;
 }
 
 .form-actions {
     display: flex;
+    flex-shrink: 0;
     gap: 10px;
     padding-top: 2px;
 }
@@ -1840,11 +1792,6 @@ const submit = async () => {
     box-shadow: 0 4px 10px rgba(91, 148, 105, 0.24);
 }
 
-.bottom-panel > .options-scroll,
-.bottom-panel > .amount-entry {
-    display: none;
-}
-
 @media screen and (max-height: 680px) {
     .page-heading {
         padding-top: 4px;
@@ -1855,7 +1802,7 @@ const submit = async () => {
     }
 
     .category-swiper.sub-swiper {
-        height: 112px;
+        height: 43px;
     }
 
     .grid-item {
