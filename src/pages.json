@@ -17,6 +17,14 @@
       }
     },
     {
+      "path": "pages/bill/refund",
+      "style": {
+        "navigationBarTitleText": "退款",
+        "navigationBarBackgroundColor": "#F7FAFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/bill/installment",
       "style": {
         "navigationBarTitleText": "分期账单",

@@ -100,12 +100,6 @@
         </view>
       </view>
     </scroll-view>
-  <RefundAmountModal
-    v-model="showRefundModal"
-    :max-amount="refundMaximum"
-    :currency="refundTarget?.currency || 'CNY'"
-    @confirm="confirmRefund"
-  />
   </view>
 </template>
 
@@ -115,7 +109,6 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
-import RefundAmountModal from '@/components/RefundAmountModal.vue'
 import { formatCurrencyAmount } from '@/utils/currency'
 import { decodeHtmlEntities } from '@/utils/text'
 import { usePageShare } from '@/utils/share'
@@ -133,9 +126,6 @@ const endDate = ref('')
 const appliedStartDate = ref('')
 const appliedEndDate = ref('')
 const activeBillId = ref(null)
-const refundTarget = ref(null)
-const showRefundModal = ref(false)
-const refundMaximum = computed(() => Math.abs(Number(refundTarget.value?.amount || 0)))
 const touchStartX = ref(0)
 const touchStartY = ref(0)
 const isMoving = ref(false)
@@ -472,61 +462,15 @@ const editBill = (id) => {
   activeBillId.value = null
   const url = bill.installment?.groupId
     ? `/pages/bill/installment?id=${id}`
+    : bill.type === 'refund'
+      ? `/pages/bill/refund?refundId=${id}`
     : '/pages/bill/add?id=' + id + '&type=' + bill.type
   uni.navigateTo({ url })
 }
 
 const refundBill = (id) => {
-  const bill = billStore.getBill(id)
-  if (!bill) {
-    uni.showToast({ title: '账单不存在', icon: 'none' })
-    activeBillId.value = null
-    return
-  }
-
-  if (bill.type === 'transfer') {
-    uni.showToast({ title: '转账记录不支持退款', icon: 'none' })
-    activeBillId.value = null
-    return
-  }
-
-  if (bill.type === 'adjustment') {
-    uni.showToast({ title: '资产调整记录不支持退款', icon: 'none' })
-    activeBillId.value = null
-    return
-  }
-
-  if (bill.type === 'refund') {
-    uni.showToast({ title: '退款记录不能再次退款', icon: 'none' })
-    activeBillId.value = null
-    return
-  }
-
-  if (bill.isRefunded) {
-    uni.showToast({ title: '该账单已退款', icon: 'none' })
-    activeBillId.value = null
-    return
-  }
-
-  refundTarget.value = bill
-  showRefundModal.value = true
   activeBillId.value = null
-}
-
-const confirmRefund = async (amount) => {
-  const bill = refundTarget.value
-  if (!bill) return
-
-  try {
-    await billStore.createRefund(bill.id, { amount })
-    uni.showToast({ title: '退款已生成', icon: 'success' })
-    showRefundModal.value = false
-    refundTarget.value = null
-  } catch (error) {
-    uni.showToast({ title: error.message || '退款失败', icon: 'none' })
-  } finally {
-    activeBillId.value = null
-  }
+  uni.navigateTo({ url: `/pages/bill/refund?id=${id}` })
 }
 const deleteBill = (id) => {
   uni.showModal({

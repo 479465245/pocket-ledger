@@ -108,6 +108,35 @@
 
                 <view class="row-label">
 
+                    <text>转出金额</text>
+
+                </view>
+
+                <view class="row-right">
+
+                    <input
+
+                        class="fee-input"
+
+                        type="digit"
+
+                        :value="displayAmount"
+
+                        placeholder="转出金额"
+
+                        @input="onAmountInput"
+
+                    />
+
+                    <view class="fee-unit currency-selector" @click="openCurrencyPicker('source')">{{ form.currency }}</view>
+
+                </view>
+
+            </view>
+
+            <view class="transfer-row input-row">
+                <view class="row-label">
+
                     <text>转入金额</text>
 
                 </view>
@@ -120,7 +149,7 @@
 
                         type="digit"
 
-                        v-model="form.targetAmountStr"
+                        :value="form.targetAmountStr"
 
                         placeholder="转入金额"
 
@@ -162,7 +191,7 @@
 
                     />
 
-                    <text class="fee-unit">元</text>
+                    <text class="fee-unit">{{ form.currency }}</text>
 
                 </view>
 
@@ -175,7 +204,7 @@
         <!-- Amount, Asset, Date, Currency and Stats -->
         <scroll-view scroll-x class="options-scroll" :show-scrollbar="false">
             <view class="options-row">
-                <view class="amount-entry">
+                <view class="amount-entry" v-if="currentTab !== 'transfer'">
                     <view class="amount-input-wrap">
                         <text class="currency">{{ displayCurrencySymbol }}</text>
                         <input
@@ -197,9 +226,6 @@
                 </picker>
                 <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab !== 'transfer'">
                     <text>{{ form.currency }}</text>
-                </view>
-                <view class="option-tag" @click="openCurrencyPicker('source')" v-if="currentTab === 'transfer'">
-                    <text>转出 {{ form.currency }}</text>
                 </view>
                 <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats" v-if="currentTab !== 'transfer'">
                     <text>{{ form.isIncludedInStats ? '计入统计' : '不计入统计' }}</text>
@@ -688,17 +714,19 @@ onLoad((options) => {
         }
     }
 
-    if (options.type) {
-        currentTab.value = options.type
-    }
 
     if (options.assetId && assets.value.some(asset => asset.id === options.assetId)) {
         form.assetId = options.assetId
         assetTouched.value = true
     }
+    if (options.type) {
+        switchTab(options.type)
+    }
+
 })
 
 // 加载账单数据
+
 const loadBillData = (id) => {
     const bill = billStore.bills.find(b => b.id === id)
     if (!bill) {
@@ -711,10 +739,6 @@ const loadBillData = (id) => {
         return
     }
 
-    console.log('加载账单数据:', bill)
-    console.log('账单类型:', bill.type)
-    console.log('账单分类:', bill.categoryId, '父分类:', bill.parentCategoryId)
-    
     // 设置当前标签页
     currentTab.value = bill.type
     
@@ -737,8 +761,8 @@ const loadBillData = (id) => {
     form.installmentFeeStr = '0'
 
     if (bill.type === 'transfer') {
-        form.targetAssetId = bill.targetAssetId
-        form.targetAmountStr = bill.targetAmount !== undefined ? Math.abs(Number(bill.targetAmount || 0)).toString() : ''
+        form.targetAssetId = bill.targetAssetId || ''
+        form.targetAmountStr = Math.abs(Number(bill.targetAmount ?? Math.abs(Number(bill.amount || 0)))).toString()
 
         form.targetCurrency = bill.targetCurrency || bill.currency || 'CNY'
 
@@ -860,6 +884,11 @@ const openAssetPicker = (type) => {
 
 const selectAsset = (a) => {
     assetTouched.value = true
+    const conflictingAssetId = pickingAssetType.value === 'source' ? form.targetAssetId : form.assetId
+    if (currentTab.value === 'transfer' && a.id === conflictingAssetId) {
+        uni.showToast({ title: '转出账户和转入账户不能相同', icon: 'none' })
+        return
+    }
     if (pickingAssetType.value === 'source') {
         form.assetId = a.id
     } else {
@@ -989,6 +1018,7 @@ const onTargetAmountInput = (e) => {
     if (parts[1] && parts[1].length > 2) {
         value = parts[0] + '.' + parts[1].substring(0, 2)
     }
+    if (value.length > 10) value = value.slice(0, 10)
     form.targetAmountStr = value
     syncSourceAmountFromTarget()
 }
@@ -1043,6 +1073,10 @@ const submit = async () => {
         }
         if (!form.targetAssetId) {
              uni.showToast({ title: '请选择转入账户', icon: 'none' })
+             return
+        }
+        if (form.assetId === form.targetAssetId) {
+             uni.showToast({ title: '转出账户和转入账户不能相同', icon: 'none' })
              return
         }
         if (!form.currency) {
@@ -1865,7 +1899,7 @@ const submit = async () => {
 
 /* Transfer Area */
 .transfer-area .source-account-row {
-    display: none;
+    display: flex;
 }
 
 .transfer-area {

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { generateId } from '@/utils/uuid'
 import { getRefundTransactionAmount, validateRefundAmount } from '@/utils/refund'
+import { normalizeTransferBill } from '@/utils/transfer'
 import { useAssetStore } from './asset'
 
 const STORAGE_KEY = 'account_book_bills'
@@ -173,7 +174,7 @@ export const useBillStore = defineStore('bill', {
         throw new Error('AA与分期不能同时使用')
       }
 
-      return normalized
+      return normalizeTransferBill(normalized)
     },
     validateAAGroup(groupId, billData = {}, currentId = '') {
       const settlement = this.getAASettlement(groupId)
@@ -377,6 +378,35 @@ export const useBillStore = defineStore('bill', {
         isIncludedInStats: false,
         fee: 0
       })
+    },
+    async updateRefund(refundBillId, overrides = {}) {
+      const refund = this.bills.find(bill => bill.id === refundBillId)
+      if (!refund || refund.type !== 'refund' || !refund.originalBillId) {
+        throw new Error('退款账单不存在')
+      }
+
+      const original = this.bills.find(bill => bill.id === refund.originalBillId)
+      if (!original) throw new Error('原账单不存在')
+      if (original.type === 'transfer') throw new Error('转账记录不支持退款')
+      if (original.type === 'refund') throw new Error('退款记录不能再次退款')
+      if (original.installment?.groupId) throw new Error('分期账单请通过分期页面处理退款')
+
+      const refundAmount = validateRefundAmount(
+        overrides.amount ?? Math.abs(Number(refund.amount)),
+        original.amount
+      )
+      const timestamp = Number(overrides.timestamp ?? refund.timestamp)
+      if (!Number.isFinite(timestamp)) throw new Error('退款日期不正确')
+
+      refund.amount = getRefundTransactionAmount(original.amount, refundAmount)
+      refund.timestamp = timestamp
+      refund.isIncludedInStats = false
+      refund.fee = 0
+      original.isRefunded = true
+
+      await this.recalculateAssetBalance(refund.assetId)
+      this.save()
+      return refund.id
     },
     async updateBill(id, billData) {
       const index = this.bills.findIndex(b => b.id === id)
