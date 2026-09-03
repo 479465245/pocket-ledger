@@ -81,6 +81,7 @@
                     </view>
                     <text class="bill-date">{{ getBillMetaText(bill) }}</text>
                     <text v-if="getBillSpecialText(bill)" class="bill-special-meta">{{ getBillSpecialText(bill) }}</text>
+                    <text v-if="getRefundStatusText(bill)" class="bill-special-meta refund-summary">{{ getRefundStatusText(bill) }}</text>
                     <text v-if="bill.remark || bill.note" class="bill-remark">{{ bill.remark || bill.note }}</text>
                   </view>
                 </view>
@@ -591,6 +592,17 @@ const getBillSpecialText = (bill) => {
     return `总额 ${formatMoney(bill.installment.totalAmount, bill.currency || 'CNY')} · 每期 ${formatMoney(bill.installment.periodAmount, bill.currency || 'CNY')}`
   }
   return ''
+}
+
+const getRefundStatusText = (bill) => {
+  if (bill.type === 'refund') {
+    const original = billStore.getBill(bill.originalBillId)
+    return original ? `原账单 ${formatMoney(Math.abs(Number(original.amount || 0)), original.currency || 'CNY')}` : ''
+  }
+
+  const summary = billStore.getRefundSummary(bill)
+  if (!summary.refundCount) return ''
+  return `原额 ${formatMoney(summary.originalAmount, bill.currency || 'CNY')} · 已退 ${formatMoney(summary.refundedAmount, bill.currency || 'CNY')} · 剩余 ${formatMoney(summary.remainingAmount, bill.currency || 'CNY')}`
 }
 const getBillMetaText = (bill) => {
   let text

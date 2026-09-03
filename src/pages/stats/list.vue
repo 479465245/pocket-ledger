@@ -82,6 +82,7 @@
                       <text v-else-if="bill.isRefunded" class="state-badge refunded">已退</text>
                     </view>
                     <text class="bill-date">{{ getBillMetaText(bill) }}</text>
+                    <text v-if="getRefundStatusText(bill)" class="bill-special-meta refund-summary">{{ getRefundStatusText(bill) }}</text>
                     <text class="bill-remark" v-if="bill.remark">{{ decodeDisplayText(bill.remark) }}</text>
                   </view>
                 </view>
@@ -389,6 +390,18 @@ const getBillMetaText = (bill) => {
     text += ` · 第 ${bill.installment.period}/${bill.installment.totalPeriods} 期`
   }
   return text
+}
+
+const getRefundStatusText = (bill) => {
+  if (bill.type === 'refund') {
+    const original = billStore.getBill(bill.originalBillId)
+    return original ? `原账单 ${formatCurrencyAmount(Math.abs(Number(original.amount || 0)), original.currency || 'CNY')}` : ''
+  }
+
+  const summary = billStore.getRefundSummary(bill)
+  if (!summary.refundCount) return ''
+  const currency = bill.currency || 'CNY'
+  return `原额 ${formatCurrencyAmount(summary.originalAmount, currency)} · 已退 ${formatCurrencyAmount(summary.refundedAmount, currency)} · 剩余 ${formatCurrencyAmount(summary.remainingAmount, currency)}`
 }
 
 const getAssetScopedAmount = (bill) => {
@@ -805,6 +818,17 @@ const deleteBill = (id) => {
 .bill-remark {
   font-size: 11px;
   color: rgba(74, 74, 74, 0.62);
+}
+
+.bill-special-meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-primary);
+  font-size: 10px;
+  line-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bill-right {

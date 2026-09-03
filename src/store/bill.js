@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { generateId } from '@/utils/uuid'
-import { getRefundTransactionAmount, validateRefundAmount } from '@/utils/refund'
+import { getRefundSummary as calculateRefundSummary, getRefundTransactionAmount, validateRefundAmount } from '@/utils/refund'
 import { normalizeTransferBill } from '@/utils/transfer'
 import { useAssetStore } from './asset'
 
@@ -42,8 +42,10 @@ const normalizeAA = (aa) => {
     enabled: aa.enabled !== false,
     groupId: aa.groupId || '',
     role: aa.role || 'payer',
+    payerBillId: aa.payerBillId || '',
     ownAmount: aa.ownAmount !== undefined ? roundMoney(aa.ownAmount) : undefined,
     receivableAmount: aa.receivableAmount !== undefined ? roundMoney(aa.receivableAmount) : undefined,
+    receivedAmount: aa.receivedAmount !== undefined ? roundMoney(aa.receivedAmount) : undefined,
     settlementAmount: aa.settlementAmount !== undefined ? roundMoney(aa.settlementAmount) : undefined
   }
 }
@@ -86,6 +88,13 @@ export const useBillStore = defineStore('bill', {
               ? true
               : b.isIncludedInStats
         }))
+        this.bills
+          .filter(bill => bill.aa?.role === 'payer')
+          .forEach(bill => this.syncAAGroupRelations(bill.aa.groupId))
+        this.bills
+          .filter(bill => bill.type !== 'refund')
+          .forEach(bill => this.syncRefundStatus(bill.id))
+        this.save()
 
         const assetStore = useAssetStore()
         assetStore.assets.forEach(asset => this.recalculateAssetBalance(asset.id))
@@ -96,6 +105,14 @@ export const useBillStore = defineStore('bill', {
     },
     getBill(id) {
       return this.bills.find(b => b.id === id)
+    },
+    getRefundSummary(bill) {
+      return calculateRefundSummary(this.bills, bill)
+    },
+    syncRefundStatus(originalBillId) {
+      const original = this.getBill(originalBillId)
+      if (!original || original.type === 'refund') return
+      original.isRefunded = this.getRefundSummary(original).refundCount > 0
     },
     getInstallmentBills(groupId) {
       return this.bills
@@ -111,12 +128,24 @@ export const useBillStore = defineStore('bill', {
     getAAPayer(groupId) {
       return this.bills.find(bill => bill.aa?.groupId === groupId && bill.aa?.role === 'payer')
     },
+    getAAPayerById(id) {
+      const bill = this.bills.find(item => item.id === id)
+      return bill?.aa?.role === 'payer' ? bill : undefined
+    },
+    getAARepaymentPayer(bill) {
+      if (!bill?.aa || bill.aa.role !== 'repayment') return undefined
+      return bill.aa.payerBillId
+        ? this.getAAPayerById(bill.aa.payerBillId)
+        : this.getAAPayer(bill.aa.groupId)
+    },
     getAASettlement(groupId) {
       const bills = this.bills.filter(bill => bill.aa?.groupId === groupId)
       const payer = bills.find(bill => bill.aa?.role === 'payer')
       const receivable = Number(payer?.aa?.receivableAmount || 0)
       const settled = bills
-        .filter(bill => bill.type === 'income' && bill.aa?.role === 'repayment')
+        .filter(bill => bill.type === 'income' && bill.aa?.role === 'repayment' && (
+          bill.aa.payerBillId === payer?.id || (!bill.aa.payerBillId && bill.aa.groupId === groupId)
+        ))
         .reduce((sum, bill) => sum + Number(bill.aa?.settlementAmount ?? Math.abs(bill.amount || 0)), 0)
 
       return {
@@ -124,8 +153,31 @@ export const useBillStore = defineStore('bill', {
         payer,
         receivable: roundMoney(receivable),
         settled: roundMoney(settled),
+        receivedAmount: roundMoney(settled),
         outstanding: roundMoney(Math.max(0, receivable - settled))
       }
+    },
+    getUnsettledAAPayers() {
+      return this.bills.filter(bill => (
+        bill.aa?.role === 'payer' && this.getAASettlement(bill.aa.groupId).outstanding > 0
+      ))
+    },
+    syncAAReceivedAmount(payerBillId) {
+      const payer = this.getAAPayerById(payerBillId)
+      if (!payer) return undefined
+      const settlement = this.getAASettlement(payer.aa.groupId)
+      payer.aa.receivedAmount = settlement.receivedAmount
+      return settlement.receivedAmount
+    },
+    syncAAGroupRelations(groupId) {
+      const payer = this.getAAPayer(groupId)
+      if (!payer) return
+      this.bills.forEach(bill => {
+        if (bill.type === 'income' && bill.aa?.role === 'repayment' && bill.aa.groupId === groupId && !bill.aa.payerBillId) {
+          bill.aa.payerBillId = payer.id
+        }
+      })
+      this.syncAAReceivedAmount(payer.id)
     },
     normalizeBillData(billData = {}) {
       const currency = normalizeCurrency(billData.currency)
@@ -152,7 +204,7 @@ export const useBillStore = defineStore('bill', {
 
       if (normalized.aa?.role === 'repayment') {
         if (normalized.type !== 'income') throw new Error('AA还款必须是收入账单')
-        if (!normalized.aa.groupId) throw new Error('AA还款缺少AA组')
+        if (!normalized.aa.groupId && !normalized.aa.payerBillId) throw new Error('AA还款缺少AA组')
         if (amount <= 0) throw new Error('AA还款金额必须大于0')
         normalized.isIncludedInStats = false
         normalized.aa.settlementAmount = roundMoney(Math.abs(amount))
@@ -167,6 +219,9 @@ export const useBillStore = defineStore('bill', {
         normalized.aa.ownAmount = roundMoney(ownAmount)
         normalized.aa.receivableAmount = roundMoney(Math.abs(amount) - ownAmount)
         normalized.aa.groupId = normalized.aa.groupId || this.createAAGroupId()
+        normalized.aa.receivedAmount = normalized.aa.receivedAmount !== undefined
+          ? normalized.aa.receivedAmount
+          : 0
         normalized.statAmount = normalized.aa.ownAmount
       }
 
@@ -177,8 +232,11 @@ export const useBillStore = defineStore('bill', {
       return normalizeTransferBill(normalized)
     },
     validateAAGroup(groupId, billData = {}, currentId = '') {
-      const settlement = this.getAASettlement(groupId)
-      const payer = settlement.payer
+      const payer = billData.aa?.payerBillId
+        ? this.getAAPayerById(billData.aa.payerBillId)
+        : this.getAAPayer(groupId)
+      const resolvedGroupId = payer?.aa?.groupId || groupId
+      const settlement = this.getAASettlement(resolvedGroupId)
       if (!payer) throw new Error('AA组不存在付款账单')
       if (currentId && payer.id === currentId) return settlement
       if (billData.type !== 'income') throw new Error('AA还款必须是收入账单')
@@ -186,12 +244,15 @@ export const useBillStore = defineStore('bill', {
         throw new Error('AA还款币种必须与付款账单一致')
       }
       const amount = Math.abs(Number(billData.amount || 0))
-      const currentSettlement = currentId
-        ? this.bills.find(bill => bill.id === currentId)?.aa?.settlementAmount || 0
+      const currentBill = currentId ? this.bills.find(bill => bill.id === currentId) : undefined
+      const currentSettlement = currentBill && this.getAARepaymentPayer(currentBill)?.id === payer.id
+        ? currentBill.aa?.settlementAmount || 0
         : 0
       if (amount <= 0 || amount > settlement.outstanding + Number(currentSettlement)) {
         throw new Error(`AA还款不能超过待收金额 ${settlement.outstanding.toFixed(2)}`)
       }
+      billData.aa.groupId = resolvedGroupId
+      billData.aa.payerBillId = payer.id
       return settlement
     },
     async addBill(billData, options = {}) {
@@ -206,19 +267,31 @@ export const useBillStore = defineStore('bill', {
         throw new Error('分期账单请通过分期编辑页面维护')
       }
 
-      if (newBill.aa?.role === 'repayment' && !options.allowImportedRelations) {
+      if (newBill.aa?.role === 'repayment' && (!options.allowImportedRelations || newBill.aa.payerBillId)) {
         this.validateAAGroup(newBill.aa.groupId, newBill)
+      } else if (newBill.aa?.role === 'repayment') {
+        const payer = this.getAARepaymentPayer(newBill)
+        if (payer) {
+          newBill.aa.groupId = payer.aa.groupId
+          newBill.aa.payerBillId = payer.id
+        }
       }
 
       if (newBill.type === 'refund' && newBill.originalBillId) {
         const original = this.bills.find(b => b.id === newBill.originalBillId)
         if (!original) throw new Error('原账单不存在')
-        if (original.isRefunded) throw new Error('该账单已退款')
         if (original.installment?.groupId) throw new Error('分期账单请通过分期页面处理退款')
+        const refundSummary = this.getRefundSummary(original)
+        validateRefundAmount(Math.abs(Number(newBill.amount || 0)), refundSummary.remainingAmount)
         original.isRefunded = true
       }
 
       this.bills.push(newBill)
+      if (newBill.aa?.role === 'payer') {
+        this.syncAAGroupRelations(newBill.aa.groupId)
+      } else if (newBill.aa?.role === 'repayment' && newBill.aa.payerBillId) {
+        this.syncAAReceivedAmount(newBill.aa.payerBillId)
+      }
       await this.recalculateAssetBalance(newBill.assetId)
       if (newBill.type === 'transfer' && newBill.targetAssetId) {
         await this.recalculateAssetBalance(newBill.targetAssetId)
@@ -358,11 +431,12 @@ export const useBillStore = defineStore('bill', {
       if (original.type === 'transfer') throw new Error('转账记录不支持退款')
       if (original.type === 'refund') throw new Error('退款记录不能再次退款')
       if (original.installment?.groupId) throw new Error('分期账单请通过分期页面处理退款')
-      if (original.isRefunded) throw new Error('该账单已退款')
+      const refundSummary = this.getRefundSummary(original)
+      if (refundSummary.remainingAmount <= 0) throw new Error('该账单已全部退款')
 
       const refundAmount = validateRefundAmount(
-        overrides.amount ?? Math.abs(Number(original.amount)),
-        original.amount
+        overrides.amount ?? refundSummary.remainingAmount,
+        refundSummary.remainingAmount
       )
       const remark = overrides.remark || (original.remark ? `退款：${original.remark}` : '退款')
       return await this.addBill({
@@ -391,9 +465,20 @@ export const useBillStore = defineStore('bill', {
       if (original.type === 'refund') throw new Error('退款记录不能再次退款')
       if (original.installment?.groupId) throw new Error('分期账单请通过分期页面处理退款')
 
+      const otherRefunds = this.bills.filter(bill => (
+        bill.type === 'refund'
+        && bill.originalBillId === original.id
+        && bill.id !== refund.id
+      ))
+      const refundedBeforeCurrent = otherRefunds.reduce(
+        (total, bill) => total + Math.abs(Number(bill.amount || 0)),
+        0
+      )
+      const remainingAmount = Math.max(0, Math.abs(Number(original.amount || 0)) - refundedBeforeCurrent)
+
       const refundAmount = validateRefundAmount(
         overrides.amount ?? Math.abs(Number(refund.amount)),
-        original.amount
+        remainingAmount
       )
       const timestamp = Number(overrides.timestamp ?? refund.timestamp)
       if (!Number.isFinite(timestamp)) throw new Error('退款日期不正确')
@@ -415,20 +500,45 @@ export const useBillStore = defineStore('bill', {
       if (originalBill.installment?.groupId) throw new Error('分期账单请通过分期页面修改')
       if (originalBill.type === 'refund' && originalBill.originalBillId) throw new Error('退款账单不能直接编辑')
       if (originalBill.isRefunded) throw new Error('已退款账单不能直接编辑')
-      if (originalBill.aa?.role === 'payer' && this.getAASettlement(originalBill.aa.groupId).settled > 0) {
-        throw new Error('AA付款已有还款，请先删除还款记录')
-      }
 
       const normalized = this.normalizeBillData(billData)
       if (normalized.aa?.role === 'repayment') {
         this.validateAAGroup(normalized.aa.groupId, normalized, id)
+      } else if (normalized.aa?.role === 'payer') {
+        const settlement = this.getAASettlement(originalBill.aa?.groupId)
+        if (settlement.settled > 0 && normalized.aa.groupId !== originalBill.aa?.groupId) {
+          throw new Error('AA付款已有还款，不能修改AA组')
+        }
+        const receivable = Number(normalized.aa.receivableAmount || 0)
+        if (settlement.settled > receivable) {
+          throw new Error(`AA代垫待收不能低于已收金额 ${settlement.settled.toFixed(2)}`)
+        }
+        normalized.aa.receivedAmount = settlement.receivedAmount
+      } else if (originalBill.aa?.role === 'payer' && this.getAASettlement(originalBill.aa.groupId).settled > 0) {
+        throw new Error('AA付款已有还款，请先删除还款记录')
       }
+
+      const oldRepaymentPayerId = originalBill.aa?.role === 'repayment'
+        ? this.getAARepaymentPayer(originalBill)?.id
+        : ''
 
       this.bills[index] = {
         ...this.bills[index],
         ...normalized,
         id,
         fee: billData.type === 'transfer' ? Number(billData.fee || 0) : 0
+      }
+
+      if (this.bills[index].aa?.role === 'repayment') {
+        const payer = this.getAARepaymentPayer(this.bills[index])
+        if (payer) {
+          this.bills[index].aa.groupId = payer.aa.groupId
+          this.bills[index].aa.payerBillId = payer.id
+        }
+      }
+      if (oldRepaymentPayerId) this.syncAAReceivedAmount(oldRepaymentPayerId)
+      if (this.bills[index].aa?.role === 'repayment' && this.bills[index].aa.payerBillId) {
+        this.syncAAReceivedAmount(this.bills[index].aa.payerBillId)
       }
 
       const assetsToRecalculate = new Set()
@@ -507,19 +617,21 @@ export const useBillStore = defineStore('bill', {
       billsToDelete.forEach(item => {
         if (item.assetId) affectedAssets.add(item.assetId)
         if (item.targetAssetId) affectedAssets.add(item.targetAssetId)
-        if (item.type === 'refund' && item.originalBillId) {
-          const original = this.bills.find(b => b.id === item.originalBillId)
-          if (original) original.isRefunded = false
-        }
       })
 
       this.bills = this.bills.filter(b => !idsToDelete.has(b.id))
-      if (bill.type === 'refund' && bill.originalBillId) {
-        const original = this.bills.find(b => b.id === bill.originalBillId)
-        if (original) original.isRefunded = false
-      }
+      billsToDelete
+        .filter(item => item.type === 'refund' && item.originalBillId)
+        .forEach(item => this.syncRefundStatus(item.originalBillId))
 
       for (const assetId of affectedAssets) await this.recalculateAssetBalance(assetId)
+      const affectedAAPayers = new Set(
+        billsToDelete
+          .filter(item => item.aa?.role === 'repayment')
+          .map(item => this.getAARepaymentPayer(item)?.id || item.aa.payerBillId)
+          .filter(Boolean)
+      )
+      affectedAAPayers.forEach(payerId => this.syncAAReceivedAmount(payerId))
       this.save()
     },
     getStatType(bill) {

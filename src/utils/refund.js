@@ -1,5 +1,25 @@
 const roundMoney = (value) => Number(Number(value).toFixed(2))
 
+export const getRefundInputValue = (event) => {
+  const value = event?.detail?.value ?? event?.target?.value
+  return value === undefined || value === null ? '' : String(value)
+}
+
+export const getRefundSummary = (bills, originalBill) => {
+  const originalAmount = Math.abs(Number(originalBill?.amount || 0))
+  const refunds = (bills || []).filter(bill => (
+    bill.type === 'refund' && bill.originalBillId === originalBill?.id
+  ))
+  const refundedAmount = roundMoney(refunds.reduce((total, bill) => total + Math.abs(Number(bill.amount || 0)), 0))
+
+  return {
+    originalAmount: roundMoney(originalAmount),
+    refundedAmount,
+    remainingAmount: roundMoney(Math.max(0, originalAmount - refundedAmount)),
+    refundCount: refunds.length
+  }
+}
+
 export const getRefundTimestamp = (dateText) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateText || ''))
   if (!match) throw new Error('退款日期不正确')

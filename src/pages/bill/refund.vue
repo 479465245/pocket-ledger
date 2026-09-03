@@ -63,7 +63,7 @@ import { useAssetStore } from '@/store/asset'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { formatCurrencyAmount, getCurrencySymbol } from '@/utils/currency'
-import { getRefundTimestamp, validateRefundAmount } from '@/utils/refund'
+import { getRefundInputValue, getRefundSummary, getRefundTimestamp, validateRefundAmount } from '@/utils/refund'
 
 const billStore = useBillStore()
 const assetStore = useAssetStore()
@@ -93,12 +93,21 @@ const refundError = computed(() => {
   if (bill.type === 'adjustment') return '资产调整记录不支持退款'
   if (bill.type === 'refund') return '退款记录不能再次退款'
   if (bill.installment?.groupId) return '分期账单请通过分期页面处理退款'
-  if (!isEditMode.value && bill.isRefunded) return '该账单已退款'
+  if (!isEditMode.value && refundSummary.value.remainingAmount <= 0) return '该账单已全部退款'
   return ''
 })
 const currency = computed(() => originalBill.value?.currency || 'CNY')
 const currencySymbol = computed(() => getCurrencySymbol(currency.value))
-const maximumAmount = computed(() => formatCurrencyAmount(Math.abs(Number(originalBill.value?.amount || 0)), currency.value))
+const refundSummary = computed(() => {
+  const bill = originalBill.value
+  if (!bill) return { originalAmount: 0, refundedAmount: 0, remainingAmount: 0, refundCount: 0 }
+
+  if (!isEditMode.value) return billStore.getRefundSummary(bill)
+
+  const otherBills = billStore.bills.filter(item => item.id !== refundBillId.value)
+  return getRefundSummary(otherBills, bill)
+})
+const maximumAmount = computed(() => formatCurrencyAmount(refundSummary.value.remainingAmount, currency.value))
 const categoryName = computed(() => categoryStore.getCategoryName(originalBill.value?.categoryId || originalBill.value?.parentCategoryId))
 const assetName = computed(() => assetStore.getAsset(originalBill.value?.assetId)?.name || '未知账户')
 const originalAmount = computed(() => formatCurrencyAmount(Math.abs(Number(originalBill.value?.amount || 0)), currency.value))
@@ -117,7 +126,7 @@ onLoad((options) => {
 
   if (originalBill.value && !refundError.value) {
     amountText.value = String(Math.abs(Number(
-      isEditMode.value ? refundBill.value.amount : originalBill.value.amount
+      isEditMode.value ? refundBill.value.amount : refundSummary.value.remainingAmount
     )))
     refundDate.value = formatDate(isEditMode.value ? refundBill.value.timestamp : Date.now())
     if (isEditMode.value) uni.setNavigationBarTitle({ title: '编辑退款' })
@@ -133,7 +142,7 @@ const formatDate = (timestamp) => {
 }
 
 const onAmountInput = (event) => {
-  amountText.value = event.detail.value
+  amountText.value = getRefundInputValue(event)
 }
 
 const onDateChange = (event) => {
@@ -147,7 +156,7 @@ const submitRefund = async () => {
   }
 
   try {
-    const amount = validateRefundAmount(amountText.value, originalBill.value.amount)
+    const amount = validateRefundAmount(amountText.value, refundSummary.value.remainingAmount)
     const payload = { amount, timestamp: getRefundTimestamp(refundDate.value) }
     if (isEditMode.value) {
       await billStore.updateRefund(refundBillId.value, payload)

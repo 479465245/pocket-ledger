@@ -253,6 +253,14 @@
             </view>
         </scroll-view>
 
+        <view v-if="currentTab === 'income'" class="advanced-option aa-receipt-entry" @click="openAAReceiptPicker">
+            <view>
+                <text>AA 收款</text>
+                <text class="aa-receipt-hint">{{ selectedAAReceipt ? '已关联代垫账单' : '选择未收齐的 AA 代垫分摊' }}</text>
+            </view>
+            <text class="advanced-value">{{ selectedAAReceipt ? `待收 ${aaSettlement.outstanding.toFixed(2)} ›` : '选择 ›' }}</text>
+        </view>
+
         <view v-if="currentTab === 'expense' && !isAARepayment" class="feature-section">
             <view class="feature-section-head">
                 <view>
@@ -291,19 +299,19 @@
                 <text class="feature-detail-total">总额 {{ form.amountStr || '0' }}</text>
             </view>
             <view class="amount-breakdown">
-                <view class="breakdown-item">
+                <view class="breakdown-item editable">
                     <text class="breakdown-label">本人承担</text>
-                    <text class="breakdown-value own">{{ form.aaOwnAmountStr || '0.00' }}</text>
+                    <input class="breakdown-value own" type="digit" :value="form.aaOwnAmountStr" placeholder="0.00" @input="onAAOwnAmountInput" />
                 </view>
                 <view class="breakdown-divider">+</view>
-                <view class="breakdown-item">
+                <view class="breakdown-item editable">
                     <text class="breakdown-label">代垫待收</text>
-                    <text class="breakdown-value receivable">{{ aaReceivableAmount.toFixed(2) }}</text>
+                    <input class="breakdown-value receivable" type="digit" :value="form.aaReceivableAmountStr" placeholder="0.00" @input="onAAReceivableAmountInput" />
                 </view>
             </view>
-            <view class="advanced-row">
-                <text>本人承担金额</text>
-                <input class="fee-input" type="digit" v-model="form.aaOwnAmountStr" placeholder="输入金额" @input="onAAOwnAmountInput" />
+            <view class="aa-settlement-summary">
+                <text>已收总金额</text>
+                <text>{{ aaSettlement.settled.toFixed(2) }}</text>
             </view>
             <text class="advanced-tip">保存后可从首页 AA 账单直接新增还款</text>
             <view v-if="canAddAARepayment" class="advanced-option repayment-entry" @click="addAARepayment">
@@ -401,6 +409,30 @@
 
     </view>
 
+    <view v-if="showAAReceiptPicker" class="picker-mask" @click="showAAReceiptPicker = false">
+        <view class="picker-modal aa-receipt-picker neu-card" @click.stop>
+            <view class="picker-title">选择 AA 收款来源</view>
+            <view v-if="aaReceiptCandidates.length" class="asset-list">
+                <view
+                    v-for="item in aaReceiptCandidates"
+                    :key="item.payer.id"
+                    class="asset-option aa-receipt-option"
+                    @click="selectAAReceipt(item)"
+                >
+                    <view class="aa-receipt-option-main">
+                        <text>{{ item.payer.remark || 'AA 代垫分摊' }}</text>
+                        <text>{{ item.assetName }}</text>
+                    </view>
+                    <view class="aa-receipt-option-meta">
+                        <text>{{ item.date }}</text>
+                        <text>待收 {{ item.outstanding.toFixed(2) }} {{ item.payer.currency || 'CNY' }}</text>
+                    </view>
+                </view>
+            </view>
+            <view v-else class="aa-receipt-empty">暂无未收齐的 AA 代垫分摊账单</view>
+        </view>
+    </view>
+
     
 
   </view>
@@ -441,6 +473,7 @@ const selectedParentId = ref('') // To track which parent is expanded
 const showAssetPicker = ref(false)
 
 const showCurrencyPicker = ref(false)
+const showAAReceiptPicker = ref(false)
 
 const pickingAssetType = ref('source')
 
@@ -475,7 +508,9 @@ const form = reactive({
     isIncludedInStats: true,
     aaEnabled: false,
     aaOwnAmountStr: '',
+    aaReceivableAmountStr: '',
     aaGroupId: '',
+    aaPayerBillId: '',
     installmentEnabled: false,
     installmentPeriods: '2',
     installmentFeeStr: '0',
@@ -558,11 +593,28 @@ const aaSettlement = computed(() => form.aaGroupId
     ? billStore.getAASettlement(form.aaGroupId)
     : { receivable: 0, settled: 0, outstanding: 0 })
 const canAddAARepayment = computed(() => isEditMode.value && form.aaEnabled && !!form.aaGroupId && aaSettlement.value.outstanding > 0)
-const aaReceivableAmount = computed(() => {
-    const total = Math.max(0, Number(form.amountStr || 0))
-    const own = Math.max(0, Number(form.aaOwnAmountStr || 0))
-    return Math.max(0, total - own)
-})
+const aaReceivableAmount = computed(() => Math.max(0, Number(form.aaReceivableAmountStr || 0)))
+const currentAAReceipt = computed(() => isEditMode.value
+    ? billStore.bills.find(bill => bill.id === editBillId.value && bill.aa?.role === 'repayment')
+    : null)
+const aaReceiptCandidates = computed(() => billStore.bills
+    .filter(bill => bill.type === 'expense' && bill.aa?.role === 'payer' && bill.aa?.groupId)
+    .map(payer => {
+        const settlement = billStore.getAASettlement(payer.aa.groupId)
+        const currentAmount = currentAAReceipt.value?.aa?.payerBillId === payer.id
+            ? Number(currentAAReceipt.value.aa.settlementAmount ?? Math.abs(currentAAReceipt.value.amount || 0))
+            : 0
+        return {
+            groupId: payer.aa.groupId,
+            payer,
+            outstanding: Number((settlement.outstanding + currentAmount).toFixed(2)),
+            assetName: assets.value.find(asset => asset.id === payer.assetId)?.name || '原付款账户',
+            date: toLocalDateString(new Date(payer.timestamp))
+        }
+    })
+    .filter(item => item.outstanding > 0))
+const selectedAAReceipt = computed(() => aaReceiptCandidates.value.find(item => item.payer.id === form.aaPayerBillId)
+    || (form.aaPayerBillId ? { payer: billStore.getAAPayerById(form.aaPayerBillId) } : null))
 const installmentPeriodAmount = computed(() => {
     const total = Math.max(0, Number(form.amountStr || 0))
     const fee = Math.max(0, Number(form.installmentFeeStr || 0))
@@ -700,17 +752,17 @@ onLoad((options) => {
     }
 
     if (options.aaGroupId) {
+        switchTab('income')
         form.aaGroupId = options.aaGroupId
-        currentTab.value = 'income'
         form.aaEnabled = false
         form.installmentEnabled = false
         const payer = billStore.getAAPayer(options.aaGroupId)
         if (payer) {
-            form.assetId = payer.assetId
-            form.currency = payer.currency || 'CNY'
-            form.parentCategoryId = payer.parentCategoryId || ''
-            form.categoryId = payer.categoryId || ''
-            form.remark = payer.remark ? `AA还款：${payer.remark}` : 'AA还款'
+            selectAAReceipt({
+                groupId: options.aaGroupId,
+                payer,
+                outstanding: billStore.getAASettlement(options.aaGroupId).outstanding
+            })
         }
     }
 
@@ -755,7 +807,11 @@ const loadBillData = (id) => {
     form.isIncludedInStats = bill.isIncludedInStats !== false
     form.aaEnabled = !!bill.aa?.enabled && bill.aa?.role !== 'repayment'
     form.aaOwnAmountStr = bill.aa?.ownAmount !== undefined ? String(bill.aa.ownAmount) : ''
+    form.aaReceivableAmountStr = bill.aa?.role === 'payer'
+        ? String(bill.aa.receivableAmount ?? Math.max(0, Math.abs(Number(bill.amount || 0)) - Number(bill.aa.ownAmount || 0)))
+        : ''
     form.aaGroupId = bill.aa?.groupId || ''
+    form.aaPayerBillId = bill.aa?.payerBillId || ''
     form.installmentEnabled = false
     form.installmentPeriods = '2'
     form.installmentFeeStr = '0'
@@ -790,6 +846,10 @@ const loadBillData = (id) => {
 }
 
 const switchTab = (val) => {
+    if (val !== currentTab.value) {
+        form.aaGroupId = ''
+        form.aaPayerBillId = ''
+    }
     currentTab.value = val
     assetTouched.value = false
     if (val === 'transfer') {
@@ -822,6 +882,7 @@ const toggleAA = () => {
     if (form.aaEnabled) {
         form.installmentEnabled = false
         if (!form.aaOwnAmountStr) form.aaOwnAmountStr = form.amountStr
+        if (!form.aaReceivableAmountStr) form.aaReceivableAmountStr = '0'
     }
 }
 
@@ -831,15 +892,60 @@ const toggleInstallment = () => {
     if (form.installmentEnabled) {
         form.aaEnabled = false
         form.aaOwnAmountStr = ''
+        form.aaReceivableAmountStr = ''
     }
 }
 
 const onAAOwnAmountInput = (e) => {
-    let value = e.detail.value.replace(/[^\d.]/g, '')
+    form.aaOwnAmountStr = normalizeAmountInput(e.detail.value)
+    syncAAAmount()
+}
+
+const onAAReceivableAmountInput = (e) => {
+    form.aaReceivableAmountStr = normalizeAmountInput(e.detail.value)
+    syncAAAmount()
+}
+
+const normalizeAmountInput = (input) => {
+    let value = String(input || '').replace(/[^\d.]/g, '')
     const parts = value.split('.')
     if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('')
     if (parts[1]?.length > 2) value = parts[0] + '.' + parts[1].slice(0, 2)
-    form.aaOwnAmountStr = value
+    return value.slice(0, 10)
+}
+
+const syncAAAmount = () => {
+    const ownAmount = Number(form.aaOwnAmountStr || 0)
+    const receivableAmount = Number(form.aaReceivableAmountStr || 0)
+    form.amountStr = Number.isFinite(ownAmount) && Number.isFinite(receivableAmount)
+        ? (ownAmount + receivableAmount).toFixed(2)
+        : '0'
+}
+
+const syncAAFromTotal = () => {
+    const total = Math.max(0, Number(form.amountStr || 0))
+    const ownAmount = Math.min(total, Math.max(0, Number(form.aaOwnAmountStr || 0)))
+    form.aaOwnAmountStr = ownAmount.toFixed(2)
+    form.aaReceivableAmountStr = (total - ownAmount).toFixed(2)
+}
+
+const openAAReceiptPicker = () => {
+    showAAReceiptPicker.value = true
+}
+
+const selectAAReceipt = (item) => {
+    const payer = item?.payer
+    if (!payer) return
+    form.aaGroupId = item.groupId
+    form.aaPayerBillId = payer.id
+    form.amountStr = item.outstanding.toFixed(2)
+    form.assetId = payer.assetId
+    form.currency = payer.currency || 'CNY'
+    form.targetCurrency = form.currency
+    form.remark = payer.remark ? `AA收款：${payer.remark}` : 'AA收款'
+    form.isIncludedInStats = false
+    assetTouched.value = true
+    showAAReceiptPicker.value = false
 }
 
 const onInstallmentFeeInput = (e) => {
@@ -1005,6 +1111,7 @@ const onAmountInput = (e) => {
     if (parts[1]?.length > 2) value = parts[0] + '.' + parts[1].slice(0, 2)
     if (value.length > 10) value = value.slice(0, 10)
     form.amountStr = value || '0'
+    if (form.aaEnabled) syncAAFromTotal()
     syncTargetAmountFromSource()
 }
 
@@ -1049,6 +1156,10 @@ const resetForm = () => {
     form.amountStr = '0'
 
     form.remark = ''
+    form.aaGroupId = ''
+    form.aaPayerBillId = ''
+    form.aaOwnAmountStr = ''
+    form.aaReceivableAmountStr = ''
 
     form.isIncludedInStats = currentTab.value !== 'transfer'
 
@@ -1178,7 +1289,13 @@ const submit = async () => {
             isIncludedInStats: isAARepayment.value ? false : (currentTab.value === 'transfer' ? false : form.isIncludedInStats),
             fee: currentTab.value === 'transfer' ? parseFloat(form.fee) || 0 : 0,
             aa: isAARepayment.value
-                ? { enabled: true, groupId: form.aaGroupId, role: 'repayment', settlementAmount: Math.abs(finalAmount) }
+                ? {
+                    enabled: true,
+                    groupId: form.aaGroupId,
+                    payerBillId: form.aaPayerBillId,
+                    role: 'repayment',
+                    settlementAmount: Math.abs(finalAmount)
+                }
                 : form.aaEnabled
                     ? { enabled: true, groupId: form.aaGroupId, role: 'payer', ownAmount: Number(form.aaOwnAmountStr || 0) }
                     : undefined
@@ -1190,8 +1307,9 @@ const submit = async () => {
         }
         if (form.aaEnabled) {
             const ownAmount = Number(form.aaOwnAmountStr)
-            if (!Number.isFinite(ownAmount) || ownAmount < 0 || ownAmount > val) {
-                uni.showToast({ title: '请输入正确的本人承担金额', icon: 'none' })
+            const receivableAmount = Number(form.aaReceivableAmountStr)
+            if (!Number.isFinite(ownAmount) || ownAmount < 0 || !Number.isFinite(receivableAmount) || receivableAmount < 0 || Math.abs(ownAmount + receivableAmount - val) > 0.001) {
+                uni.showToast({ title: '请输入正确的 AA 分摊金额', icon: 'none' })
                 return
             }
             billData.aa.groupId = form.aaGroupId || undefined
@@ -1641,6 +1759,10 @@ const submit = async () => {
     min-width: 0;
 }
 
+.breakdown-item.editable {
+    min-width: 0;
+}
+
 .breakdown-label,
 .preview-label {
     display: block;
@@ -1655,6 +1777,15 @@ const submit = async () => {
     color: var(--color-text);
     font-size: 13px;
     font-weight: 800;
+}
+
+input.breakdown-value {
+    width: 100%;
+    height: 22px;
+    box-sizing: border-box;
+    padding: 0;
+    border: 0;
+    background: transparent;
 }
 
 .breakdown-value.own {
@@ -1703,6 +1834,33 @@ const submit = async () => {
     color: var(--color-text);
     font-size: 12px;
     font-weight: 700;
+}
+
+.aa-settlement-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 34px;
+    color: var(--color-text-light);
+    font-size: 11px;
+    border-top: 1px solid rgba(138, 138, 138, 0.12);
+}
+
+.aa-settlement-summary text:last-child {
+    color: #5b9469;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.aa-receipt-entry {
+    margin: 0 0 8px;
+}
+
+.aa-receipt-hint {
+    display: block;
+    margin-top: 2px;
+    color: var(--color-text-light);
+    font-size: 10px;
 }
 
 .advanced-value {
@@ -1895,6 +2053,54 @@ const submit = async () => {
     border-bottom: 1px solid #f5f5f5;
     text-align: center;
     flex-shrink: 0;
+}
+
+.aa-receipt-picker {
+    max-width: 420px;
+}
+
+.aa-receipt-option {
+    padding: 12px 0;
+    text-align: left;
+}
+
+.aa-receipt-option-main,
+.aa-receipt-option-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.aa-receipt-option-main {
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.aa-receipt-option-main text:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.aa-receipt-option-main text:last-child,
+.aa-receipt-option-meta {
+    flex-shrink: 0;
+    color: var(--color-text-light);
+    font-size: 10px;
+    font-weight: 400;
+}
+
+.aa-receipt-option-meta {
+    margin-top: 4px;
+}
+
+.aa-receipt-empty {
+    padding: 20px 0 6px;
+    color: var(--color-text-light);
+    font-size: 13px;
+    text-align: center;
 }
 
 /* Transfer Area */
