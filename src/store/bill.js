@@ -2,14 +2,13 @@ import { defineStore } from 'pinia'
 import { generateId } from '@/utils/uuid'
 import { getRefundSummary as calculateRefundSummary, getRefundTransactionAmount, validateRefundAmount } from '@/utils/refund'
 import { normalizeTransferBill } from '@/utils/transfer'
+import { buildInstallmentPlan } from '@/utils/installment'
 import { useAssetStore } from './asset'
 
 const STORAGE_KEY = 'account_book_bills'
 
 const normalizeCurrency = (currency) => currency || 'CNY'
 const roundMoney = (value) => Number(Number(value || 0).toFixed(2))
-const toCents = (value) => Math.round(Number(value || 0) * 100)
-const fromCents = (value) => roundMoney(Number(value || 0) / 100)
 
 const parseDateValue = (value) => {
   if (typeof value === 'number') return new Date(value)
@@ -27,12 +26,6 @@ const addMonthKeepingDay = (dateValue, offset) => {
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
   target.setDate(Math.min(day, lastDay))
   return target.getTime()
-}
-
-const splitCents = (totalCents, count) => {
-  const base = Math.floor(totalCents / count)
-  const remainder = totalCents - base * count
-  return Array.from({ length: count }, (_, index) => base + (index < remainder ? 1 : 0))
 }
 
 const normalizeAA = (aa) => {
@@ -317,6 +310,7 @@ export const useBillStore = defineStore('bill', {
         totalAmount,
         periods,
         fee,
+        periodAmounts: options.periodAmounts,
         firstDate: options.firstDate || billData.timestamp || Date.now()
       }, options.existingIds || [])
 
@@ -327,11 +321,8 @@ export const useBillStore = defineStore('bill', {
       return { groupId, billIds: installmentBills.map(bill => bill.id) }
     },
     buildInstallmentBills(billData, options, existingIds = []) {
-      const { groupId, totalAmount, periods, fee, firstDate } = options
-      const principalCents = toCents(totalAmount)
-      const feeCents = toCents(fee)
-      const principalParts = splitCents(principalCents, periods)
-      const feeParts = splitCents(feeCents, periods)
+      const { groupId, totalAmount, periods, fee, firstDate, periodAmounts } = options
+      const periodPlan = buildInstallmentPlan({ totalAmount, fee, periods, periodAmounts })
       const statAmount = roundMoney(totalAmount + fee)
       const baseData = this.normalizeBillData({
         ...billData,
@@ -342,11 +333,9 @@ export const useBillStore = defineStore('bill', {
         statAmount
       })
 
-      return principalParts.map((principalCentsForPeriod, index) => {
+      return periodPlan.map((periodPlanItem, index) => {
         const period = index + 1
-        const periodPrincipal = fromCents(principalCentsForPeriod)
-        const periodFee = fromCents(feeParts[index])
-        const periodAmount = roundMoney(periodPrincipal + periodFee)
+        const { periodPrincipal, periodFee, periodAmount } = periodPlanItem
         const timestamp = addMonthKeepingDay(firstDate, index)
         const installment = {
           groupId,
@@ -406,6 +395,7 @@ export const useBillStore = defineStore('bill', {
         totalAmount,
         periods,
         fee,
+        periodAmounts: payload.periodAmounts,
         firstDate,
       }, currentBills.map(bill => bill.id))
       this.bills.push(...replacement)

@@ -85,6 +85,7 @@ import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { formatCurrencyAmount } from '@/utils/currency'
 import { usePageShare } from '@/utils/share'
+import { getCategoryStatGroup } from '@/utils/statCategory'
 
 usePageShare({ title: '分类统计 - 记账本', path: '/pages/stats/index' })
 
@@ -182,36 +183,19 @@ const categoryStats = computed(() => {
   
   bills.forEach(bill => {
     const currency = bill.currency || 'CNY'
-    let key, name, icon, isOther = false
-    const subId = (bill.categoryId && bill.categoryId !== routeParams.value.parentId) ? bill.categoryId : null
-    
-    if (subId) {
-        key = `${subId}__${currency}`
-        const subCat = parent?.children?.find(c => c.id === subId)
-        if (subCat) {
-            name = decodeHtmlEntities(subCat.name)
-            icon = subCat.icon
-        } else {
-            name = '未知子类'
-            icon = '❓'
-        }
-    } else {
-        key = `other__${currency}`
-        name = parent ? decodeHtmlEntities(parent.name) : '其他'
-        icon = parent ? parent.icon : '📦'
-        isOther = true
-    }
+    const group = getCategoryStatGroup(bill, parent)
+    const key = `${group.id}__${currency}`
     
     if (!map[key]) {
       map[key] = {
         statKey: key,
-        id: isOther ? 'other' : subId,
+        id: group.id,
         currency,
-        name,
-        icon,
+        name: decodeHtmlEntities(group.name),
+        icon: group.icon,
         amount: 0,
         amountMap: {},
-        isOther
+        isOther: group.isOther
       }
     }
     const amount = billStore.getStatAmount(bill)

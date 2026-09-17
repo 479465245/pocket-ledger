@@ -338,19 +338,40 @@
                     <text class="preview-value">{{ form.installmentFeeStr || '0.00' }}</text>
                 </view>
                 <view class="preview-item highlight">
-                    <text class="preview-label">每期约</text>
+                    <text class="preview-label">每期均分</text>
                     <text class="preview-value">{{ installmentPeriodAmount.toFixed(2) }}</text>
                 </view>
             </view>
             <view class="advanced-row">
                 <text>分期期数</text>
-                <input class="fee-input" type="number" v-model="form.installmentPeriods" />
+                <input class="fee-input" type="number" :value="form.installmentPeriods" @input="onInstallmentPeriodsInput" />
                 <text class="fee-unit">期</text>
             </view>
             <view class="advanced-row">
                 <text>总手续费</text>
                 <input class="fee-input" type="digit" v-model="form.installmentFeeStr" placeholder="0" @input="onInstallmentFeeInput" />
                 <text class="fee-unit">元</text>
+            </view>
+            <view class="installment-amounts-head">
+                <text>每期还款金额</text>
+                <text @click="resetInstallmentPeriodAmounts">均分重置</text>
+            </view>
+            <view class="installment-amounts">
+                <view v-for="(_, index) in form.installmentPeriodAmounts" :key="index" class="installment-amount-row">
+                    <text>第 {{ index + 1 }} 期</text>
+                    <input
+                        class="installment-amount-input"
+                        type="digit"
+                        :value="form.installmentPeriodAmounts[index]"
+                        placeholder="0.00"
+                        @input="onInstallmentPeriodAmountInput(index, $event)"
+                    />
+                    <text>{{ form.currency }}</text>
+                </view>
+            </view>
+            <view class="installment-amount-summary">
+                <text>还款合计 {{ installmentPeriodTotal.toFixed(2) }}</text>
+                <text :class="{ warning: installmentPeriodDifference !== 0 }">应还 {{ installmentStatAmount.toFixed(2) }}</text>
             </view>
             <text class="advanced-tip">首期统计 {{ installmentStatAmount.toFixed(2) }}，之后每期只影响余额</text>
         </view>
@@ -450,6 +471,7 @@ usePageShare({ title: '记一笔 - 记账本', path: '/pages/index/index' })
 import { useBillStore } from '@/store/bill'
 
 import { CURRENCIES, getCurrencySymbol } from '@/utils/currency'
+import { getDefaultInstallmentPeriodAmounts } from '@/utils/installment'
 
 
 const categoryStore = useCategoryStore()
@@ -514,6 +536,8 @@ const form = reactive({
     installmentEnabled: false,
     installmentPeriods: '2',
     installmentFeeStr: '0',
+    installmentPeriodAmounts: [],
+    installmentAmountsCustomized: false,
     // 转账相关字段
     targetAssetId: '',
     fee: '0' // 手续费
@@ -622,6 +646,9 @@ const installmentPeriodAmount = computed(() => {
     return (total + fee) / periods
 })
 const installmentStatAmount = computed(() => Number(form.amountStr || 0) + Number(form.installmentFeeStr || 0))
+const installmentPeriodTotal = computed(() => form.installmentPeriodAmounts
+    .reduce((sum, amount) => sum + Number(amount || 0), 0))
+const installmentPeriodDifference = computed(() => Math.round((installmentPeriodTotal.value - installmentStatAmount.value) * 100) / 100)
 
 
 const addAARepayment = () => {
@@ -893,6 +920,7 @@ const toggleInstallment = () => {
         form.aaEnabled = false
         form.aaOwnAmountStr = ''
         form.aaReceivableAmountStr = ''
+        resetInstallmentPeriodAmounts()
     }
 }
 
@@ -929,6 +957,10 @@ const syncAAFromTotal = () => {
     form.aaReceivableAmountStr = (total - ownAmount).toFixed(2)
 }
 
+watch(() => [form.amountStr, form.installmentFeeStr], () => {
+    if (form.installmentEnabled && !form.installmentAmountsCustomized) resetInstallmentPeriodAmounts()
+})
+
 const openAAReceiptPicker = () => {
     showAAReceiptPicker.value = true
 }
@@ -954,6 +986,29 @@ const onInstallmentFeeInput = (e) => {
     if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('')
     if (parts[1]?.length > 2) value = parts[0] + '.' + parts[1].slice(0, 2)
     form.installmentFeeStr = value
+    if (!form.installmentAmountsCustomized) resetInstallmentPeriodAmounts()
+}
+
+const onInstallmentPeriodsInput = (e) => {
+    form.installmentPeriods = String(e.detail.value || '').replace(/\D/g, '')
+    resetInstallmentPeriodAmounts()
+}
+
+const resetInstallmentPeriodAmounts = () => {
+    const totalAmount = Number(form.amountStr || 0)
+    const fee = Number(form.installmentFeeStr || 0)
+    const periods = Number(form.installmentPeriods || 0)
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isFinite(fee) || fee < 0 || !Number.isInteger(periods) || periods < 2) {
+        form.installmentPeriodAmounts = Array.from({ length: Math.max(0, periods) }, () => '0')
+    } else {
+        form.installmentPeriodAmounts = getDefaultInstallmentPeriodAmounts({ totalAmount, fee, periods }).map(String)
+    }
+    form.installmentAmountsCustomized = false
+}
+
+const onInstallmentPeriodAmountInput = (index, e) => {
+    form.installmentPeriodAmounts.splice(index, 1, normalizeAmountInput(e.detail.value))
+    form.installmentAmountsCustomized = true
 }
 
 const selectCategory = (cat) => {
@@ -1160,6 +1215,10 @@ const resetForm = () => {
     form.aaPayerBillId = ''
     form.aaOwnAmountStr = ''
     form.aaReceivableAmountStr = ''
+    form.installmentPeriods = '2'
+    form.installmentFeeStr = '0'
+    form.installmentPeriodAmounts = []
+    form.installmentAmountsCustomized = false
 
     form.isIncludedInStats = currentTab.value !== 'transfer'
 
@@ -1335,6 +1394,7 @@ const submit = async () => {
                 totalAmount: val,
                 periods,
                 fee,
+                periodAmounts: form.installmentPeriodAmounts,
                 firstDate: timestamp
             })
             uni.showToast({ title: '分期账单已生成' })
@@ -1820,6 +1880,64 @@ input.breakdown-value {
     color: var(--color-text-light);
     font-size: 10px;
     line-height: 14px;
+}
+
+.installment-amounts-head,
+.installment-amount-summary,
+.installment-amount-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.installment-amounts-head {
+    margin-top: 8px;
+    color: var(--color-text);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.installment-amounts-head text:last-child {
+    color: var(--color-primary);
+    font-size: 11px;
+}
+
+.installment-amounts {
+    margin-top: 6px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(247, 250, 255, 0.7);
+}
+
+.installment-amount-row {
+    min-height: 34px;
+    padding: 0 9px;
+    border-bottom: 1px solid rgba(138, 138, 138, 0.1);
+    color: var(--color-text-light);
+    font-size: 11px;
+}
+
+.installment-amount-row:last-child {
+    border-bottom: 0;
+}
+
+.installment-amount-input {
+    width: 96px;
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 800;
+    text-align: right;
+}
+
+.installment-amount-summary {
+    margin-top: 6px;
+    color: var(--color-text-light);
+    font-size: 10px;
+}
+
+.installment-amount-summary .warning {
+    color: #d9534f;
+    font-weight: 700;
 }
 
 .advanced-option {

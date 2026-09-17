@@ -37,7 +37,7 @@
         <view class="row input-row">
           <text class="label">分期期数</text>
           <view class="inline-input">
-            <input class="input" type="number" v-model="form.periods" />
+            <input class="input" type="number" :value="form.periods" @input="onPeriodsInput" />
             <text class="unit">期</text>
           </view>
         </view>
@@ -47,6 +47,27 @@
             <input class="input" type="digit" v-model="form.fee" />
             <text class="unit">元</text>
           </view>
+        </view>
+        <view class="period-amounts-head">
+          <text>每期还款金额</text>
+          <text class="reset-periods" @click="resetPeriodAmounts">均分重置</text>
+        </view>
+        <view class="period-amounts">
+          <view v-for="(_, index) in form.periodAmounts" :key="index" class="period-amount-row">
+            <text>第 {{ index + 1 }} 期</text>
+            <input
+              class="period-amount-input"
+              type="digit"
+              :value="form.periodAmounts[index]"
+              placeholder="0.00"
+              @input="onPeriodAmountInput(index, $event)"
+            />
+            <text>{{ form.currency }}</text>
+          </view>
+        </view>
+        <view class="period-amount-summary">
+          <text>还款合计 {{ periodAmountTotal.toFixed(2) }}</text>
+          <text :class="{ warning: periodAmountDifference !== 0 }">应还 {{ (Number(form.totalAmount || 0) + Number(form.fee || 0)).toFixed(2) }}</text>
         </view>
         <view class="row" @click="openAssetPicker">
           <text class="label">账户</text>
@@ -121,6 +142,7 @@ import { useAssetStore } from '@/store/asset'
 import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { usePageShare } from '@/utils/share'
+import { getDefaultInstallmentPeriodAmounts } from '@/utils/installment'
 
 usePageShare({ title: '分期账单 - 记账本', path: '/pages/index/index' })
 
@@ -138,6 +160,7 @@ const form = reactive({
   totalAmount: '0',
   periods: '2',
   fee: '0',
+  periodAmounts: [],
   firstDate: '',
   assetId: '',
   parentCategoryId: '',
@@ -152,6 +175,8 @@ const periodAmount = computed(() => {
   const total = Number(form.totalAmount || 0) + Number(form.fee || 0)
   return (total / Math.max(1, Number(form.periods || 1))).toFixed(2)
 })
+const periodAmountTotal = computed(() => form.periodAmounts.reduce((sum, amount) => sum + Number(amount || 0), 0))
+const periodAmountDifference = computed(() => Math.round((periodAmountTotal.value - (Number(form.totalAmount || 0) + Number(form.fee || 0))) * 100) / 100)
 const completedPeriods = computed(() => installmentBills.value.filter(bill => Number(bill.timestamp || 0) <= Date.now()).length)
 const progressPercent = computed(() => {
   const total = Math.max(1, Number(form.periods || 1))
@@ -189,6 +214,7 @@ const load = (id) => {
   form.totalAmount = String(first.installment.totalAmount)
   form.periods = String(first.installment.totalPeriods)
   form.fee = String(first.installment.fee || 0)
+  form.periodAmounts = bills.map(item => Math.abs(Number(item.amount || 0)).toFixed(2))
   form.firstDate = formatDate(first.timestamp)
   form.assetId = first.assetId
   form.parentCategoryId = first.parentCategoryId || ''
@@ -218,6 +244,34 @@ const selectCategory = (category) => {
   showCategoryPicker.value = false
 }
 
+const normalizeAmountInput = (input) => {
+  let value = String(input || '').replace(/[^\d.]/g, '')
+  const parts = value.split('.')
+  if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('')
+  if (parts[1]?.length > 2) value = parts[0] + '.' + parts[1].slice(0, 2)
+  return value.slice(0, 10)
+}
+
+const resetPeriodAmounts = () => {
+  const totalAmount = Number(form.totalAmount || 0)
+  const fee = Number(form.fee || 0)
+  const periods = Number(form.periods || 0)
+  if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isFinite(fee) || fee < 0 || !Number.isInteger(periods) || periods < 2) {
+    form.periodAmounts = Array.from({ length: Math.max(0, periods) }, () => '0')
+    return
+  }
+  form.periodAmounts = getDefaultInstallmentPeriodAmounts({ totalAmount, fee, periods }).map(String)
+}
+
+const onPeriodsInput = (e) => {
+  form.periods = String(e.detail.value || '').replace(/\D/g, '')
+  resetPeriodAmounts()
+}
+
+const onPeriodAmountInput = (index, e) => {
+  form.periodAmounts.splice(index, 1, normalizeAmountInput(e.detail.value))
+}
+
 const save = async () => {
   const totalAmount = Number(form.totalAmount)
   const periods = Number(form.periods)
@@ -232,6 +286,7 @@ const save = async () => {
       totalAmount,
       periods,
       fee,
+      periodAmounts: form.periodAmounts,
       firstDate: `${form.firstDate}T00:00:00`,
       assetId: form.assetId,
       parentCategoryId: form.parentCategoryId,
@@ -353,6 +408,15 @@ const remove = () => {
 .unit { margin-left: 6px; color: var(--color-text-light); font-size: 13px; }
 .remark-input { flex: 1; margin-left: 16px; }
 .section-title { padding: 10px 0 12px; }
+.period-amounts-head, .period-amount-summary, .period-amount-row { display: flex; align-items: center; justify-content: space-between; }
+.period-amounts-head { margin: 10px 0 6px; color: var(--color-text); font-size: 13px; font-weight: 700; }
+.reset-periods { color: var(--color-primary); font-size: 11px; }
+.period-amounts { overflow: hidden; border-radius: 12px; background: rgba(247, 250, 255, 0.72); }
+.period-amount-row { min-height: 34px; padding: 0 9px; border-bottom: 1px solid rgba(138, 138, 138, 0.1); color: var(--color-text-light); font-size: 11px; }
+.period-amount-row:last-child { border-bottom: 0; }
+.period-amount-input { width: 104px; color: var(--color-text); font-size: 14px; font-weight: 800; text-align: right; }
+.period-amount-summary { margin: 6px 0 2px; color: var(--color-text-light); font-size: 10px; }
+.period-amount-summary .warning { color: #d9534f; font-weight: 700; }
 .period-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid rgba(138,138,138,.12); }
 .period-marker {
   width: 30px;

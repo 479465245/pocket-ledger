@@ -113,6 +113,7 @@ import { useAssetStore } from '@/store/asset'
 import { formatCurrencyAmount } from '@/utils/currency'
 import { decodeHtmlEntities } from '@/utils/text'
 import { usePageShare } from '@/utils/share'
+import { getCategoryStatGroup } from '@/utils/statCategory'
 
 usePageShare({ title: '账单明细 - 记账本', path: '/pages/index/index' })
 
@@ -211,7 +212,8 @@ const filteredBills = computed(() => {
     } else if (filterType === 'sub') {
       return b.categoryId === id
     } else if (filterType === 'parent_other') {
-      return b.parentCategoryId === id && (!b.categoryId || b.categoryId === id)
+      const parentCategory = categoryStore.categories.find(category => category.id === id)
+      return b.parentCategoryId === id && getCategoryStatGroup(b, parentCategory).isOther
     }
 
     return false
