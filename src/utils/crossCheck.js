@@ -93,7 +93,7 @@ export const createCrossCheckSession = ({ assetId, assetName, startDate, endDate
         direction: row.type === 'income' || row.type === 'refund' ? 'income' : 'expense',
         amount: roundMoney(signedAmount),
         absAmount: roundMoney(Math.abs(rawAmount)),
-        assetName: row.asset || assetName,
+        assetName: row.provider === 'icbc' ? assetName : (row.asset || assetName),
         paymentMethod: row.paymentMethod || '',
         counterparty: row.counterparty || '',
         remark: row.remark || '',

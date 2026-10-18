@@ -25,11 +25,11 @@
 
       <view class="summary-card neu-card">
         <view class="summary-item">
-          <text class="summary-label">期初统计余额</text>
+          <text class="summary-label">期初余额</text>
           <text class="summary-value">{{ formatAmount(report.total.opening) }}</text>
         </view>
         <view class="summary-item">
-          <text class="summary-label">期末统计余额</text>
+          <text class="summary-label">期末余额</text>
           <text class="summary-value">{{ formatAmount(report.total.closing) }}</text>
         </view>
         <view class="summary-item" :class="report.total.change >= 0 ? 'income' : 'expense'">
@@ -41,7 +41,7 @@
 
     <scroll-view scroll-y class="content-scroll">
       <view class="content-wrapper">
-        <view class="notice neu-card">仅统计“计入统计”的收入和支出账单；转账、退款和资产调整不参与本报表。</view>
+        <view class="notice neu-card">余额按真实资产流水计算，包含转账、退款、手续费和未计入统计的实际账单；多币种请分别查看。</view>
 
         <view class="chart-card neu-card">
           <view class="section-title">资产变化</view>
@@ -63,7 +63,7 @@
               </view>
             </view>
           </view>
-          <view v-else class="empty-tip">本周期暂无计入统计的余额变化</view>
+          <view v-else class="empty-tip">本周期暂无余额变化</view>
         </view>
 
         <view class="account-list">
@@ -80,7 +80,7 @@
             </view>
             <view class="account-values">
               <view>
-                <text class="value-label">期末统计余额</text>
+                <text class="value-label">期末余额</text>
                 <text class="closing-value">{{ formatAmount(item.closing) }}</text>
               </view>
               <view class="change-box" :class="item.change >= 0 ? 'positive' : 'negative'">
@@ -150,7 +150,10 @@ const report = computed(() => buildAssetBalanceReport({
 }))
 
 const maxSeriesValue = computed(() => Math.max(...report.value.total.series, 1))
-const hasSeriesData = computed(() => report.value.total.series.some((value, index) => index > 0 && value !== report.value.total.series[index - 1]))
+const hasSeriesData = computed(() => report.value.total.series.some((value, index) => {
+  const previousValue = index === 0 ? report.value.total.opening : report.value.total.series[index - 1]
+  return value !== previousValue
+}))
 const formatAmount = (amount) => formatCurrencyAmount(Math.abs(amount || 0), selectedCurrency.value)
 const formatSignedAmount = (amount) => `${amount >= 0 ? '+' : '-'}${formatAmount(amount)}`
 const formatAxis = (amount) => Number(amount || 0).toFixed(0)

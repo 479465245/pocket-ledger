@@ -1,3 +1,7 @@
+export const syncTransferAmountIfEmpty = (editedAmount, oppositeAmount, isOppositeAutoSynced) => (
+  oppositeAmount === '' || isOppositeAutoSynced ? editedAmount : oppositeAmount
+)
+
 export const normalizeTransferBill = (billData = {}) => {
   if (billData.type !== 'transfer') return billData
 

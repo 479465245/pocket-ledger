@@ -1,6 +1,22 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeTransferBill } from '../src/utils/transfer.js'
+import { normalizeTransferBill, syncTransferAmountIfEmpty } from '../src/utils/transfer.js'
+
+test('syncs a transfer amount when the opposite amount is empty', () => {
+  assert.equal(syncTransferAmountIfEmpty('120', ''), '120')
+})
+
+test('keeps a manually entered opposite transfer amount', () => {
+  assert.equal(syncTransferAmountIfEmpty('120', '95'), '95')
+})
+
+test('continues syncing an opposite amount that was filled automatically', () => {
+  assert.equal(syncTransferAmountIfEmpty('88', '8', true), '88')
+})
+
+test('keeps zero entered for the opposite transfer amount', () => {
+  assert.equal(syncTransferAmountIfEmpty('120', '0'), '0')
+})
 
 test('normalizes a transfer with both accounts and target amount', () => {
   const bill = normalizeTransferBill({

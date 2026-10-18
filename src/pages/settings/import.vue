@@ -38,7 +38,7 @@
 
         <view class="format-box">
           <text class="format-title">可上传格式</text>
-          <text class="format-text">支付宝 / 微信：平台导出的 `.xls`、`.xlsx`、`.csv` 原始文件。</text>
+          <text class="format-text">支付宝 / 微信 / 工商银行：平台导出的 `.xls`、`.xlsx`、`.csv` 原始文件。</text>
           <text class="format-text">通用模板：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。AA/分期列用于迁移扩展字段，带组 ID 的记录会逐条导入，不会再次展开分期。</text>
         </view>
       </view>
@@ -195,7 +195,7 @@
 
     <view class="tips">
       <text class="tip-text">提示</text>
-      <text class="tip-item">1. 支付宝和微信文件请直接上传原始导出结果，不需要删除说明行。</text>
+      <text class="tip-item">1. 支付宝、微信和工商银行文件请直接上传原始导出结果，不需要删除说明行。</text>
       <text class="tip-item">2. 可在通用模板中填写“是否计入统计”，支持“是/否”。</text>
       <text class="tip-item">3. 充值、提现、转账等余额变动默认不参与消费统计。</text>
     </view>

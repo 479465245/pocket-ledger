@@ -2,13 +2,15 @@
   { value: 'auto', label: '自动识别' },
   { value: 'alipay', label: '支付宝' },
   { value: 'wechat', label: '微信' },
+  { value: 'icbc', label: '工商银行' },
   { value: 'generic', label: '通用模板' }
 ]
 
 export const PROVIDER_GUIDES = {
-  auto: '上传支付宝、微信导出的原始账单，系统会根据表头识别来源。',
+  auto: '上传支付宝、微信或工商银行导出的原始账单，系统会根据表头识别来源。',
   alipay: '上传支付宝导出的个人账单文件，保持原始表头和列顺序。',
   wechat: '上传微信支付导出的个人账单文件，保持原始表头和列顺序。',
+  icbc: '上传工商银行“明细查询文件下载”导出的原始 CSV 或表格文件，不需要删除前面的账户说明行。',
   generic: '上传按本应用模板整理的表格：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。'
 }
 
@@ -99,14 +101,35 @@ const HEADER_ALIASES = {
     orderNo: ['交易单号', '微信支付单号', '交易订单号'],
     merchantOrderNo: ['商户单号', '商户订单号'],
     remark: ['备注', '备注信息']
+  },
+  icbc: {
+    date: ['交易日期', '交易时间', '日期'],
+    summary: ['摘要', '交易摘要'],
+    detail: ['交易详情', '交易说明'],
+    place: ['交易场所', '交易地点'],
+    transactionIncome: ['交易金额(收入)', '交易金额收入'],
+    transactionExpense: ['交易金额(支出)', '交易金额支出'],
+    transactionCurrency: ['交易币种'],
+    bookkeepingIncome: ['记账金额(收入)', '记账金额收入'],
+    bookkeepingExpense: ['记账金额(支出)', '记账金额支出'],
+    bookkeepingCurrency: ['记账币种', '记账货币'],
+    balance: ['余额', '账户余额'],
+    counterparty: ['对方户名', '对方名称'],
+    counterpartyAccount: ['对方账户', '对方账号']
   }
 }
 
 const REQUIRED_FIELDS = {
   generic: ['date', 'type', 'asset', 'amount'],
   alipay: ['date', 'direction', 'amount'],
-  wechat: ['date', 'direction', 'amount']
+  wechat: ['date', 'direction', 'amount'],
+  icbc: ['date', 'summary']
 }
+
+const ICBC_REQUIRED_AMOUNT_GROUPS = [
+  ['transactionIncome', 'transactionExpense'],
+  ['bookkeepingIncome', 'bookkeepingExpense']
+]
 
 const PROVIDER_LABELS = PROVIDER_OPTIONS.reduce((labels, option) => {
   labels[option.value] = option.label
@@ -148,6 +171,9 @@ const buildHeaderMap = (row, provider) => {
   })
 
   const requiredMatches = REQUIRED_FIELDS[provider].filter(field => headerMap[field] !== undefined).length
+  const amountGroupsMatched = provider === 'icbc'
+    ? ICBC_REQUIRED_AMOUNT_GROUPS.every(group => group.some(field => headerMap[field] !== undefined))
+    : true
   const score = Object.keys(headerMap).length + requiredMatches * 3
 
   return {
@@ -156,7 +182,7 @@ const buildHeaderMap = (row, provider) => {
     detectedHeaders,
     requiredMatches,
     score,
-    valid: requiredMatches === REQUIRED_FIELDS[provider].length
+    valid: requiredMatches === REQUIRED_FIELDS[provider].length && amountGroupsMatched
   }
 }
 
@@ -168,7 +194,10 @@ const findHeaderRow = (rows, provider) => {
     if (isBlankRow(rows[index])) continue
     const candidate = buildHeaderMap(rows[index], provider)
     candidate.headerRowIndex = index
-    if (!best || candidate.score > best.score) {
+    const shouldReplace = provider === 'icbc'
+      ? !best || (candidate.valid && !best.valid) || (candidate.valid === best.valid && candidate.score > best.score)
+      : !best || candidate.score > best.score
+    if (shouldReplace) {
       best = candidate
     }
   }
@@ -177,7 +206,7 @@ const findHeaderRow = (rows, provider) => {
 }
 
 const detectProvider = (rows) => {
-  const candidates = ['alipay', 'wechat', 'generic']
+  const candidates = ['alipay', 'wechat', 'icbc', 'generic']
     .map(provider => findHeaderRow(rows, provider))
     .filter(Boolean)
     .sort((a, b) => b.score - a.score)
@@ -188,6 +217,19 @@ const detectProvider = (rows) => {
 const normalizeCurrencyCode = (value, fallback = 'CNY') => {
   const text = normalizeText(value).toUpperCase()
   return text || fallback
+}
+
+const normalizeIcbcCurrency = (value) => {
+  const text = normalizeText(value)
+  const currencyCodes = {
+    人民币: 'CNY',
+    美元: 'USD',
+    日元: 'JPY',
+    港币: 'HKD',
+    欧元: 'EUR',
+    英镑: 'GBP'
+  }
+  return currencyCodes[text] || normalizeCurrencyCode(text)
 }
 
 const parseSignedAmount = (value) => {
@@ -545,6 +587,58 @@ const parsePlatformRow = (row, headerMap, rowIndex, provider) => {
   }
 }
 
+const parseIcbcRow = (row, headerMap, rowIndex) => {
+  const transactionIncome = parseAmount(getCell(row, headerMap, 'transactionIncome'))
+  const transactionExpense = parseAmount(getCell(row, headerMap, 'transactionExpense'))
+  const bookkeepingIncome = parseAmount(getCell(row, headerMap, 'bookkeepingIncome'))
+  const bookkeepingExpense = parseAmount(getCell(row, headerMap, 'bookkeepingExpense'))
+  const incomeAmount = bookkeepingIncome ?? transactionIncome
+  const expenseAmount = bookkeepingExpense ?? transactionExpense
+  const isIncome = incomeAmount !== null
+  const amount = isIncome
+    ? incomeAmount
+    : expenseAmount === null ? null : -expenseAmount
+  const summary = getCell(row, headerMap, 'summary')
+  const detail = getCell(row, headerMap, 'detail')
+  const place = getCell(row, headerMap, 'place')
+  const counterparty = getCell(row, headerMap, 'counterparty')
+  const counterpartyAccount = getCell(row, headerMap, 'counterpartyAccount')
+  const classified = amount === null
+    ? { type: null, typeText: '', isIncludedInStats: false }
+    : classifyPlatformType({
+        direction: isIncome ? '收入' : '支出',
+        text: createRemark([summary, detail, place, counterparty]),
+        status: ''
+      })
+  const errors = []
+
+  if (amount === null) errors.push('无法识别金额')
+
+  return {
+    rowIndex,
+    provider: 'icbc',
+    date: formatExcelDate(row[headerMap.date]),
+    type: classified.type,
+    typeText: classified.typeText,
+    asset: '工商银行',
+    assetType: 'bank',
+    currency: normalizeIcbcCurrency(
+      getCell(row, headerMap, 'bookkeepingCurrency') || getCell(row, headerMap, 'transactionCurrency')
+    ),
+    targetAsset: '',
+    targetCurrency: 'CNY',
+    targetAmount: amount === null ? 0 : Math.abs(amount),
+    category1: '',
+    category2: '',
+    amount: amount ?? 0,
+    fee: 0,
+    remark: createRemark([summary, detail, place, counterparty, counterpartyAccount]),
+    orderNo: counterpartyAccount,
+    isIncludedInStats: classified.isIncludedInStats,
+    parseErrors: errors
+  }
+}
+
 const parseRowsByProvider = (rows, provider, headerResult) => {
   const parsedRows = []
   let ignoredRows = 0
@@ -556,10 +650,21 @@ const parseRowsByProvider = (rows, provider, headerResult) => {
       continue
     }
 
+    if (provider === 'icbc') {
+      const summary = getCell(row, headerResult.headerMap, 'summary')
+      const date = getCell(row, headerResult.headerMap, 'date')
+      if (summary.includes('合计') || date.includes('合计')) {
+        ignoredRows += 1
+        continue
+      }
+    }
+
     const rowIndex = index + 1
     const item = provider === 'generic'
       ? parseGenericRow(row, headerResult.headerMap, rowIndex)
-      : parsePlatformRow(row, headerResult.headerMap, rowIndex, provider)
+      : provider === 'icbc'
+        ? parseIcbcRow(row, headerResult.headerMap, rowIndex)
+        : parsePlatformRow(row, headerResult.headerMap, rowIndex, provider)
 
     const hasCoreValue = item.date || item.amount || item.remark || item.orderNo
     if (!hasCoreValue) {
@@ -595,7 +700,7 @@ export const parseImportRows = (rows, selectedProvider) => {
     return {
       provider: '',
       rows: [],
-      errors: ['无法识别文件来源，请手动选择支付宝、微信或通用模板后重新上传'],
+      errors: ['无法识别文件来源，请手动选择支付宝、微信、工商银行或通用模板后重新上传'],
       warnings: [],
       detectedHeaders: [],
       ignoredRows: 0

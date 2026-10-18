@@ -294,7 +294,7 @@
             <view class="feature-detail-head">
                 <view>
                     <text class="feature-detail-title">AA 分摊明细</text>
-                    <text class="feature-detail-subtitle">原始流水仍按完整消费金额记账</text>
+                    <text class="feature-detail-subtitle">总额固定，修改一项自动补足另一项</text>
                 </view>
                 <text class="feature-detail-total">总额 {{ form.amountStr || '0' }}</text>
             </view>
@@ -471,7 +471,9 @@ usePageShare({ title: '记一笔 - 记账本', path: '/pages/index/index' })
 import { useBillStore } from '@/store/bill'
 
 import { CURRENCIES, getCurrencySymbol } from '@/utils/currency'
+import { calculateAAAmounts } from '@/utils/aaAmounts'
 import { getDefaultInstallmentPeriodAmounts } from '@/utils/installment'
+import { syncTransferAmountIfEmpty } from '@/utils/transfer'
 
 
 const categoryStore = useCategoryStore()
@@ -493,6 +495,7 @@ const scrollTop = ref(0)
 const selectedCategoryId = ref('')
 const selectedParentId = ref('') // To track which parent is expanded
 const showAssetPicker = ref(false)
+const transferAmountSyncSource = ref('')
 
 const showCurrencyPicker = ref(false)
 const showAAReceiptPicker = ref(false)
@@ -873,6 +876,7 @@ const loadBillData = (id) => {
 }
 
 const switchTab = (val) => {
+    transferAmountSyncSource.value = ''
     if (val !== currentTab.value) {
         form.aaGroupId = ''
         form.aaPayerBillId = ''
@@ -926,12 +930,12 @@ const toggleInstallment = () => {
 
 const onAAOwnAmountInput = (e) => {
     form.aaOwnAmountStr = normalizeAmountInput(e.detail.value)
-    syncAAAmount()
+    syncAAAmount('own')
 }
 
 const onAAReceivableAmountInput = (e) => {
     form.aaReceivableAmountStr = normalizeAmountInput(e.detail.value)
-    syncAAAmount()
+    syncAAAmount('receivable')
 }
 
 const normalizeAmountInput = (input) => {
@@ -942,12 +946,24 @@ const normalizeAmountInput = (input) => {
     return value.slice(0, 10)
 }
 
-const syncAAAmount = () => {
-    const ownAmount = Number(form.aaOwnAmountStr || 0)
-    const receivableAmount = Number(form.aaReceivableAmountStr || 0)
-    form.amountStr = Number.isFinite(ownAmount) && Number.isFinite(receivableAmount)
-        ? (ownAmount + receivableAmount).toFixed(2)
-        : '0'
+const syncAAAmount = (editedField) => {
+    const isOwnAmount = editedField === 'own'
+    const amountStr = isOwnAmount ? form.aaOwnAmountStr : form.aaReceivableAmountStr
+    const { editedAmount, counterpartAmount } = calculateAAAmounts(form.amountStr, amountStr)
+
+    if (Number(amountStr || 0) > Number(form.amountStr || 0)) {
+        if (isOwnAmount) {
+            form.aaOwnAmountStr = editedAmount.toFixed(2)
+        } else {
+            form.aaReceivableAmountStr = editedAmount.toFixed(2)
+        }
+    }
+
+    if (isOwnAmount) {
+        form.aaReceivableAmountStr = counterpartAmount.toFixed(2)
+    } else {
+        form.aaOwnAmountStr = counterpartAmount.toFixed(2)
+    }
 }
 
 const syncAAFromTotal = () => {
@@ -1073,14 +1089,26 @@ const isSameTransferCurrency = () => {
 }
 
 const syncTargetAmountFromSource = () => {
-    if (isSameTransferCurrency()) {
-        form.targetAmountStr = form.amountStr === '0' ? '' : form.amountStr
+    const isTargetAutoSynced = transferAmountSyncSource.value === 'source'
+    if (isSameTransferCurrency() && (form.targetAmountStr === '' || isTargetAutoSynced)) {
+        form.targetAmountStr = syncTransferAmountIfEmpty(
+            form.amountStr === '0' ? '' : form.amountStr,
+            form.targetAmountStr,
+            isTargetAutoSynced
+        )
+        transferAmountSyncSource.value = 'source'
     }
 }
 
 const syncSourceAmountFromTarget = () => {
-    if (isSameTransferCurrency()) {
-        form.amountStr = form.targetAmountStr || '0'
+    const isSourceAutoSynced = transferAmountSyncSource.value === 'target'
+    if (isSameTransferCurrency() && (displayAmount.value === '' || isSourceAutoSynced)) {
+        form.amountStr = syncTransferAmountIfEmpty(
+            form.targetAmountStr || '0',
+            displayAmount.value,
+            isSourceAutoSynced
+        ) || '0'
+        transferAmountSyncSource.value = 'target'
     }
 }
 
@@ -1166,6 +1194,9 @@ const onAmountInput = (e) => {
     if (parts[1]?.length > 2) value = parts[0] + '.' + parts[1].slice(0, 2)
     if (value.length > 10) value = value.slice(0, 10)
     form.amountStr = value || '0'
+    if (currentTab.value === 'transfer' && transferAmountSyncSource.value === 'target') {
+        transferAmountSyncSource.value = ''
+    }
     if (form.aaEnabled) syncAAFromTotal()
     syncTargetAmountFromSource()
 }
@@ -1182,6 +1213,9 @@ const onTargetAmountInput = (e) => {
     }
     if (value.length > 10) value = value.slice(0, 10)
     form.targetAmountStr = value
+    if (currentTab.value === 'transfer' && transferAmountSyncSource.value === 'source') {
+        transferAmountSyncSource.value = ''
+    }
     syncSourceAmountFromTarget()
 }
 
@@ -1209,6 +1243,7 @@ const cancelEdit = () => {
 const resetForm = () => {
 
     form.amountStr = '0'
+    transferAmountSyncSource.value = ''
 
     form.remark = ''
     form.aaGroupId = ''

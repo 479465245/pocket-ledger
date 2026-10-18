@@ -105,7 +105,7 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 - `pages/settings/index`：旧设置入口，不再作为主入口
 - `pages/settings/assets`：资产管理
 - `pages/settings/import`：数据导入
-- `pages/settings/cross-check`：交叉校验配置，支持表格文件和 AI 辅助 PDF 识别
+- `pages/settings/cross-check`：交叉校验配置，支持支付宝、微信、工商银行、通用表格和 AI 辅助 PDF 识别
 - `pages/assistant/index`：AI 助手，基于账本摘要进行对话式分析
 - `pages/settings/ai-config`：OpenAI-compatible 服务配置
 - `pages/settings/backup`：本地备份还原
@@ -288,7 +288,7 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 ### 字段说明
 - `amount`：余额和交叉校验使用的真实流水金额；支出/转出为负，收入为正。
 - `statAmount`：统计金额；普通账单缺省时取 `abs(amount)`，AA 付款取本人承担金额。
-- `aa`：付款记录保存完整代付金额，`ownAmount`（本人承担）和 `receivableAmount`（代垫待收）均可编辑，二者合计自动写入账单金额；付款记录展示已收总金额并按这两个金额结算。收入收款使用 `role: 'repayment'`、正数收入并强制不计入统计，且要与未收齐的 AA 付款记录保存关联并同步其已收总金额。
+- `aa`：付款记录保存完整代付金额，`ownAmount`（本人承担）和 `receivableAmount`（代垫待收）编辑时保持账单总额不变，并自动更新另一项补足差额；付款记录展示已收总金额并按这两个金额结算。收入收款使用 `role: 'repayment'`、正数收入并强制不计入统计，且要与未收齐的 AA 付款记录保存关联并同步其已收总金额。
 - `installment`：分期组和每期本金、手续费、真实金额。用户可在新增或整组编辑时设置各期 `periodAmount`（含手续费），所有期数的金额合计必须等于 `totalAmount + fee`；手续费仍按期均分，单期金额不得低于该期手续费。首期 `statAmount` 为总额加手续费，后续期为 0 且不计入统计。
 - `assetId`：主账户；`targetAssetId`、`targetAmount` 仅用于转账目标账户。
 - `isIncludedInStats`：是否参与收入/支出统计；转账、退款、AA 还款和后续分期默认排除。
@@ -395,13 +395,13 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 
 - `pages/stats/trend.vue`：月度按日、年度按月展示收入、支出和净收支趋势。
 - `pages/stats/annual.vue`：展示全年收入、支出、净收支、储蓄率、月均值、最高月份、分类排行和月度明细。
-- `pages/stats/assets.vue`：按币种展示各账户的期初统计余额、期末统计余额和期间变化，并汇总计入总资产账户的变化。
+- `pages/stats/assets.vue`：按币种展示各账户的期初余额、期末余额和期间变化，并汇总计入总资产账户的变化。
 
-三个报表统一只处理 `billStore.getStatType()` 为 `income` 或 `expense` 且 `isIncludedInStats !== false` 的账单，金额统一使用 `billStore.getStatAmount()`。转账、退款和资产调整不会进入报表。多币种不直接相加，页面通过币种切换分别查看。
+收支趋势和年度总结只处理 `billStore.getStatType()` 为 `income` 或 `expense` 且 `isIncludedInStats !== false` 的账单，金额统一使用 `billStore.getStatAmount()`。账户余额和资产变化报表按真实资产流水计算，不使用统计金额；它会处理普通账单、AA 全额付款、AA 收款、退款、资产调整、转账两侧和转账手续费。多币种不直接相加，页面通过币种切换分别查看。
 
 年度总结的储蓄率为 `净收支 / 全年收入`，全年收入为 0 时显示 `--`；月均值按完整 12 个月计算，分类占比分别以收入总额或支出总额为分母。分类排行可以下钻到年度账单明细。
 
-资产变化报表从资产 `initialBalances`（人民币兼容 `initialBalance`）开始，先应用统计范围开始前的收入/支出账单得到期初统计余额，再按日或按月应用范围内账单生成余额序列。总资产只汇总 `includeInTotal !== false` 的账户。该报表的余额是统计口径下的余额，首页资产余额仍然包含完整账单流水，两者用途不同。
+资产变化报表从资产 `initialBalances`（人民币兼容 `initialBalance`）开始，先应用统计范围开始前的全部资产流水得到期初余额，再按日或按月应用范围内流水生成余额序列。主账户使用账单 `amount` 扣除转账手续费，转入账户使用 `targetAmount`；退款、AA 收款和未计入统计的实际账单也会影响余额。总资产只汇总 `includeInTotal !== false` 的账户，首页资产余额与该报表使用同一套真实流水口径。
 
 ### 二级统计：`pages/stats/category.vue`
 - 只看某一个一级分类下的数据
@@ -516,11 +516,11 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 ---
 
 ## 4.3 账户余额和资产变化页 `pages/stats/assets.vue`
-- 按月或按年查看各账户统计余额变化。
+- 按月或按年查看各账户真实余额变化。
 - 展示期初余额、期末余额和期间变化。
 - 总资产只汇总 `includeInTotal !== false` 的账户。
 - 点击账户可进入已有资产账单明细，资产明细仍展示完整流水。
-- 统计余额仅基于计入统计的收入/支出账单，不等同于首页完整流水余额。
+- 余额基于完整资产流水，包含转账、退款、手续费和未计入统计的实际账单，与首页完整流水余额保持同一口径。
 
 ---
 
@@ -601,6 +601,7 @@ AI 功能由用户配置 OpenAI-compatible 服务或第三方中转站。API Key
 - 页面用了 `xlsx` 去解析工作表
 - 逻辑上想做“资产/分类不存在就自动创建”
 - PWA/H5 打包后本地文件选择走浏览器 `<input type="file">`，不要依赖 App 端 `plus` 或小程序文件系统 API
+- 工商银行原始明细支持前置账户说明行，收入/支出优先读取记账金额，合计行会被忽略
 
 ---
 

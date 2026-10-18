@@ -56,6 +56,7 @@ export const getStatCurrencies = (bills, billStore, assets = []) => {
   })
   assets.forEach(asset => {
     Object.keys(asset.initialBalances || {}).forEach(currency => currencies.add(normalizeCurrency(currency)))
+    Object.keys(asset.balances || {}).forEach(currency => currencies.add(normalizeCurrency(currency)))
     if (asset.currency) currencies.add(normalizeCurrency(asset.currency))
   })
   return Array.from(currencies)
@@ -96,32 +97,46 @@ const getInitialBalance = (asset, currency) => {
   return currency === 'CNY' ? Number(asset.initialBalance || 0) : 0
 }
 
-const getAssetDelta = (bill, billStore) => {
-  const amount = billStore.getStatAmount(bill)
-  return billStore.getStatType(bill) === 'income' ? amount : -amount
+const getAssetMovements = (bill, assetId, currency) => {
+  const movements = []
+  const billCurrency = normalizeCurrency(bill.currency)
+
+  if (bill.assetId === assetId && billCurrency === currency) {
+    const fee = bill.type === 'transfer' ? Math.abs(Number(bill.fee || 0)) : 0
+    movements.push(Number(bill.amount || 0) - fee)
+  }
+
+  if (bill.type === 'transfer' && bill.targetAssetId === assetId && normalizeCurrency(bill.targetCurrency || bill.currency) === currency) {
+    const targetAmount = bill.targetAmount !== undefined
+      ? Number(bill.targetAmount || 0)
+      : Math.abs(Number(bill.amount || 0))
+    movements.push(targetAmount)
+  }
+
+  return movements
 }
 
 export const buildAssetBalanceReport = ({ bills = [], assets = [], billStore, period, date, currency }) => {
   const selectedCurrency = normalizeCurrency(currency)
   const buckets = getPeriodBuckets(period, date)
   const range = getPeriodRange(period, date)
-  const statBills = bills
-    .filter(bill => isIncludedStatBill(bill, billStore))
-    .filter(bill => normalizeCurrency(bill.currency) === selectedCurrency)
+  const assetBills = [...bills]
     .sort((a, b) => a.timestamp - b.timestamp)
 
   const accountReports = assets.map(asset => {
     let opening = getInitialBalance(asset, selectedCurrency)
-    statBills.forEach(bill => {
-      if (bill.timestamp < range.start && bill.assetId === asset.id) opening = roundMoney(opening + getAssetDelta(bill, billStore))
+    assetBills.forEach(bill => {
+      if (bill.timestamp >= range.start) return
+      getAssetMovements(bill, asset.id, selectedCurrency)
+        .forEach(delta => { opening = roundMoney(opening + delta) })
     })
 
     let balance = opening
     const series = buckets.map(bucket => {
-      statBills.forEach(bill => {
-        if (bill.assetId === asset.id && bill.timestamp >= bucket.start && bill.timestamp <= bucket.end) {
-          balance = roundMoney(balance + getAssetDelta(bill, billStore))
-        }
+      assetBills.forEach(bill => {
+        if (bill.timestamp < bucket.start || bill.timestamp > bucket.end) return
+        getAssetMovements(bill, asset.id, selectedCurrency)
+          .forEach(delta => { balance = roundMoney(balance + delta) })
       })
       return roundMoney(balance)
     })

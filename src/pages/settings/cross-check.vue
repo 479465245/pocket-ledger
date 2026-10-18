@@ -2,7 +2,7 @@
   <scroll-view scroll-y class="container">
     <view class="header">
       <text class="title">交叉校验</text>
-      <text class="subtitle">导入某个资产指定时间段的外部流水，只用于比对，不会直接入账。</text>
+      <text class="subtitle">支持支付宝、微信、工商银行和通用流水；导入某个资产指定时间段的外部流水，只用于比对，不会直接入账。</text>
     </view>
 
     <view class="card">
