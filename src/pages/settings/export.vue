@@ -97,7 +97,7 @@
         <text class="tip-title">导出说明：</text>
         <text class="tip-item">1. 包含指定日期范围内的所有账单记录</text>
         <text class="tip-item">2. 导出格式为 Excel (.xls)</text>
-        <text class="tip-item">3. 包含列：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注</text>
+        <text class="tip-item">3. 包含列：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、手续费、汇兑损益（人民币）、一级分类、二级分类、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注</text>
         <text class="tip-item">4. 可在电脑上进行数据分析</text>
       </view>
     </view>
@@ -242,9 +242,10 @@ const buildExportPayload = () => {
       '目标资产': targetAssetName,
       '目标币种': bill.type === 'transfer' ? (bill.targetCurrency || bill.currency || 'CNY') : '',
       '目标金额': bill.type === 'transfer' ? (bill.targetAmount ?? Math.abs(Number(bill.amount || 0))) : '',
+      '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
+      '汇兑损益（人民币）': bill.type === 'transfer' && bill.fxGainLossAmount ? bill.fxGainLossAmount : '',
       '一级分类': parentCategoryName,
       '二级分类': categoryName,
-      '手续费': bill.type === 'transfer' ? (bill.fee || 0) : '',
       '统计金额': bill.statAmount !== undefined ? bill.statAmount : '',
       'AA组ID': bill.aa?.groupId || '',
       'AA角色': bill.aa?.role || '',
@@ -348,7 +349,7 @@ function generateXLS(data) {
         value = ''
       } else if (typeof value === 'number') {
         // 金额格式化为两位小数
-        if (['金额', '目标金额', '手续费'].includes(header)) {
+        if (['金额', '目标金额', '手续费', '汇兑损益（人民币）'].includes(header)) {
           value = value.toFixed(2)
         }
       }

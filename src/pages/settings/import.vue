@@ -39,7 +39,7 @@
         <view class="format-box">
           <text class="format-title">可上传格式</text>
           <text class="format-text">支付宝 / 微信 / 工商银行：平台导出的 `.xls`、`.xlsx`、`.csv` 原始文件。</text>
-          <text class="format-text">通用模板：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。AA/分期列用于迁移扩展字段，带组 ID 的记录会逐条导入，不会再次展开分期。</text>
+          <text class="format-text">通用模板：日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、手续费、汇兑损益（人民币）、一级分类、二级分类、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。汇兑损益仅用于同资产跨币种转账，正数为收益、负数为损失；AA/分期列用于迁移扩展字段，带组 ID 的记录会逐条导入，不会再次展开分期。</text>
         </view>
       </view>
 
@@ -117,6 +117,7 @@
             <text class="header-cell">目标资产</text>
             <text class="header-cell">目标币种</text>
             <text class="header-cell">目标金额</text>
+            <text class="header-cell">汇兑损益</text>
             <text class="header-cell">分类</text>
             <text class="header-cell">计入统计</text>
             <text class="header-cell wide">备注</text>
@@ -132,8 +133,9 @@
             <text class="cell">{{ row.targetAsset || '-' }}</text>
             <text class="cell">{{ row.targetCurrency || row.currency || 'CNY' }}</text>
             <text class="cell">{{ formatTargetAmount(row) }}</text>
+            <text class="cell">{{ formatFxGainLossAmount(row) }}</text>
             <text class="cell">{{ getCategoryText(row) }}</text>
-            <text class="cell">{{ row.isIncludedInStats === false ? '否' : '是' }}</text>
+            <text class="cell">{{ getStatsInclusionText(row) }}</text>
             <text class="cell wide">{{ row.remark || '-' }}</text>
             <text :class="['cell', rowStatusClass(row)]">{{ rowStatusText(row) }}</text>
           </view>
@@ -558,9 +560,21 @@ const validateData = () => {
     if (row.type === 'transfer') {
       if (!row.targetAsset) {
         errors.push('转账记录必须有目标资产')
-      } else if (row.asset === row.targetAsset) {
-        errors.push('转出资产和目标资产不能相同')
+      } else if (
+        row.asset === row.targetAsset
+        && (row.currency || 'CNY') === (row.targetCurrency || row.currency || 'CNY')
+      ) {
+        errors.push('同一资产转出和转入币种不能相同')
       }
+    }
+
+    const fxGainLossAmount = Number(row.fxGainLossAmount || 0)
+    if (fxGainLossAmount !== 0 && (
+      row.type !== 'transfer'
+      || row.asset !== row.targetAsset
+      || (row.currency || 'CNY') === (row.targetCurrency || row.currency || 'CNY')
+    )) {
+      errors.push('汇兑损益仅支持同资产跨币种转账')
     }
 
     if (row.type === 'adjustment') {
@@ -645,6 +659,7 @@ const startImport = async () => {
           targetAmount: item.type === 'transfer' ? Number(item.targetAmount ?? item.amount ?? 0) : undefined,
 
           targetCurrency: item.type === 'transfer' ? (item.targetCurrency || item.currency || 'CNY') : (item.currency || 'CNY'),
+          fxGainLossAmount: item.fxGainLossAmount,
           type: item.type,
           isIncludedInStats: item.isIncludedInStats,
           fee: item.type === 'transfer' ? Number(item.fee || 0) : 0,
@@ -782,6 +797,16 @@ const formatTargetAmount = (row) => {
 
   return `${Number(amount || 0).toFixed(2)} ${row.targetCurrency || row.currency || 'CNY'}`
 
+}
+
+const formatFxGainLossAmount = (row) => {
+  const amount = Number(row.fxGainLossAmount || 0)
+  return amount ? `${amount.toFixed(2)} CNY` : '-'
+}
+
+const getStatsInclusionText = (row) => {
+  if (Number(row.fxGainLossAmount || 0) !== 0) return '汇兑损益计入'
+  return row.isIncludedInStats === false ? '否' : '是'
 }
 
 const getCategoryText = (row) => {

@@ -214,7 +214,7 @@ const filteredBills = computed(() => {
         b.timestamp >= start &&
         b.timestamp <= end &&
         billStore.getStatType(b) === currentType.value &&
-        b.isIncludedInStats !== false
+        billStore.isStatIncluded(b)
     )
 })
 
@@ -227,7 +227,7 @@ const formatAmountMap = (amountMap = {}) => {
 const totalAmountMap = computed(() => {
     const map = {}
     filteredBills.value.forEach(bill => {
-        const currency = bill.currency || 'CNY'
+        const currency = billStore.getStatCurrency(bill)
         map[currency] = (map[currency] || 0) + billStore.getStatAmount(bill)
     })
     return map
@@ -240,7 +240,7 @@ const categoryStats = computed(() => {
     const totalForPercent = filteredBills.value.reduce((acc, bill) => acc + billStore.getStatAmount(bill), 0) || 1
 
     filteredBills.value.forEach(bill => {
-        const currency = bill.currency || 'CNY'
+        const currency = billStore.getStatCurrency(bill)
         const pid = bill.parentCategoryId || 'unknown'
         const key = `${pid}__${currency}`
         if (!map[key]) {

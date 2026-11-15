@@ -169,7 +169,20 @@
             >{{ option.label }}</view>
           </view>
         </view>
-        <view class="input-wrap" @click.stop="focusAssetBalanceInput">
+        <view v-if="isMultiCurrencyAsset" class="currency-balance-list">
+          <view v-for="currency in assetCurrencyCodes" :key="currency" class="currency-balance-row">
+            <text class="currency-balance-label">
+              {{ currencyOptions.find(option => option.code === currency)?.name || currency }} ({{ currency }})
+            </text>
+            <input
+              class="neu-input currency-balance-input"
+              type="digit"
+              :value="assetForm.balances[currency]"
+              @input="onAssetCurrencyBalanceInput(currency, $event)"
+            />
+          </view>
+        </view>
+        <view v-else class="input-wrap" @click.stop="focusAssetBalanceInput">
           <input
             class="neu-input"
             :value="assetForm.balance"
@@ -189,7 +202,9 @@
           </view>
           <switch :checked="assetForm.includeInTotal" color="#88B194" @change="onAssetIncludeInTotalChange" />
         </view>
-        <text v-if="isEditAssetMode" class="edit-tip">修改总金额后，会自动生成一条资产调整记录。</text>
+        <text v-if="isEditAssetMode" class="edit-tip">
+          {{ isMultiCurrencyAsset ? '修改币种余额后，会按币种分别生成资产调整记录。' : '修改总金额后，会自动生成一条资产调整记录。' }}
+        </text>
         <view class="modal-actions">
           <button class="modal-btn cancel" @click="closeAssetModal">取消</button>
           <button class="modal-btn confirm" @click="confirmSaveAsset">确定</button>
@@ -206,7 +221,7 @@ import { useBillStore } from '@/store/bill'
 import { useCategoryStore } from '@/store/category'
 import { useAssetStore } from '@/store/asset'
 import { ASSET_ADJUSTMENT_CATEGORY_ID } from '@/store/category'
-import { formatCurrencyAmount } from '@/utils/currency'
+import { CURRENCIES, formatCurrencyAmount } from '@/utils/currency'
 import { usePageShare } from '@/utils/share'
 
 usePageShare({ title: '记账本 - 轻松记录每一笔', path: '/pages/index/index' })
@@ -241,9 +256,16 @@ const assetIsMoving = ref(false)
 const showAssetModal = ref(false)
 const isEditAssetMode = ref(false)
 const editingAssetId = ref('')
-const assetForm = reactive({ name: '', balance: '', type: 'digital' })
+const assetForm = reactive({ name: '', balance: '', type: 'digital', balances: {}, includeInTotal: true })
 const assetNameInputFocus = ref(false)
 const assetBalanceInputFocus = ref(false)
+const currencyOptions = CURRENCIES
+const assetCurrencyCodes = computed(() => Object.keys(assetForm.balances).sort((left, right) => {
+  if (left === 'CNY') return -1
+  if (right === 'CNY') return 1
+  return left.localeCompare(right)
+}))
+const isMultiCurrencyAsset = computed(() => isEditAssetMode.value && assetCurrencyCodes.value.length > 1)
 
 const summaryStartX = ref(0)
 const summaryStartY = ref(0)
@@ -298,7 +320,7 @@ const currentMonthBills = computed(() => {
 
 const currentMonthExpense = computed(() => {
   return currentMonthBills.value
-    .filter(b => b.type === 'expense' && (b.currency || 'CNY') === 'CNY' && b.isIncludedInStats !== false)
+    .filter(b => billStore.getStatType(b) === 'expense' && billStore.getStatCurrency(b) === 'CNY' && billStore.isStatIncluded(b))
     .reduce((acc, cur) => acc + billStore.getStatAmount(cur), 0)
     .toFixed(2)
 })
@@ -349,7 +371,7 @@ const groupedBills = computed(() => {
 
     group.bills.push(bill)
 
-    if (bill.type === 'expense' && (bill.currency || 'CNY') === 'CNY' && bill.isIncludedInStats !== false) {
+    if (billStore.getStatType(bill) === 'expense' && billStore.getStatCurrency(bill) === 'CNY' && billStore.isStatIncluded(bill)) {
 
       group.expense += billStore.getStatAmount(bill)
 
@@ -583,6 +605,10 @@ const addAARepayment = (bill) => {
 }
 
 const getBillSpecialText = (bill) => {
+  if (bill.type === 'transfer' && Number(bill.fxGainLossAmount || 0) !== 0) {
+    const label = Number(bill.fxGainLossAmount) > 0 ? '汇兑收益' : '汇兑损失'
+    return `${label} ${formatMoney(Math.abs(Number(bill.fxGainLossAmount)), 'CNY')}`
+  }
   if (bill.aa?.role === 'payer') {
     const settlement = billStore.getAASettlement(bill.aa.groupId)
     return `应收 ${formatMoney(settlement.receivable, bill.currency || 'CNY')} · 待收 ${formatMoney(settlement.outstanding, bill.currency || 'CNY')}`
@@ -738,6 +764,11 @@ const onAssetBalanceInput = (e) => {
   assetForm.balance = e.detail.value
 }
 
+const onAssetCurrencyBalanceInput = (currency, e) => {
+  assetForm.balances[currency] = e.detail.value
+  if (currency === 'CNY') assetForm.balance = e.detail.value
+}
+
 const onAssetIncludeInTotalChange = (e) => {
   assetForm.includeInTotal = e.detail.value
 }
@@ -752,6 +783,7 @@ const openAddAsset = () => {
   editingAssetId.value = ''
   assetForm.name = ''
   assetForm.balance = ''
+  assetForm.balances = {}
   assetForm.type = 'digital'
   assetForm.includeInTotal = true
   activeAssetId.value = null
@@ -767,7 +799,16 @@ const openEditAsset = (asset) => {
 
   setTimeout(() => {
     assetForm.name = asset.name || ''
-    assetForm.balance = Number(asset.currentBalance || 0).toFixed(2)
+    const currencyCodes = new Set([
+      'CNY',
+      ...Object.keys(asset.balances || {}),
+      ...Object.keys(asset.initialBalances || {})
+    ])
+    assetForm.balances = Object.fromEntries([...currencyCodes].map(currency => [
+      currency,
+      Number(asset.balances?.[currency] ?? asset.initialBalances?.[currency] ?? (currency === 'CNY' ? asset.currentBalance : 0) ?? 0).toFixed(2)
+    ]))
+    assetForm.balance = assetForm.balances.CNY
     assetForm.type = asset.type || 'digital'
     assetForm.includeInTotal = asset.includeInTotal !== false
   }, 0)
@@ -780,6 +821,7 @@ const closeAssetModal = () => {
   editingAssetId.value = ''
   assetForm.name = ''
   assetForm.balance = ''
+  assetForm.balances = {}
   assetForm.type = 'digital'
   assetForm.includeInTotal = true
 }
@@ -787,13 +829,16 @@ const closeAssetModal = () => {
 const confirmSaveAsset = async () => {
   const name = assetForm.name.trim()
   const balance = Number(assetForm.balance || 0)
+  const invalidCurrencyBalance = isMultiCurrencyAsset.value && assetCurrencyCodes.value.some(currency => (
+    !Number.isFinite(Number(assetForm.balances[currency]))
+  ))
 
   if (!name) {
     uni.showToast({ title: '请输入资产名称', icon: 'none' })
     return
   }
 
-  if (Number.isNaN(balance)) {
+  if (!Number.isFinite(balance) || invalidCurrencyBalance) {
     uni.showToast({ title: '请输入正确金额', icon: 'none' })
     return
   }
@@ -835,20 +880,31 @@ const confirmSaveAsset = async () => {
       return
     }
 
-    const oldBalance = Number(asset.currentBalance || 0)
-    const delta = Number((balance - oldBalance).toFixed(2))
-
     assetStore.updateAsset(asset.id, { name, type: assetForm.type || 'digital', includeInTotal: assetForm.includeInTotal })
 
-    if (delta !== 0) {
+    const balancesToEdit = isMultiCurrencyAsset.value
+      ? assetCurrencyCodes.value.map(currency => ({ currency, balance: Number(assetForm.balances[currency]) }))
+      : [{ currency: 'CNY', balance }]
+    const adjustments = balancesToEdit.map(({ currency, balance: nextBalance }) => {
+      const oldBalance = Number(asset.balances?.[currency] ?? asset.initialBalances?.[currency] ?? (currency === 'CNY' ? asset.currentBalance : 0) ?? 0)
+      return {
+        currency,
+        oldBalance,
+        balance: nextBalance,
+        delta: Number((nextBalance - oldBalance).toFixed(2))
+      }
+    }).filter(item => item.delta !== 0)
+
+    const adjustmentTimestamp = Date.now()
+    for (const [index, adjustment] of adjustments.entries()) {
       await billStore.addBill({
-        amount: delta,
+        amount: adjustment.delta,
         assetId: asset.id,
         type: 'adjustment',
-        timestamp: Date.now(),
-        remark: `资产调整：${oldBalance.toFixed(2)} → ${balance.toFixed(2)}`,
-        currency: 'CNY',
-        targetCurrency: 'CNY',
+        timestamp: adjustmentTimestamp + index,
+        remark: `资产调整（${adjustment.currency}）：${adjustment.oldBalance.toFixed(2)} → ${adjustment.balance.toFixed(2)}`,
+        currency: adjustment.currency,
+        targetCurrency: adjustment.currency,
         parentCategoryId: ASSET_ADJUSTMENT_CATEGORY_ID,
         categoryId: ASSET_ADJUSTMENT_CATEGORY_ID,
         isIncludedInStats: false,
@@ -856,7 +912,7 @@ const confirmSaveAsset = async () => {
       })
     }
 
-    uni.showToast({ title: delta === 0 ? '已更新' : '已调整' })
+    uni.showToast({ title: adjustments.length === 0 ? '已更新' : '已调整' })
     closeAssetModal()
   } catch (error) {
     console.error(error)
@@ -1495,6 +1551,9 @@ const onAssetTouchCancel = () => {
 .modal {
   width: 80%;
   max-width: 400px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-sizing: border-box;
   padding: 30px;
   background: #FFF9F0;
   border-radius: 20px;
@@ -1537,6 +1596,32 @@ const onAssetTouchCancel = () => {
   position: relative;
   z-index: 1003;
   pointer-events: auto;
+}
+
+.currency-balance-list {
+  max-height: 34vh;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.currency-balance-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.currency-balance-label {
+  flex: 0 0 112px;
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.currency-balance-input {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
 }
 
 .type-wrap {

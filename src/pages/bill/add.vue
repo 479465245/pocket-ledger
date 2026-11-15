@@ -163,6 +163,38 @@
 
             </view>
 
+            <view v-if="isSameAssetCurrencyConversion" class="transfer-row fx-adjustment-row">
+                <view class="row-label">
+                    <text>汇兑损益</text>
+                </view>
+                <view class="fx-mode-options">
+                    <view
+                        v-for="option in fxGainLossModes"
+                        :key="option.value"
+                        :class="['fx-mode-option', { active: form.fxGainLossType === option.value }]"
+                        @click="form.fxGainLossType = option.value"
+                    >
+                        {{ option.label }}
+                    </view>
+                </view>
+            </view>
+
+            <view v-if="isSameAssetCurrencyConversion && form.fxGainLossType !== 'none'" class="transfer-row input-row">
+                <view class="row-label">
+                    <text>{{ form.fxGainLossType === 'gain' ? '收益金额' : '损失金额' }}</text>
+                </view>
+                <view class="row-right">
+                    <input
+                        class="fee-input"
+                        type="digit"
+                        :value="form.fxGainLossAmountStr"
+                        placeholder="0.00"
+                        @input="onFxGainLossAmountInput"
+                    />
+                    <text class="fee-unit">CNY</text>
+                </view>
+            </view>
+
             
 
             <!-- 手续费输入 -->
@@ -230,6 +262,18 @@
                 <view class="option-tag" @click="form.isIncludedInStats = !form.isIncludedInStats" v-if="currentTab !== 'transfer'">
                     <text>{{ form.isIncludedInStats ? '计入统计' : '不计入统计' }}</text>
                 </view>
+                <picker
+                    v-if="canBatchAddBills"
+                    class="option-picker"
+                    mode="selector"
+                    :range="batchBillCountOptions"
+                    :value="batchBillCount - 1"
+                    @change="onBatchBillCountChange"
+                >
+                    <view class="option-tag">
+                        <text>新增 {{ batchBillCount }} 笔</text>
+                    </view>
+                </picker>
                 <view class="option-tag disabled" v-if="currentTab === 'transfer'">
                     <text>不计入统计</text>
                 </view>
@@ -492,6 +536,8 @@ const tabs = [
 
 const currentTab = ref('expense')
 const scrollTop = ref(0)
+const batchBillCount = ref(1)
+const batchBillCountOptions = Array.from({ length: 10 }, (_, index) => `${index + 1} 笔`)
 const selectedCategoryId = ref('')
 const selectedParentId = ref('') // To track which parent is expanded
 const showAssetPicker = ref(false)
@@ -543,9 +589,22 @@ const form = reactive({
     installmentAmountsCustomized: false,
     // 转账相关字段
     targetAssetId: '',
-    fee: '0' // 手续费
+    fee: '0',
+    fxGainLossType: 'none',
+    fxGainLossAmountStr: ''
 })
 
+const fxGainLossModes = [
+    { value: 'none', label: '不记录' },
+    { value: 'gain', label: '收益' },
+    { value: 'loss', label: '损失' }
+]
+const isSameAssetCurrencyConversion = computed(() =>
+    currentTab.value === 'transfer'
+    && !!form.assetId
+    && form.assetId === form.targetAssetId
+    && form.currency !== form.targetCurrency
+)
 const categories = computed(() => {
     return categoryStore.categories.filter(c => c.type === currentTab.value && !c.hidden)
 })
@@ -616,6 +675,12 @@ const displayTransferInAmount = computed(() => {
 })
 
 const isAARepayment = computed(() => currentTab.value === 'income' && !!form.aaGroupId)
+const canBatchAddBills = computed(() =>
+    !isEditMode.value
+    && !form.aaEnabled
+    && !form.installmentEnabled
+    && !isAARepayment.value
+)
 const aaSettlement = computed(() => form.aaGroupId
     ? billStore.getAASettlement(form.aaGroupId)
     : { receivable: 0, settled: 0, outstanding: 0 })
@@ -825,15 +890,18 @@ const loadBillData = (id) => {
     currentTab.value = bill.type
     
     // 填充表单数据
-    form.amountStr = Math.abs(bill.amount).toString()
+    const sourceAmount = Math.abs(Number(bill.amount || 0))
+    form.amountStr = sourceAmount.toString()
     form.remark = bill.remark || ''
     form.date = toLocalDateString(new Date(bill.timestamp))
     form.assetId = bill.assetId
     form.parentCategoryId = bill.parentCategoryId
     form.categoryId = bill.categoryId
     form.currency = bill.currency || 'CNY'
-    form.targetCurrency = bill.targetCurrency || bill.currency || 'CNY'
-    form.targetAmountStr = bill.targetAmount !== undefined ? Math.abs(Number(bill.targetAmount || 0)).toString() : ''
+    form.targetCurrency = bill.targetCurrency || form.currency
+    form.targetAmountStr = ''
+    form.fxGainLossType = 'none'
+    form.fxGainLossAmountStr = ''
     form.isIncludedInStats = bill.isIncludedInStats !== false
     form.aaEnabled = !!bill.aa?.enabled && bill.aa?.role !== 'repayment'
     form.aaOwnAmountStr = bill.aa?.ownAmount !== undefined ? String(bill.aa.ownAmount) : ''
@@ -848,11 +916,16 @@ const loadBillData = (id) => {
 
     if (bill.type === 'transfer') {
         form.targetAssetId = bill.targetAssetId || ''
-        form.targetAmountStr = Math.abs(Number(bill.targetAmount ?? Math.abs(Number(bill.amount || 0)))).toString()
-
-        form.targetCurrency = bill.targetCurrency || bill.currency || 'CNY'
-
+        const targetAmount = Math.abs(Number(bill.targetAmount))
+        form.targetAmountStr = Number.isFinite(targetAmount) && targetAmount > 0
+            ? targetAmount.toString()
+            : sourceAmount.toString()
+        form.targetCurrency = bill.targetCurrency || form.currency
         form.fee = bill.fee ? bill.fee.toString() : '0'
+
+        const fxGainLossAmount = Number(bill.fxGainLossAmount || 0)
+        form.fxGainLossType = fxGainLossAmount > 0 ? 'gain' : fxGainLossAmount < 0 ? 'loss' : 'none'
+        form.fxGainLossAmountStr = fxGainLossAmount ? Math.abs(fxGainLossAmount).toString() : ''
     }
     
     // 设置选中的分类
@@ -877,17 +950,23 @@ const loadBillData = (id) => {
 
 const switchTab = (val) => {
     transferAmountSyncSource.value = ''
+    batchBillCount.value = 1
     if (val !== currentTab.value) {
         form.aaGroupId = ''
         form.aaPayerBillId = ''
     }
     currentTab.value = val
     assetTouched.value = false
-    if (val === 'transfer') {
-        form.isIncludedInStats = false
+    if (val !== 'expense') {
         form.aaEnabled = false
         form.installmentEnabled = false
         form.aaOwnAmountStr = ''
+        form.aaReceivableAmountStr = ''
+        form.installmentPeriodAmounts = []
+        form.installmentAmountsCustomized = false
+    }
+    if (val === 'transfer') {
+        form.isIncludedInStats = false
         form.aaGroupId = ''
 
         form.currency = form.currency || 'CNY'
@@ -911,6 +990,7 @@ const toggleAA = () => {
     if (isEditMode.value && !form.aaEnabled) return
     form.aaEnabled = !form.aaEnabled
     if (form.aaEnabled) {
+        batchBillCount.value = 1
         form.installmentEnabled = false
         if (!form.aaOwnAmountStr) form.aaOwnAmountStr = form.amountStr
         if (!form.aaReceivableAmountStr) form.aaReceivableAmountStr = '0'
@@ -921,6 +1001,7 @@ const toggleInstallment = () => {
     if (isEditMode.value && !form.installmentEnabled) return
     form.installmentEnabled = !form.installmentEnabled
     if (form.installmentEnabled) {
+        batchBillCount.value = 1
         form.aaEnabled = false
         form.aaOwnAmountStr = ''
         form.aaReceivableAmountStr = ''
@@ -992,6 +1073,7 @@ const selectAAReceipt = (item) => {
     form.targetCurrency = form.currency
     form.remark = payer.remark ? `AA收款：${payer.remark}` : 'AA收款'
     form.isIncludedInStats = false
+    batchBillCount.value = 1
     assetTouched.value = true
     showAAReceiptPicker.value = false
 }
@@ -1061,11 +1143,6 @@ const openAssetPicker = (type) => {
 
 const selectAsset = (a) => {
     assetTouched.value = true
-    const conflictingAssetId = pickingAssetType.value === 'source' ? form.targetAssetId : form.assetId
-    if (currentTab.value === 'transfer' && a.id === conflictingAssetId) {
-        uni.showToast({ title: '转出账户和转入账户不能相同', icon: 'none' })
-        return
-    }
     if (pickingAssetType.value === 'source') {
         form.assetId = a.id
     } else {
@@ -1187,6 +1264,10 @@ const onDateChange = (e) => {
     form.date = e.detail.value
 }
 
+const onBatchBillCountChange = (e) => {
+    batchBillCount.value = Number(e.detail.value) + 1
+}
+
 const onAmountInput = (e) => {
     let value = e.detail.value.replace(/[^\d.]/g, '')
     const parts = value.split('.')
@@ -1236,6 +1317,10 @@ const onFeeInput = (e) => {
     form.fee = value
 }
 
+const onFxGainLossAmountInput = (e) => {
+    form.fxGainLossAmountStr = normalizeAmountInput(e.detail.value)
+}
+
 const cancelEdit = () => {
     uni.navigateBack()
 }
@@ -1243,6 +1328,7 @@ const cancelEdit = () => {
 const resetForm = () => {
 
     form.amountStr = '0'
+    batchBillCount.value = 1
     transferAmountSyncSource.value = ''
 
     form.remark = ''
@@ -1254,6 +1340,8 @@ const resetForm = () => {
     form.installmentFeeStr = '0'
     form.installmentPeriodAmounts = []
     form.installmentAmountsCustomized = false
+    form.fxGainLossType = 'none'
+    form.fxGainLossAmountStr = ''
 
     form.isIncludedInStats = currentTab.value !== 'transfer'
 
@@ -1280,16 +1368,16 @@ const submit = async () => {
              uni.showToast({ title: '请选择转入账户', icon: 'none' })
              return
         }
-        if (form.assetId === form.targetAssetId) {
-             uni.showToast({ title: '转出账户和转入账户不能相同', icon: 'none' })
-             return
-        }
         if (!form.currency) {
              uni.showToast({ title: '请选择转出币种', icon: 'none' })
              return
         }
         if (!form.targetCurrency) {
              uni.showToast({ title: '请选择转入币种', icon: 'none' })
+             return
+        }
+        if (form.assetId === form.targetAssetId && form.currency === form.targetCurrency) {
+             uni.showToast({ title: '同一账户转账需要使用不同币种', icon: 'none' })
              return
         }
         if (!val || val <= 0) {
@@ -1307,6 +1395,13 @@ const submit = async () => {
         if (Number.isNaN(feeVal) || feeVal < 0) {
              uni.showToast({ title: '请输入正确手续费', icon: 'none' })
              return
+        }
+        if (isSameAssetCurrencyConversion.value && form.fxGainLossType !== 'none') {
+            const fxAmount = Number(form.fxGainLossAmountStr)
+            if (!Number.isFinite(fxAmount) || fxAmount <= 0) {
+                uni.showToast({ title: '请输入正确的汇兑损益金额', icon: 'none' })
+                return
+            }
         }
     } else {
         if (!form.assetId) {
@@ -1380,6 +1475,13 @@ const submit = async () => {
             type: currentTab.value,
             timestamp: timestamp,
             remark: form.remark,
+            fxGainLossAmount: isSameAssetCurrencyConversion.value
+                ? form.fxGainLossType === 'gain'
+                    ? Number(form.fxGainLossAmountStr)
+                    : form.fxGainLossType === 'loss'
+                        ? -Number(form.fxGainLossAmountStr)
+                        : 0
+                : undefined,
             isIncludedInStats: isAARepayment.value ? false : (currentTab.value === 'transfer' ? false : form.isIncludedInStats),
             fee: currentTab.value === 'transfer' ? parseFloat(form.fee) || 0 : 0,
             aa: isAARepayment.value
@@ -1441,8 +1543,14 @@ const submit = async () => {
             await billStore.updateBill(editBillId.value, billData)
             uni.showToast({ title: '已更新' })
         } else {
-            await billStore.addBill(billData)
-            uni.showToast({ title: '已保存' })
+            const billCount = canBatchAddBills.value ? batchBillCount.value : 1
+            for (let index = 0; index < billCount; index += 1) {
+                await billStore.addBill({
+                    ...billData,
+                    timestamp: timestamp + index
+                })
+            }
+            uni.showToast({ title: billCount === 1 ? '已保存' : `已新增 ${billCount} 笔账单` })
         }
         
         resetForm()
@@ -2318,6 +2426,35 @@ input.breakdown-value {
     &:active {
         background: #e1e6eb;
     }
+}
+
+.fx-adjustment-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.fx-mode-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 3px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.fx-mode-option {
+    padding: 7px 4px;
+    border-radius: 6px;
+    color: var(--color-text-light);
+    font-size: 12px;
+    text-align: center;
+}
+
+.fx-mode-option.active {
+    background: var(--glass-bg-strong);
+    color: var(--color-text);
+    font-weight: 700;
 }
 
 .transfer-divider {

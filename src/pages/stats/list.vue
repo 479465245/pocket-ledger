@@ -204,8 +204,8 @@ const filteredBills = computed(() => {
   return billStore.bills.filter(b => {
     if (b.timestamp < start || b.timestamp > end) return false
     if (billStore.getStatType(b) !== type) return false
-    if (params.value.currency && (b.currency || 'CNY') !== params.value.currency) return false
-    if (b.isIncludedInStats === false) return false
+    if (params.value.currency && billStore.getStatCurrency(b) !== params.value.currency) return false
+    if (!billStore.isStatIncluded(b)) return false
 
     if (filterType === 'parent') {
       return b.parentCategoryId === id
@@ -225,14 +225,15 @@ const assetTotalSummary = computed(() => {
   const expenseMap = {}
 
   filteredBills.value.forEach(bill => {
-    const scoped = getAssetScopedAmount(bill)
-    const currency = scoped.currency || 'CNY'
-    const amount = Number(scoped.amount || 0)
-    if (amount > 0) {
-      incomeMap[currency] = (incomeMap[currency] || 0) + amount
-    } else if (amount < 0) {
-      expenseMap[currency] = (expenseMap[currency] || 0) + Math.abs(amount)
-    }
+    getAssetScopedMovements(bill).forEach(({ amount: value, currency: billCurrency }) => {
+      const currency = billCurrency || 'CNY'
+      const amount = Number(value || 0)
+      if (amount > 0) {
+        incomeMap[currency] = (incomeMap[currency] || 0) + amount
+      } else if (amount < 0) {
+        expenseMap[currency] = (expenseMap[currency] || 0) + Math.abs(amount)
+      }
+    })
   })
 
   const formatMap = (map) => {
@@ -253,15 +254,14 @@ const groupedBills = computed(() => {
 
   filteredBills.value.forEach(bill => {
     const dateKey = formatDateKey(bill.timestamp)
-    const scoped = getAssetScopedAmount(bill)
-    const key = `${dateKey}__${scoped.currency || 'CNY'}`
+    const movements = getAssetScopedMovements(bill)
+    const key = isAssetMode.value ? dateKey : `${dateKey}__${movements[0].currency || 'CNY'}`
     if (!map.has(key)) {
       const group = {
         dateKey: key,
         title: formatDayTitle(bill.timestamp),
         bills: [],
-        total: 0,
-        currency: scoped.currency || 'CNY'
+        totals: {}
       }
       map.set(key, group)
       groups.push(group)
@@ -269,12 +269,17 @@ const groupedBills = computed(() => {
 
     const group = map.get(key)
     group.bills.push(bill)
-    group.total += scoped.amount
+    movements.forEach(({ amount, currency }) => {
+      const code = currency || 'CNY'
+      group.totals[code] = (group.totals[code] || 0) + Number(amount || 0)
+    })
   })
 
   return groups.map(group => ({
     ...group,
-    totalText: formatCurrencyAmount(group.total, group.currency)
+    totalText: Object.entries(group.totals)
+      .map(([currency, amount]) => formatCurrencyAmount(amount, currency))
+      .join(' / ')
   }))
 })
 
@@ -339,6 +344,9 @@ const onTouchCancel = () => {
 const decodeDisplayText = (value) => decodeHtmlEntities(value)
 
 const getCategoryName = (bill) => {
+  if (bill.type === 'transfer' && !params.value.assetId && billStore.getStatType(bill) !== 'transfer') {
+    return getCategoryNameById(bill.parentCategoryId || bill.categoryId)
+  }
   if (bill.type === 'transfer') return params.value.assetId ? '转账' : '信用卡还款'
   if (bill.type === 'adjustment') return '资产调整'
   if (bill.type === 'refund') return `退款 · ${getCategoryNameById(bill.categoryId || bill.parentCategoryId)}`
@@ -421,13 +429,51 @@ const getAssetScopedAmount = (bill) => {
   }
 }
 
+const getAssetScopedMovements = (bill) => {
+  const assetId = params.value.assetId
+  if (assetId && bill.type === 'transfer' && bill.assetId === assetId && bill.targetAssetId === assetId) {
+    return [
+      { amount: Number(bill.amount || 0) - Math.abs(Number(bill.fee || 0)), currency: bill.currency || 'CNY' },
+      {
+        amount: Number(bill.targetAmount ?? Math.abs(Number(bill.amount || 0))),
+        currency: bill.targetCurrency || bill.currency || 'CNY'
+      }
+    ]
+  }
+  return [getAssetScopedAmount(bill)]
+}
+
 const getDisplayAmount = (bill) => {
+  if (bill.type === 'transfer' && billStore.getStatType(bill) !== 'transfer' && !params.value.assetId) {
+    return formatCurrencyAmount(bill.fxGainLossAmount, billStore.getStatCurrency(bill))
+  }
+
+  const assetId = params.value.assetId
+  if (assetId && bill.type === 'transfer' && bill.assetId === assetId && bill.targetAssetId === assetId) {
+    const source = formatCurrencyAmount(Number(bill.amount || 0), bill.currency || 'CNY')
+    const target = formatCurrencyAmount(
+      Number(bill.targetAmount ?? Math.abs(Number(bill.amount || 0))),
+      bill.targetCurrency || bill.currency || 'CNY'
+    )
+    return `${source} → ${target}`
+  }
+
   const scoped = getAssetScopedAmount(bill)
   return formatCurrencyAmount(scoped.amount, scoped.currency)
 }
 
 const getAssetBalanceSnapshotText = (bill) => {
   const assetId = params.value.assetId
+  if (assetId && bill.type === 'transfer' && bill.assetId === assetId && bill.targetAssetId === assetId) {
+    const source = bill.balanceSnapshot === undefined
+      ? '--'
+      : formatCurrencyAmount(bill.balanceSnapshot, bill.balanceCurrency || bill.currency || 'CNY')
+    const target = bill.targetBalanceSnapshot === undefined
+      ? '--'
+      : formatCurrencyAmount(bill.targetBalanceSnapshot, bill.targetBalanceCurrency || bill.targetCurrency || 'CNY')
+    return `${source} / ${target}`
+  }
+
   if (assetId && bill.type === 'transfer' && bill.targetAssetId === assetId) {
     if (bill.targetBalanceSnapshot === undefined) return '--'
     return formatCurrencyAmount(bill.targetBalanceSnapshot, bill.targetBalanceCurrency || bill.targetCurrency || bill.currency || 'CNY')
@@ -438,6 +484,9 @@ const getAssetBalanceSnapshotText = (bill) => {
 }
 
 const getAmountClass = (bill) => {
+  if (bill.type === 'transfer' && billStore.getStatType(bill) !== 'transfer' && !params.value.assetId) {
+    return billStore.getStatType(bill)
+  }
   return getAssetScopedAmount(bill).amount >= 0 ? 'income' : 'expense'
 }
 

@@ -159,7 +159,7 @@ const categoryStats = computed(() => {
   const bills = billStore.bills.filter(bill => {
     const billDate = new Date(bill.timestamp)
     const pickerDate = new Date(pickerValue.value)
-    const billCurrency = bill.currency || 'CNY'
+    const billCurrency = billStore.getStatCurrency(bill)
     
     let match = false
     if (periodType.value === 'month') {
@@ -171,7 +171,7 @@ const categoryStats = computed(() => {
     
     return match &&
       billStore.getStatType(bill) === currentType.value &&
-      bill.isIncludedInStats !== false &&
+      billStore.isStatIncluded(bill) &&
       bill.parentCategoryId === routeParams.value.parentId &&
       (!routeParams.value.currency || billCurrency === routeParams.value.currency)
   })
@@ -182,7 +182,7 @@ const categoryStats = computed(() => {
   const parent = categoryStore.categories.find(c => c.id === routeParams.value.parentId)
   
   bills.forEach(bill => {
-    const currency = bill.currency || 'CNY'
+    const currency = billStore.getStatCurrency(bill)
     const group = getCategoryStatGroup(bill, parent)
     const key = `${group.id}__${currency}`
     

@@ -46,13 +46,20 @@ export const getPeriodBuckets = (period, date) => {
 
 export const isIncludedStatBill = (bill, billStore) => {
   const type = billStore.getStatType(bill)
-  return bill.isIncludedInStats !== false && (type === 'income' || type === 'expense')
+  const included = billStore.isStatIncluded
+    ? billStore.isStatIncluded(bill)
+    : bill.isIncludedInStats !== false
+  return included && (type === 'income' || type === 'expense')
 }
+
+const getStatCurrency = (bill, billStore) => billStore.getStatCurrency
+  ? billStore.getStatCurrency(bill)
+  : normalizeCurrency(bill.currency)
 
 export const getStatCurrencies = (bills, billStore, assets = []) => {
   const currencies = new Set()
   bills.forEach(bill => {
-    if (isIncludedStatBill(bill, billStore)) currencies.add(normalizeCurrency(bill.currency))
+    if (isIncludedStatBill(bill, billStore)) currencies.add(normalizeCurrency(getStatCurrency(bill, billStore)))
   })
   assets.forEach(asset => {
     Object.keys(asset.initialBalances || {}).forEach(currency => currencies.add(normalizeCurrency(currency)))
@@ -77,7 +84,7 @@ export const buildIncomeExpenseTrend = ({ bills = [], billStore, period, date, c
   bills
     .filter(bill => bill.timestamp >= range.start && bill.timestamp <= range.end)
     .filter(bill => isIncludedStatBill(bill, billStore))
-    .filter(bill => normalizeCurrency(bill.currency) === normalizeCurrency(currency))
+    .filter(bill => normalizeCurrency(getStatCurrency(bill, billStore)) === normalizeCurrency(currency))
     .forEach(bill => {
       const bucket = getBillBucket(bill.timestamp, values)
       if (!bucket) return
@@ -186,7 +193,7 @@ export const buildAnnualSummaryReport = ({ bills = [], billStore, year, currency
   bills
     .filter(bill => bill.timestamp >= range.start && bill.timestamp <= range.end)
     .filter(bill => isIncludedStatBill(bill, billStore))
-    .filter(bill => normalizeCurrency(bill.currency) === selectedCurrency)
+    .filter(bill => normalizeCurrency(getStatCurrency(bill, billStore)) === selectedCurrency)
     .forEach(bill => {
       const type = billStore.getStatType(bill)
       const parentId = bill.parentCategoryId || 'unknown'

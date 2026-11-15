@@ -3,6 +3,7 @@ import { generateId } from '@/utils/uuid'
 import { getRefundSummary as calculateRefundSummary, getRefundTransactionAmount, validateRefundAmount } from '@/utils/refund'
 import { normalizeTransferBill } from '@/utils/transfer'
 import { buildInstallmentPlan } from '@/utils/installment'
+import { FX_GAIN_CATEGORY_ID, FX_LOSS_CATEGORY_ID } from './category'
 import { useAssetStore } from './asset'
 
 const STORAGE_KEY = 'account_book_bills'
@@ -222,7 +223,26 @@ export const useBillStore = defineStore('bill', {
         throw new Error('AA与分期不能同时使用')
       }
 
-      return normalizeTransferBill(normalized)
+      const normalizedTransfer = normalizeTransferBill(normalized)
+      const fxGainLossAmount = Number(normalizedTransfer.fxGainLossAmount || 0)
+      if (normalized.type !== 'transfer' && fxGainLossAmount !== 0) {
+        throw new Error('汇兑损益仅支持同资产跨币种转账')
+      }
+      if (normalized.type !== 'transfer') {
+        normalizedTransfer.fxGainLossAmount = undefined
+      } else if (fxGainLossAmount !== 0) {
+        const categoryId = fxGainLossAmount > 0 ? FX_GAIN_CATEGORY_ID : FX_LOSS_CATEGORY_ID
+        normalizedTransfer.parentCategoryId = categoryId
+        normalizedTransfer.categoryId = categoryId
+      } else {
+        if ([FX_GAIN_CATEGORY_ID, FX_LOSS_CATEGORY_ID].includes(normalizedTransfer.parentCategoryId)) {
+          normalizedTransfer.parentCategoryId = undefined
+        }
+        if ([FX_GAIN_CATEGORY_ID, FX_LOSS_CATEGORY_ID].includes(normalizedTransfer.categoryId)) {
+          normalizedTransfer.categoryId = undefined
+        }
+      }
+      return normalizedTransfer
     },
     validateAAGroup(groupId, billData = {}, currentId = '') {
       const payer = billData.aa?.payerBillId
@@ -625,10 +645,20 @@ export const useBillStore = defineStore('bill', {
       this.save()
     },
     getStatType(bill) {
-      if (!bill || bill.type === 'transfer' || bill.type === 'refund' || bill.type === 'adjustment') return bill?.type || ''
+      if (!bill) return ''
+      if (bill.type === 'transfer') {
+        const fxGainLossAmount = Number(bill.fxGainLossAmount || 0)
+        if (fxGainLossAmount > 0) return 'income'
+        if (fxGainLossAmount < 0) return 'expense'
+        return 'transfer'
+      }
+      if (bill.type === 'refund' || bill.type === 'adjustment') return bill.type
       return bill.type
     },
     getStatAmount(bill) {
+      if (bill?.type === 'transfer') {
+        return Math.abs(Number(bill.fxGainLossAmount || 0))
+      }
       if (bill.statAmount !== undefined && bill.statAmount !== null) {
         return Math.abs(Number(bill.statAmount || 0))
       }
@@ -636,6 +666,20 @@ export const useBillStore = defineStore('bill', {
         return Math.abs(Number(bill.aa.ownAmount || 0))
       }
       return Math.abs(Number(bill.amount || 0))
+    },
+    getStatCurrency(bill) {
+      const fxGainLossAmount = Number(bill?.fxGainLossAmount || 0)
+      return bill?.type === 'transfer' && Number.isFinite(fxGainLossAmount) && fxGainLossAmount !== 0
+        ? 'CNY'
+        : normalizeCurrency(bill?.currency)
+    },
+    isStatIncluded(bill) {
+      if (!bill) return false
+      if (bill.type === 'transfer') {
+        const fxGainLossAmount = Number(bill.fxGainLossAmount || 0)
+        return Number.isFinite(fxGainLossAmount) && fxGainLossAmount !== 0
+      }
+      return bill.isIncludedInStats !== false
     },
     migrateCategory(oldCatId, newCatId) {
       let count = 0

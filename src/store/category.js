@@ -4,6 +4,8 @@ import { generateId } from '@/utils/uuid'
 const STORAGE_KEY = 'account_book_categories'
 
 export const ASSET_ADJUSTMENT_CATEGORY_ID = 'sys-asset-adjustment'
+export const FX_GAIN_CATEGORY_ID = 'sys-fx-gain'
+export const FX_LOSS_CATEGORY_ID = 'sys-fx-loss'
 
 const systemCategories = [
   {
@@ -11,6 +13,26 @@ const systemCategories = [
     name: '资产调整',
     type: 'expense',
     icon: '⚖️',
+    parentId: null,
+    children: [],
+    isSystem: true,
+    hidden: true
+  },
+  {
+    id: FX_GAIN_CATEGORY_ID,
+    name: '汇兑收益',
+    type: 'income',
+    icon: '💱',
+    parentId: null,
+    children: [],
+    isSystem: true,
+    hidden: true
+  },
+  {
+    id: FX_LOSS_CATEGORY_ID,
+    name: '汇兑损失',
+    type: 'expense',
+    icon: '💱',
     parentId: null,
     children: [],
     isSystem: true,

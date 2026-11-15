@@ -37,7 +37,9 @@ export const buildBillAnalysisContext = ({
   const endTime = endOfDay(endDate)
   const rangeBills = bills
     .filter(bill => bill.timestamp >= startTime && bill.timestamp <= endTime)
-    .filter(bill => bill.isIncludedInStats !== false)
+    .filter(bill => billStore?.isStatIncluded
+      ? billStore.isStatIncluded(bill)
+      : bill.isIncludedInStats !== false)
     .sort((a, b) => a.timestamp - b.timestamp)
 
   const categoryMap = new Map()
@@ -97,8 +99,8 @@ export const buildBillAnalysisContext = ({
     largestBills,
     anomalies,
     rules: [
-      '统计默认排除 isIncludedInStats === false 的账单。',
-      '转账不作为收入或支出参与分析。',
+      '收入和支出默认排除 isIncludedInStats === false 的账单；汇兑损益按独立统计项处理。',
+      '转账本身不作为收支；同资产跨币种转账的汇兑损益计入收入或支出。',
       '金额统计复用账单 store 的 getStatType 和 getStatAmount 口径。'
     ]
   }

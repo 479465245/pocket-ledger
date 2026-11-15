@@ -56,6 +56,8 @@ const HEADER_ALIASES = {
 
     targetAmount: ['目标金额', '转入金额', '到账金额'],
 
+    fxGainLossAmount: ['汇兑损益（人民币）', '汇兑损益金额', '汇兑损益'],
+
     category1: ['一级分类', '分类', '父分类'],
 
     category2: ['二级分类', '子分类'],
@@ -460,6 +462,7 @@ const parseGenericRow = (row, headerMap, rowIndex) => {
   const parsedTargetAmount = parseAmount(rawTargetAmount)
 
   const targetAmount = parsedTargetAmount ?? amount ?? 0
+  const fxGainLossAmount = parseSignedAmount(getCell(row, headerMap, 'fxGainLossAmount'))
 
   const defaultIncludedInStats = type ? !['transfer', 'refund', 'adjustment'].includes(type) : false
 
@@ -505,6 +508,8 @@ const parseGenericRow = (row, headerMap, rowIndex) => {
     targetCurrency,
 
     targetAmount,
+
+    fxGainLossAmount: fxGainLossAmount ?? undefined,
 
     category1: getCell(row, headerMap, 'category1'),
 

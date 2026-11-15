@@ -85,12 +85,13 @@ pnpm type-check
 - `categoryStore` 管理收入、支出、系统分类和二级分类，持久化 key 为 `account_book_categories`。
 - `billStore` 管理账单流水、退款、转账、AA 分摊/还款、分期组和资产余额快照。账单是资产余额和统计的事实来源；资产当前余额不能绕过账单流水长期单独维护。
 - AA 付款保留完整 `amount`，用 `aa.ownAmount` 作为支出统计金额；AA 还款是关联同组的正数收入，强制 `isIncludedInStats: false`，累计还款不得超过待收金额。
+- 同资产跨币种转账可保存 `fxGainLossAmount` 人民币汇兑损益；正数计收入、负数计支出，只影响统计，不影响资产余额。
 - 分期账单通过 `addInstallment()` 生成完整分期组，首期统计总额加手续费，后续期不重复统计；编辑、删除必须通过整组入口。未来日期账单只在到期后进入资产当前余额，但仍生成时间线快照。
 
 ### 明细与记账模块
 
 - `pages/index/index.vue` 是账单明细首页，负责按月份展示流水、月度收支、资产视图、编辑、退款、删除，以及从首次使用导入创建账单。
-- `pages/bill/add.vue` 负责新增和编辑支出、收入、转账，处理金额键盘、日期、分类、资产、币种、目标资产、手续费和是否计入统计。
+- `pages/bill/add.vue` 负责新增和编辑支出、收入、转账，处理金额键盘、日期、分类、资产、币种、目标资产、手续费、汇兑损益、是否计入统计和普通账单批量新增。
 - 明细页和统计明细页删除账单时必须调用 `billStore.deleteBill()`，不能只从页面列表里移除。
 - 编辑账单必须调用 `billStore.updateBill()`，让原资产、新资产、转出资产、转入资产都进入重算范围。
 
@@ -98,6 +99,7 @@ pnpm type-check
 
 - 资产新增、编辑、删除通过 `assetStore.addAsset()`、`updateAsset()`、`deleteAsset()` 完成。
 - 资产支持 `currency`、`balances`、`initialBalances` 和 `includeInTotal`；CNY 余额同步到兼容字段 `initialBalance`、`currentBalance`。
+- 编辑多币种资产时逐币种修改当前余额；保存差额必须通过 `billStore.addBill()` 写为对应币种的资产调整账单，不直接覆盖账单推导出的余额。
 - 分类管理页 `pages/categories/index.vue` 负责分类交互，核心删除逻辑已经收敛到 `categoryStore.deleteCategory()`。
 - 系统分类 `ASSET_ADJUSTMENT_CATEGORY_ID` 表示资产调整，隐藏且不可修改、不可删除。
 - 删除分类时要传入 `billStore`，确保账单迁移或删除后余额能重新计算。
@@ -107,17 +109,17 @@ pnpm type-check
 - `pages/stats/index.vue` 按月或年、收入或支出聚合一级分类金额。
 - `pages/stats/category.vue` 展示某一级分类下的二级分类拆分。
 - `pages/stats/list.vue` 展示统计下钻后的账单列表，并支持编辑、删除。
-- 统计必须统一使用 `billStore.getStatType()` 和 `billStore.getStatAmount()` 对账单类型和金额做解释，避免页面各自维护规则。
-- 默认只统计 `isIncludedInStats !== false` 的账单；外币收入和支出初始化时会恢复为可统计。
+- 统计必须统一使用 `billStore.getStatType()`、`getStatAmount()`、`getStatCurrency()` 和 `isStatIncluded()` 对账单统计口径做解释，避免页面各自维护规则。
+- 默认只统计 `isIncludedInStats !== false` 的收入和支出账单；同资产跨币种转账的汇兑损益独立计入，转账本金仍不参与统计。
 
 ### 导入导出模块
 
 - `pages/settings/import.vue` 支持本地文件和网络文件导入，使用 `xlsx` 读取工作表，再由 `parseImportRows()` 解析为预览数据。
 - `src/utils/importParsers.js` 支持 `auto`、`alipay`、`wechat`、`generic` 四种来源，负责表头识别、金额解析、日期解析、资产推断、类型判断和备注拼装。
 - 导入落库时页面负责补齐资产、分类、时间戳和账单字段，最终必须调用 `billStore.addBill()`。
-- 通用模板字段包括日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、一级分类、二级分类、手续费、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。
+- 通用模板字段包括日期、类型、资产、币种、金额、目标资产、目标币种、目标金额、手续费、汇兑损益（人民币）、一级分类、二级分类、统计金额、AA组ID、AA角色、AA本人承担、AA待收、分期组ID、当前期数、总期数、分期总额、分期手续费、每期金额、是否计入统计、备注。
 - 导入带 AA/分期组 ID 的迁移记录时逐条保留元数据，不再次展开分期；普通用户新增分期仍必须通过分期组入口。
-- `pages/settings/export.vue` 按日期范围导出账单，导出字段要兼容资产、分类、币种、金额、手续费、统计标记和备注。
+- `pages/settings/export.vue` 按日期范围导出账单，导出字段要兼容资产、分类、币种、金额、手续费、汇兑损益、统计标记和备注。
 - 导入导出格式发生变化时，必须同步更新 `README.md`、`wiki/wiki.md` 和本文件相关说明。
 
 ### 备份与同步模块
@@ -160,9 +162,10 @@ pnpm type-check
 1. `pages/bill/add.vue` 校验金额、类型、资产、分类、转账目标资产和手续费。
 2. 页面按账单类型规范金额符号：支出为负、收入为正、转账转出为负、退款由 store 创建反向金额。
 3. 页面组装 `amount`、`assetId`、`targetAssetId`、`parentCategoryId`、`categoryId`、`type`、`timestamp`、`remark`、`currency`、`targetCurrency`、`targetAmount`、`fee`、`isIncludedInStats`。
-4. 调用 `billStore.addBill()` 写入账单。
-5. `billStore` 对主资产重算余额；转账账单还要对目标资产重算余额。
-6. `billStore.save()` 持久化账单，资产 store 在重算过程中持久化资产余额。
+4. 普通新增收入/支出/转账可选择 1 至 10 笔；批量账单保留相同的金额、日期、分类、备注和统计状态，转账还保留转入账户、转入金额及手续费，每笔独立生成 ID。编辑、AA 和分期不参与批量录入。
+5. 每笔账单调用 `billStore.addBill()` 写入。
+6. `billStore` 对主资产重算余额；转账账单还要对目标资产重算余额。
+7. `billStore.save()` 持久化账单，资产 store 在重算过程中持久化资产余额。
 
 ### 编辑账单流程
 
@@ -193,8 +196,9 @@ pnpm type-check
 1. 转出账户写在 `assetId`，转入账户写在 `targetAssetId`。
 2. 转出金额保存在 `amount`，通常为负数；转入金额使用 `targetAmount`，未提供时按 `Math.abs(amount)`。
 3. 手续费 `fee` 由转出账户承担，重算时从转出账户余额额外扣减。
-4. 转出账户余额快照写入 `balanceSnapshot` 和 `balanceCurrency`。
-5. 转入账户余额快照写入 `targetBalanceSnapshot` 和 `targetBalanceCurrency`。
+4. 同资产跨币种转账可保存人民币 `fxGainLossAmount`，正数为收益、负数为损失；只参与统计，不进入余额重算。
+5. 转出账户余额快照写入 `balanceSnapshot` 和 `balanceCurrency`。
+6. 转入账户余额快照写入 `targetBalanceSnapshot` 和 `targetBalanceCurrency`。
 
 ### 分类删除流程
 
@@ -357,7 +361,7 @@ pnpm type-check
 - `assetId` 表示转出账户。
 - `targetAssetId` 表示转入账户。
 - `fee` 表示手续费，并由转出账户承担。
-- 转账不应被当作普通收入或支出参与分类统计。
+- 转账本金不参与收支分类统计；`fxGainLossAmount` 作为独立的汇兑收益或损失参与统计。
 
 ### 分类
 
