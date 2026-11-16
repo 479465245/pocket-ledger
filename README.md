@@ -251,3 +251,15 @@ pnpm build:h5
 - 应用图标统一使用根目录 `1024x1024.png`，PWA manifest 和 uni-app manifest 都应指向这份资源。
 - 调整导入导出字段、备份格式或核心业务规则时，需要同步更新 `README.md`、`wiki/wiki.md` 和 `AGENTS.md`。
 - 如需了解业务细节、已知问题和后续维护建议，请查看 [wiki/wiki.md](wiki/wiki.md)。
+
+## 请作者喝咖啡
+
+如果这个项目对你有帮助，欢迎使用支付宝扫码赞助作者：
+
+<p align="center">
+  <img src="assets/sponsor-alipay.jpg" alt="支付宝赞助二维码" width="320">
+</p>
+
+## 许可证
+
+本项目采用 GNU Affero 通用公共许可证第 3 版（AGPL-3.0-only）。详情请见 [LICENSE](LICENSE)。
